@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 
 from words import VOCAB, VERBS
+from conjugations import CONJUGATIONS, PAST_PERSONS, PAST_LABELS, PRESENT_SLOTS, PRESENT_LABELS
 
 load_dotenv()  # локально читает .env; на хостинге просто ничего не найдёт и пропустит
 
@@ -43,8 +44,27 @@ def flatten(bank):
     return items
 
 
+def flatten_conjugations(conj):
+    """Превращает CONJUGATIONS в плоский список (подсказка, форма, группа).
+    Группа = глагол+время, чтобы дистракторы брались из форм ТОГО ЖЕ
+    глагола в том же времени (тренируем именно лицо/род/число)."""
+    items = []
+    for root, data in conj.items():
+        verb_ru = data["ru"]
+        for person in PAST_PERSONS:
+            he = data["past"][person]
+            prompt = f"{verb_ru} — прошедшее время, {PAST_LABELS[person]}"
+            items.append((prompt, he, f"{root}_past"))
+        for slot in PRESENT_SLOTS:
+            he = data["present"][slot]
+            prompt = f"{verb_ru} — настоящее время, {PRESENT_LABELS[slot]}"
+            items.append((prompt, he, f"{root}_present"))
+    return items
+
+
 VOCAB_FLAT = flatten(VOCAB)
 VERBS_FLAT = flatten(VERBS)
+CONJ_FLAT = flatten_conjugations(CONJUGATIONS)
 
 
 # ---------- Telegram API helpers ----------
@@ -68,6 +88,7 @@ def main_menu_keyboard():
         "inline_keyboard": [
             [{"text": "📖 Слова", "callback_data": "start_vocab"}],
             [{"text": "🔤 Глаголы (инфинитивы)", "callback_data": "start_verbs"}],
+            [{"text": "🧩 Спряжения (прош./наст.)", "callback_data": "start_conj"}],
         ]
     }
 
@@ -109,12 +130,19 @@ def send_question(chat_id):
         ]
     }
     idx = s["index"] + 1
-    text = f"Вопрос {idx}/{s['total']}\nКак будет «<b>{q['ru']}</b>»?"
+    if s["mode"] == "conj":
+        text = f"Вопрос {idx}/{s['total']}\n<b>{q['ru']}</b>\nКакая это форма?"
+    else:
+        text = f"Вопрос {idx}/{s['total']}\nКак будет «<b>{q['ru']}</b>»?"
     send_message(chat_id, text, keyboard)
 
 
+POOLS = {"vocab": VOCAB_FLAT, "verbs": VERBS_FLAT, "conj": CONJ_FLAT}
+LABELS = {"vocab": "слова", "verbs": "глаголы", "conj": "спряжения"}
+
+
 def start_round(chat_id, mode):
-    pool = VOCAB_FLAT if mode == "vocab" else VERBS_FLAT
+    pool = POOLS[mode]
     total = min(ROUND_LEN, len(pool))
     sessions[chat_id] = {
         "mode": mode,
@@ -125,8 +153,7 @@ def start_round(chat_id, mode):
         "total": total,
         "current": None,
     }
-    label = "слова" if mode == "vocab" else "глаголы"
-    send_message(chat_id, f"Начинаем! Раунд «{label}», {total} вопросов.")
+    send_message(chat_id, f"Начинаем! Раунд «{LABELS[mode]}», {total} вопросов.")
     send_question(chat_id)
 
 
@@ -182,6 +209,8 @@ def webhook():
             start_round(chat_id, "vocab")
         elif data == "start_verbs":
             start_round(chat_id, "verbs")
+        elif data == "start_conj":
+            start_round(chat_id, "conj")
         elif data.startswith("ans|"):
             idx = int(data.split("|")[1])
             handle_answer(chat_id, idx)
