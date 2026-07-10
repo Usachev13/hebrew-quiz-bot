@@ -167,10 +167,12 @@ def send_question(chat_id):
     # Нативная (reply) клавиатура вместо inline — кнопки растягиваются на
     # всю ширину экрана и рендерятся крупнее, чем инлайн-кнопки в пузыре
     # сообщения. Сетка 2x2 вместо одного столбца — площадь тапа больше.
+    # resize_keyboard НЕ ставим (по умолчанию false) — по документации
+    # Telegram именно этот флаг "сжимает" клавиатуру; без него кнопки
+    # занимают высоту стандартной системной клавиатуры, то есть выше.
     # one_time_keyboard прячет клавиатуру сразу после тапа.
     keyboard = {
         "keyboard": keyboard_rows(option_buttons(q["options"]), per_row=2),
-        "resize_keyboard": True,
         "one_time_keyboard": True,
     }
     idx = s["index"] + 1
