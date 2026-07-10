@@ -1,0 +1,69 @@
+#!/bin/bash
+# Второй шаг после setup_server.sh: разворачивает systemd-сервис для бота
+# (gunicorn) и настраивает Caddy на автоматический HTTPS для указанного
+# домена. Запускать от root/sudo.
+#
+# Использование:
+#   ./install_service.sh <домен>
+#
+# Пример:
+#   ./install_service.sh ivrit-trainer.duckdns.org
+#
+# Перед запуском убедись, что:
+# - домен уже указывает (A-запись) на IP этого сервера;
+# - /opt/hebrew-quiz-bot/.env создан и содержит TELEGRAM_TOKEN.
+
+set -e
+
+DOMAIN="$1"
+APP_DIR="/opt/hebrew-quiz-bot"
+
+if [ -z "$DOMAIN" ]; then
+    echo "Использование: $0 <домен>"
+    exit 1
+fi
+
+if [ ! -f "$APP_DIR/.env" ]; then
+    echo "Ошибка: $APP_DIR/.env не найден. Сначала создай его с TELEGRAM_TOKEN."
+    exit 1
+fi
+
+echo "== systemd-юнит =="
+cat > /etc/systemd/system/hebrew-quiz-bot.service <<EOF
+[Unit]
+Description=Hebrew Quiz Telegram Bot (Flask via gunicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=botuser
+WorkingDirectory=$APP_DIR
+EnvironmentFile=$APP_DIR/.env
+ExecStart=$APP_DIR/venv/bin/gunicorn --workers 2 --bind 127.0.0.1:8000 bot:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable hebrew-quiz-bot
+systemctl restart hebrew-quiz-bot
+
+echo "== Caddy (обратный прокси + авто-HTTPS для $DOMAIN) =="
+cat > /etc/caddy/Caddyfile <<EOF
+$DOMAIN {
+    reverse_proxy 127.0.0.1:8000
+}
+EOF
+
+systemctl reload caddy || systemctl restart caddy
+
+echo
+echo "Готово. Проверка:"
+echo "  systemctl status hebrew-quiz-bot   # должен быть active (running)"
+echo "  curl -I https://$DOMAIN/           # должен ответить 200"
+echo
+echo "Дальше пропиши вебхук на новый адрес (см. set_webhook.py) и обнови URL в нём на:"
+echo "  https://$DOMAIN/webhook/<TELEGRAM_TOKEN>"

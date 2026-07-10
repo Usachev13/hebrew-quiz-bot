@@ -10,9 +10,17 @@ import os
 import requests
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "PASTE_YOUR_TOKEN_HERE")
-PA_USERNAME = os.environ.get("PA_USERNAME", "PASTE_YOUR_PYTHONANYWHERE_USERNAME")
 
-webhook_url = f"https://{PA_USERNAME}.pythonanywhere.com/webhook/{TELEGRAM_TOKEN}"
+# BOT_DOMAIN — домен, на котором сейчас развёрнут бот. Для VPS задай его
+# напрямую в .env, например BOT_DOMAIN=ivrit-trainer.duckdns.org.
+# Если не задан — считаем, что бот всё ещё на PythonAnywhere, и собираем
+# домен по-старому из PA_USERNAME (обратная совместимость).
+BOT_DOMAIN = os.environ.get("BOT_DOMAIN")
+if not BOT_DOMAIN:
+    PA_USERNAME = os.environ.get("PA_USERNAME", "PASTE_YOUR_PYTHONANYWHERE_USERNAME")
+    BOT_DOMAIN = f"{PA_USERNAME}.pythonanywhere.com"
+
+webhook_url = f"https://{BOT_DOMAIN}/webhook/{TELEGRAM_TOKEN}"
 
 resp = requests.post(
     f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook",
