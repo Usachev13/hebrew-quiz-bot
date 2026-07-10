@@ -130,6 +130,12 @@ def option_buttons(options):
     return [f"{LETTERS[i]}) {opt}" for i, opt in enumerate(options)]
 
 
+def keyboard_rows(buttons, per_row=2):
+    """Разбивает кнопки на ряды по per_row штук — сетка 2x2 вместо одного
+    узкого столбца, площадь тапа на кнопку больше."""
+    return [buttons[i:i + per_row] for i in range(0, len(buttons), per_row)]
+
+
 def build_question(pool, used):
     """Выбирает случайное слово (ещё не заданное в этом раунде) и 3 дистрактора
     из той же категории/группы биньяна — так угадать наугад сложнее."""
@@ -160,9 +166,10 @@ def send_question(chat_id):
 
     # Нативная (reply) клавиатура вместо inline — кнопки растягиваются на
     # всю ширину экрана и рендерятся крупнее, чем инлайн-кнопки в пузыре
-    # сообщения. one_time_keyboard прячет её сразу после тапа.
+    # сообщения. Сетка 2x2 вместо одного столбца — площадь тапа больше.
+    # one_time_keyboard прячет клавиатуру сразу после тапа.
     keyboard = {
-        "keyboard": [[btn] for btn in option_buttons(q["options"])],
+        "keyboard": keyboard_rows(option_buttons(q["options"]), per_row=2),
         "resize_keyboard": True,
         "one_time_keyboard": True,
     }
