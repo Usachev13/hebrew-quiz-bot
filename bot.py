@@ -36,7 +36,6 @@ if TELEGRAM_TOKEN == "PASTE_YOUR_TOKEN_HERE":
 API_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
 ROUND_LEN = 10
-LETTERS = ["А", "Б", "В", "Г"]
 
 app = Flask(__name__)
 
@@ -124,12 +123,6 @@ def main_menu_keyboard():
 
 # ---------- Игровая логика ----------
 
-def option_buttons(options):
-    """Подписи кнопок-вариантов ответа — переиспользуется и при построении
-    клавиатуры, и при разборе входящего текстового ответа пользователя."""
-    return [f"{LETTERS[i]}) {opt}" for i, opt in enumerate(options)]
-
-
 def keyboard_rows(buttons, per_row=2):
     """Разбивает кнопки на ряды по per_row штук — сетка 2x2 вместо одного
     узкого столбца, площадь тапа на кнопку больше."""
@@ -172,7 +165,7 @@ def send_question(chat_id):
     # занимают высоту стандартной системной клавиатуры, то есть выше.
     # one_time_keyboard прячет клавиатуру сразу после тапа.
     keyboard = {
-        "keyboard": keyboard_rows(option_buttons(q["options"]), per_row=2),
+        "keyboard": keyboard_rows(q["options"], per_row=2),
         "one_time_keyboard": True,
     }
     idx = s["index"] + 1
@@ -273,9 +266,9 @@ def _handle_webhook_update():
             # нативной (reply) клавиатуры, а не callback_query.
             s = sessions.get(chat_id)
             if s and s.get("current"):
-                buttons = option_buttons(s["current"]["options"])
-                if text in buttons:
-                    handle_answer(chat_id, s["index"], buttons.index(text))
+                options = s["current"]["options"]
+                if text in options:
+                    handle_answer(chat_id, s["index"], options.index(text))
 
     elif "callback_query" in update:
         cq = update["callback_query"]
