@@ -105,6 +105,12 @@ def main_menu_keyboard():
 
 # ---------- Игровая логика ----------
 
+def option_buttons(options):
+    """Подписи кнопок-вариантов ответа — переиспользуется и при построении
+    клавиатуры, и при разборе входящего текстового ответа пользователя."""
+    return [f"{LETTERS[i]}) {opt}" for i, opt in enumerate(options)]
+
+
 def build_question(pool, used):
     """Выбирает случайное слово (ещё не заданное в этом раунде) и 3 дистрактора
     из той же категории/группы биньяна — так угадать наугад сложнее."""
@@ -133,14 +139,13 @@ def send_question(chat_id):
     s["used"].add(q["ru"])
     s["current"] = q
 
-    # Номер вопроса зашит в callback_data — если ответ придёт на уже
-    # неактуальный вопрос (гонка/повторный апдейт), handle_answer его
-    # проигнорирует вместо того, чтобы засчитать против следующего.
+    # Нативная (reply) клавиатура вместо inline — кнопки растягиваются на
+    # всю ширину экрана и рендерятся крупнее, чем инлайн-кнопки в пузыре
+    # сообщения. one_time_keyboard прячет её сразу после тапа.
     keyboard = {
-        "inline_keyboard": [
-            [{"text": f"{LETTERS[i]}) {opt}", "callback_data": f"ans|{s['index']}|{i}"}]
-            for i, opt in enumerate(q["options"])
-        ]
+        "keyboard": [[btn] for btn in option_buttons(q["options"])],
+        "resize_keyboard": True,
+        "one_time_keyboard": True,
     }
     idx = s["index"] + 1
     if s["mode"] == "conj":
@@ -221,8 +226,17 @@ def webhook():
         msg = update["message"]
         chat_id = msg["chat"]["id"]
         text = msg.get("text", "")
+
         if text.startswith("/start") or text.startswith("/quiz"):
             send_message(chat_id, "Привет! Что тренируем сегодня?", main_menu_keyboard())
+        else:
+            # Ответ на вопрос теперь приходит как обычное сообщение с
+            # нативной (reply) клавиатуры, а не callback_query.
+            s = sessions.get(chat_id)
+            if s and s.get("current"):
+                buttons = option_buttons(s["current"]["options"])
+                if text in buttons:
+                    handle_answer(chat_id, s["index"], buttons.index(text))
 
     elif "callback_query" in update:
         cq = update["callback_query"]
@@ -236,9 +250,6 @@ def webhook():
             start_round(chat_id, "verbs")
         elif data == "start_conj":
             start_round(chat_id, "conj")
-        elif data.startswith("ans|"):
-            _, q_idx, choice_idx = data.split("|")
-            handle_answer(chat_id, int(q_idx), int(choice_idx))
 
     return jsonify(ok=True)
 
