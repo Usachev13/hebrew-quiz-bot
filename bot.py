@@ -12,6 +12,7 @@ Telegram-бот для тренировки слов и глаголов ивр�
 
 import os
 import random
+from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
@@ -20,9 +21,18 @@ from flask import Flask, request, jsonify
 from words import VOCAB, VERBS
 from conjugations import CONJUGATIONS, PAST_PERSONS, PAST_LABELS, PRESENT_SLOTS, PRESENT_LABELS
 
-load_dotenv()  # локально читает .env; на хостинге просто ничего не найдёт и пропустит
+# Явно указываем путь к .env рядом с этим файлом. Обычный load_dotenv()
+# без аргументов ищет .env через интроспекцию стека вызова — под WSGI
+# (mod_wsgi/uwsgi на PythonAnywhere) это иногда не находит нужную папку,
+# .env тихо не подхватывается, TELEGRAM_TOKEN остаётся плейсхолдером,
+# и путь вебхука перестаёт совпадать с тем, что знает Telegram (404).
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "PASTE_YOUR_TOKEN_HERE")
+if TELEGRAM_TOKEN == "PASTE_YOUR_TOKEN_HERE":
+    # Печать попадёт в Error log на PythonAnywhere — сразу видно причину,
+    # если вебхук вдруг начнёт получать 404 вместо ответа бота.
+    print("ВНИМАНИЕ: TELEGRAM_TOKEN не найден. Проверь файл .env рядом с bot.py.")
 API_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
 ROUND_LEN = 10
