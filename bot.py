@@ -34,6 +34,16 @@ app = Flask(__name__)
 # Для одного пользователя (личный бот) этого достаточно.
 sessions = {}
 
+# Защита от повторной обработки одного и того же апдейта: пока bot.py
+# делает синхронные запросы к Telegram API (sendMessage), обработка
+# вебхука может занять больше времени, чем ждёт Telegram, и он повторно
+# пришлёт тот же update_id. Без дедупликации это приводило к тому, что
+# один тап по кнопке засчитывался дважды — второй раз уже против
+# следующего вопроса (баг: "Верно", а следом сразу "Неверно" с ответом
+# от другого слова).
+SEEN_UPDATE_IDS = set()
+MAX_SEEN_UPDATE_IDS = 2000
+
 
 def flatten(bank):
     """Превращает {категория: [(ru, he), ...]} в плоский список (ru, he, категория)."""
@@ -123,9 +133,12 @@ def send_question(chat_id):
     s["used"].add(q["ru"])
     s["current"] = q
 
+    # Номер вопроса зашит в callback_data — если ответ придёт на уже
+    # неактуальный вопрос (гонка/повторный апдейт), handle_answer его
+    # проигнорирует вместо того, чтобы засчитать против следующего.
     keyboard = {
         "inline_keyboard": [
-            [{"text": f"{LETTERS[i]}) {opt}", "callback_data": f"ans|{i}"}]
+            [{"text": f"{LETTERS[i]}) {opt}", "callback_data": f"ans|{s['index']}|{i}"}]
             for i, opt in enumerate(q["options"])
         ]
     }
@@ -157,9 +170,13 @@ def start_round(chat_id, mode):
     send_question(chat_id)
 
 
-def handle_answer(chat_id, chosen_idx):
+def handle_answer(chat_id, question_idx, chosen_idx):
     s = sessions.get(chat_id)
     if not s or not s["current"]:
+        return
+    if question_idx != s["index"]:
+        # Ответ пришёл на уже неактуальный вопрос (повтор апдейта от
+        # Telegram или гонка двух тапов) — просто игнорируем.
         return
     q = s["current"]
     chosen = q["options"][chosen_idx]
@@ -192,6 +209,14 @@ def handle_answer(chat_id, chosen_idx):
 def webhook():
     update = request.get_json(force=True, silent=True) or {}
 
+    update_id = update.get("update_id")
+    if update_id is not None:
+        if update_id in SEEN_UPDATE_IDS:
+            return jsonify(ok=True)  # Telegram уже присылал этот апдейт — игнорируем
+        SEEN_UPDATE_IDS.add(update_id)
+        if len(SEEN_UPDATE_IDS) > MAX_SEEN_UPDATE_IDS:
+            SEEN_UPDATE_IDS.clear()
+
     if "message" in update:
         msg = update["message"]
         chat_id = msg["chat"]["id"]
@@ -212,8 +237,8 @@ def webhook():
         elif data == "start_conj":
             start_round(chat_id, "conj")
         elif data.startswith("ans|"):
-            idx = int(data.split("|")[1])
-            handle_answer(chat_id, idx)
+            _, q_idx, choice_idx = data.split("|")
+            handle_answer(chat_id, int(q_idx), int(choice_idx))
 
     return jsonify(ok=True)
 
