@@ -93,14 +93,23 @@ def send_message(chat_id, text, reply_markup=None):
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
     if reply_markup:
         payload["reply_markup"] = reply_markup
-    requests.post(f"{API_URL}/sendMessage", json=payload, timeout=10)
+    try:
+        requests.post(f"{API_URL}/sendMessage", json=payload, timeout=10)
+    except requests.exceptions.RequestException as e:
+        # Сбой сети/прокси не должен ронять весь webhook в 500 — иначе
+        # Telegram решит, что апдейт не доставлен, и будет слать его
+        # повторно, копя pending_update_count. Логируем и едем дальше.
+        print(f"[send_message] сетевая ошибка: {e}")
 
 
 def answer_callback(callback_id, text=None):
     payload = {"callback_query_id": callback_id}
     if text:
         payload["text"] = text
-    requests.post(f"{API_URL}/answerCallbackQuery", json=payload, timeout=10)
+    try:
+        requests.post(f"{API_URL}/answerCallbackQuery", json=payload, timeout=10)
+    except requests.exceptions.RequestException as e:
+        print(f"[answer_callback] сетевая ошибка: {e}")
 
 
 def main_menu_keyboard():
@@ -222,12 +231,23 @@ def handle_answer(chat_id, question_idx, chosen_idx):
 
 @app.route(f"/webhook/{TELEGRAM_TOKEN}", methods=["POST"])
 def webhook():
+    # Любая неожиданная ошибка внутри обработки всё равно должна вернуть
+    # Telegram-у 200 — иначе он решит, что апдейт не доставлен, и будет
+    # слать его снова и снова (что как раз копило pending_update_count).
+    try:
+        _handle_webhook_update()
+    except Exception as e:
+        print(f"[webhook] необработанная ошибка: {e}")
+    return jsonify(ok=True)
+
+
+def _handle_webhook_update():
     update = request.get_json(force=True, silent=True) or {}
 
     update_id = update.get("update_id")
     if update_id is not None:
         if update_id in SEEN_UPDATE_IDS:
-            return jsonify(ok=True)  # Telegram уже присылал этот апдейт — игнорируем
+            return  # Telegram уже присылал этот апдейт — игнорируем
         SEEN_UPDATE_IDS.add(update_id)
         if len(SEEN_UPDATE_IDS) > MAX_SEEN_UPDATE_IDS:
             SEEN_UPDATE_IDS.clear()
@@ -260,8 +280,6 @@ def webhook():
             start_round(chat_id, "verbs")
         elif data == "start_conj":
             start_round(chat_id, "conj")
-
-    return jsonify(ok=True)
 
 
 @app.route("/")
