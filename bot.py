@@ -18,6 +18,7 @@ import requests
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 
+import alphabet
 import db
 from matching import check_answer, accepted_forms, hint_for, scramble
 from words import VOCAB, VERBS
@@ -139,10 +140,44 @@ def main_menu_keyboard():
             [{"text": "⏩ Будущее", "callback_data": "start_future"}],
             [{"text": "⌨️ Написать самому", "callback_data": "typing_menu"},
              {"text": "🔡 Анаграмма", "callback_data": "start_anagram"}],
+            [{"text": "🔤 Алфавит (с нуля)", "callback_data": "alphabet_menu"}],
             [{"text": "🗓 Слово дня", "callback_data": "word_of_day"},
              {"text": "📊 Статистика", "callback_data": "show_stats"}],
         ]
     }
+
+
+def alphabet_menu_keyboard():
+    return {
+        "inline_keyboard": [
+            [{"text": "📜 Показать весь алфавит", "callback_data": "alef_table"}],
+            [{"text": "Названия букв", "callback_data": "start_alef_names"},
+             {"text": "Звуки букв", "callback_data": "start_alef_sounds"}],
+            [{"text": "Узнать по названию", "callback_data": "start_alef_by_name"},
+             {"text": "Конечные формы", "callback_data": "start_alef_finals"}],
+            [{"text": "Огласовки", "callback_data": "start_alef_niqqud"},
+             {"text": "Чтение слогов", "callback_data": "start_alef_syllables"}],
+            [{"text": "‹ Назад", "callback_data": "main_menu"}],
+        ]
+    }
+
+
+def send_alphabet_table(chat_id):
+    """Справочник: все буквы с названием и звуком, потом огласовки."""
+    lines = ["📜 <b>Алфавит</b> (читается справа налево)", ""]
+    for letter, name, sound, final in alphabet.LETTERS:
+        final_note = f"  (в конце слова: {final})" if final else ""
+        lines.append(f"<b>{letter}</b> — {name}, {sound}{final_note}")
+
+    lines += ["", "<b>Огласовки</b> (показаны на букве ב)", ""]
+    for shown, name, sound in alphabet.NIQQUD:
+        lines.append(f"<b>{shown}</b> — {name}, звук «{sound}»")
+
+    lines += [
+        "",
+        "<i>Пять букв в конце слова пишутся иначе: כ→ך, מ→ם, נ→ן, פ→ף, צ→ץ.</i>",
+    ]
+    send_message(chat_id, "\n".join(lines), alphabet_menu_keyboard())
 
 
 def typing_menu_keyboard():
@@ -190,15 +225,24 @@ def build_question(pool, used, priorities=None):
     correct = pick_card(remaining, priorities or {})
     ru, he, cat = correct
 
-    same_cat = [w for w in pool if w[2] == cat and w[1] != he]
-    distractors = random.sample(same_cat, min(3, len(same_cat)))
-    pool_others = [w for w in pool if w[1] != he and w not in distractors]
-    while len(distractors) < 3 and pool_others:
-        extra = random.choice(pool_others)
-        distractors.append(extra)
-        pool_others.remove(extra)
+    # Дистракторы обязаны отличаться не только от верного ответа, но и
+    # друг от друга: в некоторых пулах разные карточки дают одинаковый
+    # ответ (патах и камац оба читаются как «а»), и без этой проверки в
+    # вопросе появлялись два одинаковых варианта.
+    seen = {he}
 
-    options = [he] + [d[1] for d in distractors]
+    def take(candidates, need):
+        random.shuffle(candidates)
+        for w in candidates:
+            if len(seen) > need:
+                break
+            if w[1] not in seen:
+                seen.add(w[1])
+
+    take([w for w in pool if w[2] == cat], 3)      # сначала из той же темы
+    take([w for w in pool if w[2] != cat], 3)      # если не хватило — из любой
+
+    options = list(seen)
     random.shuffle(options)
     return {"ru": ru, "correct": he, "options": options}
 
@@ -254,7 +298,10 @@ def send_question(chat_id):
         "keyboard": keyboard_rows(q["options"], per_row=2),
         "one_time_keyboard": True,
     }
-    if is_form:
+    if s["mode"] in ALPHABET_MODES:
+        # Подсказка уже сформулирована как вопрос («буква א», «прочитай מָ»)
+        text = f"Вопрос {idx}/{s['total']}\n<b>{q['ru']}</b>?"
+    elif is_form:
         text = f"Вопрос {idx}/{s['total']}\n<b>{q['ru']}</b>\nКакая это форма?"
     else:
         text = f"Вопрос {idx}/{s['total']}\nКак будет «<b>{q['ru']}</b>»?"
@@ -267,6 +314,13 @@ POOLS = {
     "past": PAST_FLAT,
     "present": PRESENT_FLAT,
     "future": FUTURE_FLAT,
+    # Курс алфавита (уровень 0)
+    "alef_names": alphabet.pool_names(),
+    "alef_sounds": alphabet.pool_sounds(),
+    "alef_by_name": alphabet.pool_by_name(),
+    "alef_finals": alphabet.pool_finals(),
+    "alef_niqqud": alphabet.pool_niqqud(),
+    "alef_syllables": alphabet.pool_syllables(),
 }
 LABELS = {
     "vocab": "слова",
@@ -274,7 +328,16 @@ LABELS = {
     "past": "прошедшее время",
     "present": "настоящее время",
     "future": "будущее время",
+    "alef_names": "названия букв",
+    "alef_sounds": "звуки букв",
+    "alef_by_name": "узнать букву по названию",
+    "alef_finals": "конечные формы",
+    "alef_niqqud": "огласовки",
+    "alef_syllables": "чтение слогов",
 }
+
+# Режимы курса алфавита: вопрос формулируется иначе, чем «как будет…»
+ALPHABET_MODES = {m for m in LABELS if m.startswith("alef_")}
 
 # Все допустимые написания каждого пула. Нужны, чтобы отличить описку от
 # случая «набрал другое существующее слово» (см. matching.check_answer).
@@ -597,6 +660,16 @@ def _handle_webhook_update():
             start_round(chat_id, "vocab", anagram=True)
         elif data == "word_of_day":
             send_word_of_day(chat_id)
+        elif data == "alphabet_menu":
+            send_message(
+                chat_id,
+                "Курс алфавита. Начни с таблицы, если видишь буквы впервые.",
+                alphabet_menu_keyboard(),
+            )
+        elif data == "alef_table":
+            send_alphabet_table(chat_id)
+        elif data.startswith("start_alef_"):
+            start_round(chat_id, data[len("start_"):])
         elif data == "show_stats":
             send_stats(chat_id)
 
