@@ -5,4 +5,8 @@ __pycache__/
 *.pyc
 .idea/
 .DS_Store
-__pycache__/
+
+# База прогресса — у каждого окружения своя, в git не хранится
+progress.db
+progress.db-wal
+progress.db-shm

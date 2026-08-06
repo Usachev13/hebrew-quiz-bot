@@ -18,6 +18,7 @@ import requests
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 
+import db
 from words import VOCAB, VERBS
 from conjugations import (
     CONJUGATIONS,
@@ -44,8 +45,17 @@ ROUND_LEN = 10
 
 app = Flask(__name__)
 
-# Состояние по каждому чату храним прямо в памяти процесса.
-# Для одного пользователя (личный бот) этого достаточно.
+# Прогресс (ответы, статистика, расписание повторений) лежит в SQLite и
+# переживает перезапуск. В памяти остаётся только состояние текущего
+# раунда — его потерять не страшно.
+try:
+    db.init_db()
+except Exception as e:
+    print(f"ВНИМАНИЕ: не удалось открыть базу прогресса: {e}")
+
+# Состояние текущего раунда по каждому чату. Живёт в памяти процесса,
+# поэтому gunicorn запускается с одним воркером и несколькими потоками
+# (см. deploy/install_service.sh).
 sessions = {}
 
 # Защита от повторной обработки одного и того же апдейта: пока bot.py
@@ -125,6 +135,7 @@ def main_menu_keyboard():
             [{"text": "⏪ Прошедшее время", "callback_data": "start_past"}],
             [{"text": "▶️ Настоящее время", "callback_data": "start_present"}],
             [{"text": "⏩ Будущее время", "callback_data": "start_future"}],
+            [{"text": "📊 Моя статистика", "callback_data": "show_stats"}],
         ]
     }
 
@@ -137,13 +148,27 @@ def keyboard_rows(buttons, per_row=2):
     return [buttons[i:i + per_row] for i in range(0, len(buttons), per_row)]
 
 
-def build_question(pool, used):
-    """Выбирает случайное слово (ещё не заданное в этом раунде) и 3 дистрактора
+def pick_card(remaining, priorities):
+    """Выбирает следующую карточку с учётом интервальных повторений.
+
+    Берём случайную из самой приоритетной группы (см. db.PRIORITY_*):
+    сперва то, что пора повторить, затем новое, затем проблемное. Внутри
+    группы порядок случайный — чтобы не заучивать последовательность.
+    """
+    if not priorities:
+        return random.choice(remaining)
+    rank = lambda w: priorities.get(w[0], db.PRIORITY_NEW)
+    best = max(rank(w) for w in remaining)
+    return random.choice([w for w in remaining if rank(w) == best])
+
+
+def build_question(pool, used, priorities=None):
+    """Выбирает карточку (ещё не заданную в этом раунде) и 3 дистрактора
     из той же категории/группы биньяна — так угадать наугад сложнее."""
     remaining = [w for w in pool if w[0] not in used]
     if not remaining:
         remaining = pool
-    correct = random.choice(remaining)
+    correct = pick_card(remaining, priorities or {})
     ru, he, cat = correct
 
     same_cat = [w for w in pool if w[2] == cat and w[1] != he]
@@ -161,7 +186,7 @@ def build_question(pool, used):
 
 def send_question(chat_id):
     s = sessions[chat_id]
-    q = build_question(s["pool"], s["used"])
+    q = build_question(s["pool"], s["used"], s.get("priorities"))
     s["used"].add(q["ru"])
     s["current"] = q
 
@@ -203,6 +228,15 @@ LABELS = {
 def start_round(chat_id, mode):
     pool = POOLS[mode]
     total = min(ROUND_LEN, len(pool))
+    # Приоритеты читаем один раз на раунд, а не на каждый вопрос —
+    # лишние обращения к БД внутри раунда не нужны.
+    try:
+        db.touch_user(chat_id)
+        priorities = db.card_priorities(chat_id, mode)
+    except Exception as e:
+        print(f"[start_round] БД недоступна, играем без повторений: {e}")
+        priorities = {}
+
     sessions[chat_id] = {
         "mode": mode,
         "pool": pool,
@@ -211,8 +245,11 @@ def start_round(chat_id, mode):
         "score": 0,
         "total": total,
         "current": None,
+        "priorities": priorities,
     }
-    send_message(chat_id, f"Начинаем! Раунд «{LABELS[mode]}», {total} вопросов.")
+    due = sum(1 for v in priorities.values() if v >= 2)
+    hint = f" Из них на повторение: {min(due, total)}." if due else ""
+    send_message(chat_id, f"Начинаем! Раунд «{LABELS[mode]}», {total} вопросов.{hint}")
     send_question(chat_id)
 
 
@@ -227,6 +264,13 @@ def handle_answer(chat_id, question_idx, chosen_idx):
     q = s["current"]
     chosen = q["options"][chosen_idx]
     is_correct = chosen == q["correct"]
+
+    # Записываем ответ в БД: отсюда берутся и статистика, и расписание
+    # повторений. Сбой БД не должен ломать игру, поэтому не роняем раунд.
+    try:
+        db.record_answer(chat_id, s["mode"], q["ru"], is_correct)
+    except Exception as e:
+        print(f"[handle_answer] не удалось записать ответ: {e}")
 
     if is_correct:
         s["score"] += 1
@@ -247,6 +291,56 @@ def handle_answer(chat_id, question_idx, chosen_idx):
         s["current"] = None
     else:
         send_question(chat_id)
+
+
+# ---------- Статистика ----------
+
+def send_stats(chat_id):
+    """Сводка прогресса: точность, streak, что пора повторить, слабые места."""
+    try:
+        overall = db.overall_stats(chat_id)
+        by_mode = db.stats_by_mode(chat_id)
+        weak = db.weak_cards(chat_id, limit=5)
+        streak = db.streak_days(chat_id)
+        due = db.due_count(chat_id)
+    except Exception as e:
+        print(f"[send_stats] БД недоступна: {e}")
+        send_message(chat_id, "Статистика пока недоступна, попробуй позже.")
+        return
+
+    if not overall["total"]:
+        send_message(chat_id, "Ты ещё не отвечал ни на один вопрос. Жми /start!")
+        return
+
+    pct = round(100 * overall["correct"] / overall["total"])
+    lines = [
+        "📊 <b>Твоя статистика</b>",
+        "",
+        f"Всего ответов: {overall['total']}",
+        f"Правильных: {overall['correct']} ({pct}%)",
+    ]
+    if streak:
+        lines.append(f"Занимаешься подряд: {streak} дн.")
+    if due:
+        lines.append(f"Ждут повторения: {due}")
+
+    if by_mode:
+        lines += ["", "<b>По режимам:</b>"]
+        for mode, label in LABELS.items():
+            st = by_mode.get(mode)
+            if not st:
+                continue
+            p = round(100 * st["correct"] / st["total"])
+            lines.append(f"• {label}: {st['correct']}/{st['total']} ({p}%)")
+
+    if weak:
+        lines += ["", "<b>Чаще всего ошибаешься:</b>"]
+        for w in weak:
+            lines.append(f"• {w['card_id']} — ошибок {w['n_wrong']}")
+        lines.append("")
+        lines.append("<i>Эти карточки бот будет показывать чаще.</i>")
+
+    send_message(chat_id, "\n".join(lines), main_menu_keyboard())
 
 
 # ---------- Webhook ----------
@@ -281,6 +375,8 @@ def _handle_webhook_update():
 
         if text.startswith("/start") or text.startswith("/quiz"):
             send_message(chat_id, "Привет! Что тренируем сегодня?", main_menu_keyboard())
+        elif text.startswith("/stats"):
+            send_stats(chat_id)
         else:
             # Ответ на вопрос теперь приходит как обычное сообщение с
             # нативной (reply) клавиатуры, а не callback_query.
@@ -306,6 +402,8 @@ def _handle_webhook_update():
             start_round(chat_id, "present")
         elif data == "start_future":
             start_round(chat_id, "future")
+        elif data == "show_stats":
+            send_stats(chat_id)
 
 
 @app.route("/")
