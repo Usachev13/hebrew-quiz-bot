@@ -7,7 +7,16 @@
 """
 
 import os
+from pathlib import Path
+
 import requests
+from dotenv import load_dotenv
+
+# Явный путь к .env рядом с этим файлом — как и в bot.py, чтобы скрипт
+# подхватывал токен независимо от того, откуда его запускают (systemd
+# передаёт переменные через EnvironmentFile, а при ручном запуске по SSH
+# их иначе неоткуда взять).
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "PASTE_YOUR_TOKEN_HERE")
 
