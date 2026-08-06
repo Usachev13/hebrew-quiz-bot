@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 
 import db
-from matching import check_answer, accepted_forms, hint_for
+from matching import check_answer, accepted_forms, hint_for, scramble
 from words import VOCAB, VERBS
 from conjugations import (
     CONJUGATIONS,
@@ -131,13 +131,16 @@ def answer_callback(callback_id, text=None):
 def main_menu_keyboard():
     return {
         "inline_keyboard": [
-            [{"text": "📖 Слова", "callback_data": "start_vocab"}],
-            [{"text": "🔤 Глаголы (инфинитивы)", "callback_data": "start_verbs"}],
-            [{"text": "⏪ Прошедшее время", "callback_data": "start_past"}],
-            [{"text": "▶️ Настоящее время", "callback_data": "start_present"}],
-            [{"text": "⏩ Будущее время", "callback_data": "start_future"}],
-            [{"text": "⌨️ Написать самому", "callback_data": "typing_menu"}],
-            [{"text": "📊 Моя статистика", "callback_data": "show_stats"}],
+            # По две кнопки в ряд, иначе меню растягивается на весь экран
+            [{"text": "📖 Слова", "callback_data": "start_vocab"},
+             {"text": "🔤 Инфинитивы", "callback_data": "start_verbs"}],
+            [{"text": "⏪ Прошедшее", "callback_data": "start_past"},
+             {"text": "▶️ Настоящее", "callback_data": "start_present"}],
+            [{"text": "⏩ Будущее", "callback_data": "start_future"}],
+            [{"text": "⌨️ Написать самому", "callback_data": "typing_menu"},
+             {"text": "🔡 Анаграмма", "callback_data": "start_anagram"}],
+            [{"text": "🗓 Слово дня", "callback_data": "word_of_day"},
+             {"text": "📊 Статистика", "callback_data": "show_stats"}],
         ]
     }
 
@@ -216,6 +219,18 @@ def send_question(chat_id):
     idx = s["index"] + 1
     is_form = s["mode"] in ("past", "present", "future")
 
+    if s.get("anagram"):
+        # Буквы вразброс — задача собрать из них слово.
+        s["hints"] = 0
+        letters = " ".join(scramble(q["correct"], random))
+        text = (
+            f"Вопрос {idx}/{s['total']}\n<b>{q['ru']}</b>\n"
+            f"Буквы: <code>{letters}</code>\n\n"
+            f"<i>Собери из них слово. «?» — подсказка, /skip — пропустить.</i>"
+        )
+        send_message(chat_id, text, {"remove_keyboard": True})
+        return
+
     if s.get("typing"):
         # Вариантов не показываем — ответ нужно вспомнить и написать.
         # Клавиатуру с прошлого раунда убираем, чтобы не мешала набору.
@@ -269,7 +284,7 @@ KNOWN_FORMS = {
 }
 
 
-def start_round(chat_id, mode, typing=False):
+def start_round(chat_id, mode, typing=False, anagram=False):
     pool = POOLS[mode]
     total = min(ROUND_LEN, len(pool))
     # Приоритеты читаем один раз на раунд, а не на каждый вопрос —
@@ -290,12 +305,18 @@ def start_round(chat_id, mode, typing=False):
         "total": total,
         "current": None,
         "priorities": priorities,
-        "typing": typing,
+        "typing": typing or anagram,   # ответ в обоих случаях набирается руками
+        "anagram": anagram,
         "hints": 0,
     }
     due = sum(1 for v in priorities.values() if v >= 2)
     hint = f" Из них на повторение: {min(due, total)}." if due else ""
-    how = " Пишешь ответ сам." if typing else ""
+    if anagram:
+        how = " Собираешь слово из букв."
+    elif typing:
+        how = " Пишешь ответ сам."
+    else:
+        how = ""
     send_message(
         chat_id,
         f"Начинаем! Раунд «{LABELS[mode]}», {total} вопросов.{hint}{how}",
@@ -395,6 +416,49 @@ def handle_typed_answer(chat_id, typed):
     finish_question(chat_id)
 
 
+# ---------- Слово дня ----------
+
+def pick_daily_word(chat_id):
+    """Слово, которого пользователь ещё не видел (иначе — любое)."""
+    try:
+        seen = db.seen_cards(chat_id, "vocab")
+    except Exception:
+        seen = set()
+    fresh = [w for w in VOCAB_FLAT if w[0] not in seen]
+    return random.choice(fresh or VOCAB_FLAT)
+
+
+def send_word_of_day(chat_id, subscribe_hint=True):
+    """Слово дня: перевод, написание и кнопка потренироваться."""
+    ru, he, _ = pick_daily_word(chat_id)
+
+    try:
+        subscribed = db.is_subscribed(chat_id)
+    except Exception:
+        subscribed = False
+
+    lines = [
+        "🗓 <b>Слово дня</b>",
+        "",
+        f"<b>{he}</b> — {ru}",
+    ]
+    if subscribe_hint:
+        lines += [
+            "",
+            "<i>Присылать такое каждое утро — /daily_on, отключить — /daily_off.</i>"
+            if not subscribed
+            else "<i>Отключить ежедневную отправку — /daily_off.</i>",
+        ]
+
+    keyboard = {
+        "inline_keyboard": [
+            [{"text": "📖 Потренировать слова", "callback_data": "start_vocab"}],
+            [{"text": "‹ Меню", "callback_data": "main_menu"}],
+        ]
+    }
+    send_message(chat_id, "\n".join(lines), keyboard)
+
+
 # ---------- Статистика ----------
 
 def send_stats(chat_id):
@@ -482,6 +546,14 @@ def _handle_webhook_update():
             send_message(chat_id, "Привет! Что тренируем сегодня?", main_menu_keyboard())
         elif text.startswith("/stats"):
             send_stats(chat_id)
+        elif text.startswith("/word"):
+            send_word_of_day(chat_id)
+        elif text.startswith("/daily_on"):
+            db.set_daily_word(chat_id, True)
+            send_message(chat_id, "Готово, буду присылать слово дня каждое утро.")
+        elif text.startswith("/daily_off"):
+            db.set_daily_word(chat_id, False)
+            send_message(chat_id, "Больше не присылаю слово дня. Вернуть — /daily_on.")
         elif in_typing_round:
             # В режиме набора принимаем любой текст: это и есть ответ
             # (плюс «?» для подсказки и /skip для пропуска).
@@ -519,6 +591,12 @@ def _handle_webhook_update():
             send_message(chat_id, "Что тренируем сегодня?", main_menu_keyboard())
         elif data.startswith("type_"):
             start_round(chat_id, data[len("type_"):], typing=True)
+        elif data == "start_anagram":
+            # Анаграмма только по словам: собирать из букв длинную
+            # глагольную форму мучительно и мало чему учит.
+            start_round(chat_id, "vocab", anagram=True)
+        elif data == "word_of_day":
+            send_word_of_day(chat_id)
         elif data == "show_stats":
             send_stats(chat_id)
 

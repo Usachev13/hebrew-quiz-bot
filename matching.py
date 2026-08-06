@@ -141,6 +141,26 @@ def check_answer(typed, correct, known_words=None):
     return "wrong"
 
 
+def scramble(word, rng):
+    """Буквы слова вразброс — для игры «Анаграмма».
+
+    Перемешиваем «скелет» без огласовок: собирать слово по буквам с
+    огласовками неудобно, да и набирает пользователь всё равно без них.
+    Гарантируем, что порядок отличается от исходного, иначе загадка
+    оказалась бы уже разгаданной.
+    """
+    letters = [c for c in _normalize(word) if c != " "]
+    if len(letters) < 2:
+        return letters
+    original = list(letters)
+    for _ in range(20):
+        rng.shuffle(letters)
+        if letters != original:
+            return letters
+    # слово из одинаковых букв — перемешать осмысленно нельзя
+    return letters
+
+
 def hint_for(correct, revealed=1):
     """Подсказка: первые буквы слова, остальное закрыто."""
     skeleton = _normalize(correct)

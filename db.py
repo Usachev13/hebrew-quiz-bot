@@ -63,6 +63,15 @@ CREATE TABLE IF NOT EXISTS card_state (
 );
 
 CREATE INDEX IF NOT EXISTS idx_state_due ON card_state(chat_id, mode, due_date);
+
+-- «Слово дня»: кому шлём и когда отправляли в последний раз.
+-- last_sent защищает от повторной отправки, если задача по расписанию
+-- вдруг запустится дважды за день.
+CREATE TABLE IF NOT EXISTS daily_word (
+    chat_id     TEXT PRIMARY KEY,
+    subscribed  INTEGER NOT NULL DEFAULT 1,
+    last_sent   TEXT
+);
 """
 
 # Интервалы системы Лейтнера: сколько дней ждать до следующего показа.
@@ -250,6 +259,55 @@ def streak_days(chat_id):
         else:
             break
     return streak
+
+
+# ---------- слово дня ----------
+
+def set_daily_word(chat_id, subscribed):
+    """Подписывает или отписывает от ежедневного слова."""
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO daily_word (chat_id, subscribed) VALUES (?, ?) "
+        "ON CONFLICT(chat_id) DO UPDATE SET subscribed = excluded.subscribed",
+        (str(chat_id), 1 if subscribed else 0),
+    )
+    conn.commit()
+
+
+def is_subscribed(chat_id):
+    row = get_conn().execute(
+        "SELECT subscribed FROM daily_word WHERE chat_id = ?", (str(chat_id),)
+    ).fetchone()
+    return bool(row and row["subscribed"])
+
+
+def daily_word_recipients():
+    """Кому сегодня ещё не отправляли слово дня."""
+    today = date.today().isoformat()
+    rows = get_conn().execute(
+        "SELECT chat_id FROM daily_word "
+        "WHERE subscribed = 1 AND (last_sent IS NULL OR last_sent < ?)",
+        (today,),
+    ).fetchall()
+    return [r["chat_id"] for r in rows]
+
+
+def mark_daily_word_sent(chat_id):
+    conn = get_conn()
+    conn.execute(
+        "UPDATE daily_word SET last_sent = ? WHERE chat_id = ?",
+        (date.today().isoformat(), str(chat_id)),
+    )
+    conn.commit()
+
+
+def seen_cards(chat_id, mode):
+    """Карточки, которые пользователь уже видел (для выбора нового слова)."""
+    rows = get_conn().execute(
+        "SELECT card_id FROM card_state WHERE chat_id = ? AND mode = ?",
+        (str(chat_id), mode),
+    ).fetchall()
+    return {r["card_id"] for r in rows}
 
 
 def due_count(chat_id, mode=None):

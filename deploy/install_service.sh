@@ -63,6 +63,40 @@ systemctl daemon-reload
 systemctl enable hebrew-quiz-bot
 systemctl restart hebrew-quiz-bot
 
+echo "== Таймер «слова дня» (каждое утро) =="
+cat > /etc/systemd/system/hebrew-daily-word.service <<EOF
+[Unit]
+Description=Hebrew bot: рассылка слова дня
+After=network.target
+
+[Service]
+Type=oneshot
+User=botuser
+WorkingDirectory=$APP_DIR
+EnvironmentFile=$APP_DIR/.env
+ExecStart=$APP_DIR/venv/bin/python3 send_daily.py
+EOF
+
+# 08:00 по времени сервера. Часовой пояс задаётся в юните таймера ниже.
+cat > /etc/systemd/system/hebrew-daily-word.timer <<EOF
+[Unit]
+Description=Hebrew bot: слово дня каждое утро
+
+[Timer]
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+# Сервер в UTC, а аудитория в Израиле — переводим системное время,
+# чтобы 08:00 в таймере означало утро по Израилю.
+timedatectl set-timezone Asia/Jerusalem || true
+
+systemctl daemon-reload
+systemctl enable --now hebrew-daily-word.timer
+
 echo "== Caddy (обратный прокси + авто-HTTPS для $DOMAIN) =="
 cat > /etc/caddy/Caddyfile <<EOF
 $DOMAIN {
