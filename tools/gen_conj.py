@@ -14,13 +14,22 @@ import unicodedata
 
 # --- огласовки ---
 SHVA = "ְ"
+HATAF_SEGOL = "ֱ"
 HATAF_PATAH = "ֲ"
 HIRIQ = "ִ"
 TSERE = "ֵ"
 SEGOL = "ֶ"
 PATAH = "ַ"
 QAMATS = "ָ"
+HOLAM = "ֹ"
 DAGESH = "ּ"
+
+# Будущее время. В современном иврите ряд форм совпадает, поэтому для
+# викторины они объединены в одну ячейку — иначе у двух разных вопросов
+# был бы один и тот же правильный ответ:
+#   אתה  и  היא     -> תִּכְתּוֹב
+#   אתם  и  אתן     -> תִּכְתְּבוּ
+FUTURE_SLOTS = ["אני", "אתה/היא", "את", "הוא", "אנחנו", "אתם/אתן", "הם/הן"]
 
 GUTTURAL = set("אהחע")          # берут хатаф вместо шва
 NO_DAGESH = set("אהחער")        # не принимают дагеш (гортанные + реш)
@@ -317,3 +326,104 @@ def hitpael(c1, c2, c3):
         "f_pl": p + shva_or_hataf(c2) + c3 + "וֹת",
     }
     return build(past, present)
+
+
+# ================================================================
+#                        БУДУЩЕЕ ВРЕМЯ
+# ================================================================
+# Приставки будущего времени. У 1-го лица ед.ч. — א, у 2-го и 3-го ж.р. — ת,
+# у 3-го м.р. — י, у 1-го мн.ч. — נ. Гласная приставки зависит от биньяна.
+
+def _future(prefix_vowel, first_person_vowel, body_base, body_suffixed):
+    """Собирает 7 форм будущего из готовых «тел» слова.
+
+    body_base      — тело для форм без окончания (אני, אתה/היא, הוא, אנחנו)
+    body_suffixed  — тело для форм с окончанием (את, אתם/אתן, הם/הן)
+    """
+    p = prefix_vowel
+    return {
+        "אני": "א" + first_person_vowel + body_base,
+        "אתה/היא": "ת" + DAGESH + p + body_base,
+        "את": "ת" + DAGESH + p + body_suffixed + HIRIQ + "י",
+        "הוא": "י" + p + body_base,
+        "אנחנו": "נ" + p + body_base,
+        "אתם/אתן": "ת" + DAGESH + p + body_suffixed + "וּ",
+        "הם/הן": "י" + p + body_suffixed + "וּ",
+    }
+
+
+def paal_future(c1, c2, c3, vowel=None):
+    """Пааль. Тематическая гласная: холам (יִכְתּוֹב) или патах (יִשְׁלַח).
+    Патах — если 2-я или 3-я корневая гортанная; иначе холам."""
+    if vowel is None:
+        vowel = PATAH if (base(c2) in GUTTURAL or base(c3) in GUTTURAL) else "וֹ"
+
+    if base(c1) in GUTTURAL:
+        # Гортанная 1-я корневая: приставка с патахом. Под ע и ה — хатаф
+        # (יַעֲבֹד), под ח — простой шва (יַחְשֹׁב).
+        hataf = base(c1) in "עה"
+        if hataf:
+            # после хатафа стоит гласная, поэтому дагеша во 2-й корневой нет
+            base_body = c1 + HATAF_PATAH + c2 + vowel + c3
+            first_body = c1 + HATAF_SEGOL + c2 + vowel + c3
+            # тут шва под 2-й корневой закрывает слог (תַּעַבְ-דִּי),
+            # поэтому 3-я корневая из бегадкефат получает дагеш
+            suf_body = c1 + PATAH + c2 + SHVA + d(c3)
+        else:
+            # шва-нах закрывает слог -> 2-я корневая получает дагеш
+            base_body = c1 + SHVA + d(c2) + vowel + c3
+            first_body = base_body
+            suf_body = c1 + SHVA + d(c2) + shva_or_hataf(c2) + c3
+        forms = _future(PATAH, SEGOL, base_body, suf_body)
+        forms["אני"] = "א" + SEGOL + first_body
+        return {k: finalize(v) for k, v in forms.items()}
+
+    base_body = c1 + SHVA + d(c2) + vowel + c3
+    suf_body = c1 + SHVA + d(c2) + shva_or_hataf(c2) + c3
+    return {k: finalize(v) for k, v in _future(HIRIQ, SEGOL, base_body, suf_body).items()}
+
+
+def paal_lh_future(c1, c2):
+    """Пааль ל״ה: יִקְנֶה, תִּקְנִי, יִקְנוּ."""
+    if base(c1) in GUTTURAL:
+        pv, fpv = PATAH, SEGOL
+        under = HATAF_PATAH if base(c1) in "עה" else SHVA
+        base_body = c1 + under + c2 + SEGOL + "ה"
+        suf_body = c1 + under + c2
+        forms = _future(pv, fpv, base_body, suf_body)
+        forms["אני"] = "א" + SEGOL + c1 + (HATAF_SEGOL if base(c1) in "עה" else SHVA) + c2 + SEGOL + "ה"
+        return {k: finalize(v) for k, v in forms.items()}
+
+    base_body = c1 + SHVA + c2 + SEGOL + "ה"
+    suf_body = c1 + SHVA + c2
+    return {k: finalize(v) for k, v in _future(HIRIQ, SEGOL, base_body, suf_body).items()}
+
+
+def hollow_future(c1, c3, mid="וּ"):
+    """Полые: יָקוּם, יָבוֹא, יָשִׂים. Приставка с камацем."""
+    body = c1 + mid + c3
+    return {k: finalize(v) for k, v in _future(QAMATS, QAMATS, body, body).items()}
+
+
+def piel_future(c1, c2, c3):
+    """Пиэль: יְדַבֵּר, תְּדַבְּרִי, יְדַבְּרוּ. Приставка со шва (у אני — хатаф-патах)."""
+    v1, cc2 = doubled(PATAH, c2)
+    base_body = c1 + v1 + cc2 + TSERE + c3
+    suf_body = c1 + v1 + cc2 + shva_or_hataf(c2) + c3
+    return {k: finalize(v) for k, v in
+            _future(SHVA, HATAF_PATAH, base_body, suf_body).items()}
+
+
+def hifil_future(c1, c2, c3):
+    """Ифиль: יַרְגִּישׁ, תַּרְגִּישִׁי, יַרְגִּישׁוּ. Хирик-йод сохраняется везде."""
+    body = c1 + SHVA + d(c2) + HIRIQ + "י" + c3
+    return {k: finalize(v) for k, v in _future(PATAH, PATAH, body, body).items()}
+
+
+def hitpael_future(c1, c2, c3):
+    """Итпаэль: יִתְקַשֵּׁר, תִּתְקַשְּׁרִי, יִתְקַשְּׁרוּ."""
+    v1, cc2 = doubled(PATAH, c2)
+    pre = "ת" + SHVA
+    base_body = pre + d(c1) + v1 + cc2 + TSERE + c3
+    suf_body = pre + d(c1) + v1 + cc2 + shva_or_hataf(c2) + c3
+    return {k: finalize(v) for k, v in _future(HIRIQ, SEGOL, base_body, suf_body).items()}

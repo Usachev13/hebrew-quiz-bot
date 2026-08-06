@@ -19,7 +19,12 @@ from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 
 from words import VOCAB, VERBS
-from conjugations import CONJUGATIONS, PAST_PERSONS, PAST_LABELS, PRESENT_SLOTS, PRESENT_LABELS
+from conjugations import (
+    CONJUGATIONS,
+    PAST_PERSONS, PAST_LABELS,
+    PRESENT_SLOTS, PRESENT_LABELS,
+    FUTURE_SLOTS, FUTURE_LABELS,
+)
 
 # Явно указываем путь к .env рядом с этим файлом. Обычный load_dotenv()
 # без аргументов ищет .env через интроспекцию стека вызова — под WSGI
@@ -63,41 +68,28 @@ def flatten(bank):
     return items
 
 
-def flatten_past(conj):
-    """Прошедшее время: (подсказка, форма, группа).
-    Группа = глагол, чтобы дистракторы брались из форм ТОГО ЖЕ глагола
-    в том же времени — так тренируется именно лицо/род/число, а не
+def flatten_tense(conj, tense, slots, labels):
+    """Одно время из CONJUGATIONS -> плоский список (подсказка, форма, группа).
+
+    Группа = глагол+время: дистракторы берутся из форм ТОГО ЖЕ глагола в
+    том же времени, поэтому тренируется именно лицо/род/число, а не
     угадывание по внешнему виду разных корней."""
     items = []
     for root, data in conj.items():
-        verb_ru = data["ru"]
-        for person in PAST_PERSONS:
-            he = data["past"].get(person)
+        for slot in slots:
+            he = data[tense].get(slot)
             if not he:
                 continue
-            prompt = f"{verb_ru} ({data['inf']}) — {PAST_LABELS[person]}"
-            items.append((prompt, he, f"{root}_past"))
-    return items
-
-
-def flatten_present(conj):
-    """Настоящее время: (подсказка, форма, группа)."""
-    items = []
-    for root, data in conj.items():
-        verb_ru = data["ru"]
-        for slot in PRESENT_SLOTS:
-            he = data["present"].get(slot)
-            if not he:
-                continue
-            prompt = f"{verb_ru} ({data['inf']}) — {PRESENT_LABELS[slot]}"
-            items.append((prompt, he, f"{root}_present"))
+            prompt = f"{data['ru']} ({data['inf']}) — {labels[slot]}"
+            items.append((prompt, he, f"{root}_{tense}"))
     return items
 
 
 VOCAB_FLAT = flatten(VOCAB)
 VERBS_FLAT = flatten(VERBS)
-PAST_FLAT = flatten_past(CONJUGATIONS)
-PRESENT_FLAT = flatten_present(CONJUGATIONS)
+PAST_FLAT = flatten_tense(CONJUGATIONS, "past", PAST_PERSONS, PAST_LABELS)
+PRESENT_FLAT = flatten_tense(CONJUGATIONS, "present", PRESENT_SLOTS, PRESENT_LABELS)
+FUTURE_FLAT = flatten_tense(CONJUGATIONS, "future", FUTURE_SLOTS, FUTURE_LABELS)
 
 
 # ---------- Telegram API helpers ----------
@@ -132,6 +124,7 @@ def main_menu_keyboard():
             [{"text": "🔤 Глаголы (инфинитивы)", "callback_data": "start_verbs"}],
             [{"text": "⏪ Прошедшее время", "callback_data": "start_past"}],
             [{"text": "▶️ Настоящее время", "callback_data": "start_present"}],
+            [{"text": "⏩ Будущее время", "callback_data": "start_future"}],
         ]
     }
 
@@ -184,7 +177,7 @@ def send_question(chat_id):
         "one_time_keyboard": True,
     }
     idx = s["index"] + 1
-    if s["mode"] in ("past", "present"):
+    if s["mode"] in ("past", "present", "future"):
         text = f"Вопрос {idx}/{s['total']}\n<b>{q['ru']}</b>\nКакая это форма?"
     else:
         text = f"Вопрос {idx}/{s['total']}\nКак будет «<b>{q['ru']}</b>»?"
@@ -196,12 +189,14 @@ POOLS = {
     "verbs": VERBS_FLAT,
     "past": PAST_FLAT,
     "present": PRESENT_FLAT,
+    "future": FUTURE_FLAT,
 }
 LABELS = {
     "vocab": "слова",
     "verbs": "глаголы",
     "past": "прошедшее время",
     "present": "настоящее время",
+    "future": "будущее время",
 }
 
 
@@ -309,6 +304,8 @@ def _handle_webhook_update():
             start_round(chat_id, "past")
         elif data == "start_present":
             start_round(chat_id, "present")
+        elif data == "start_future":
+            start_round(chat_id, "future")
 
 
 @app.route("/")
