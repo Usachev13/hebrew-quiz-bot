@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 
 import db
+from matching import check_answer, accepted_forms, hint_for
 from words import VOCAB, VERBS
 from conjugations import (
     CONJUGATIONS,
@@ -135,7 +136,22 @@ def main_menu_keyboard():
             [{"text": "⏪ Прошедшее время", "callback_data": "start_past"}],
             [{"text": "▶️ Настоящее время", "callback_data": "start_present"}],
             [{"text": "⏩ Будущее время", "callback_data": "start_future"}],
+            [{"text": "⌨️ Написать самому", "callback_data": "typing_menu"}],
             [{"text": "📊 Моя статистика", "callback_data": "show_stats"}],
+        ]
+    }
+
+
+def typing_menu_keyboard():
+    """Тот же набор тем, но с ответом от руки вместо выбора из четырёх."""
+    return {
+        "inline_keyboard": [
+            [{"text": "📖 Слова", "callback_data": "type_vocab"}],
+            [{"text": "🔤 Глаголы (инфинитивы)", "callback_data": "type_verbs"}],
+            [{"text": "⏪ Прошедшее время", "callback_data": "type_past"}],
+            [{"text": "▶️ Настоящее время", "callback_data": "type_present"}],
+            [{"text": "⏩ Будущее время", "callback_data": "type_future"}],
+            [{"text": "‹ Назад", "callback_data": "main_menu"}],
         ]
     }
 
@@ -197,12 +213,33 @@ def send_question(chat_id):
     # Telegram именно этот флаг "сжимает" клавиатуру; без него кнопки
     # занимают высоту стандартной системной клавиатуры, то есть выше.
     # one_time_keyboard прячет клавиатуру сразу после тапа.
+    idx = s["index"] + 1
+    is_form = s["mode"] in ("past", "present", "future")
+
+    if s.get("typing"):
+        # Вариантов не показываем — ответ нужно вспомнить и написать.
+        # Клавиатуру с прошлого раунда убираем, чтобы не мешала набору.
+        s["hints"] = 0
+        task = "Напиши эту форму на иврите" if is_form else "Напиши это слово на иврите"
+        text = (
+            f"Вопрос {idx}/{s['total']}\n<b>{q['ru']}</b>\n{task}.\n\n"
+            f"<i>Огласовки писать не нужно. «?» — подсказка, /skip — пропустить.</i>"
+        )
+        send_message(chat_id, text, {"remove_keyboard": True})
+        return
+
+    # Нативная (reply) клавиатура вместо inline — кнопки растягиваются на
+    # всю ширину экрана и рендерятся крупнее, чем инлайн-кнопки в пузыре
+    # сообщения. Сетка 2x2 вместо одного столбца — площадь тапа больше.
+    # resize_keyboard НЕ ставим (по умолчанию false) — по документации
+    # Telegram именно этот флаг "сжимает" клавиатуру; без него кнопки
+    # занимают высоту стандартной системной клавиатуры, то есть выше.
+    # one_time_keyboard прячет клавиатуру сразу после тапа.
     keyboard = {
         "keyboard": keyboard_rows(q["options"], per_row=2),
         "one_time_keyboard": True,
     }
-    idx = s["index"] + 1
-    if s["mode"] in ("past", "present", "future"):
+    if is_form:
         text = f"Вопрос {idx}/{s['total']}\n<b>{q['ru']}</b>\nКакая это форма?"
     else:
         text = f"Вопрос {idx}/{s['total']}\nКак будет «<b>{q['ru']}</b>»?"
@@ -224,8 +261,15 @@ LABELS = {
     "future": "будущее время",
 }
 
+# Все допустимые написания каждого пула. Нужны, чтобы отличить описку от
+# случая «набрал другое существующее слово» (см. matching.check_answer).
+KNOWN_FORMS = {
+    mode: set().union(*(accepted_forms(he) for _, he, _ in pool)) if pool else set()
+    for mode, pool in POOLS.items()
+}
 
-def start_round(chat_id, mode):
+
+def start_round(chat_id, mode, typing=False):
     pool = POOLS[mode]
     total = min(ROUND_LEN, len(pool))
     # Приоритеты читаем один раз на раунд, а не на каждый вопрос —
@@ -246,10 +290,16 @@ def start_round(chat_id, mode):
         "total": total,
         "current": None,
         "priorities": priorities,
+        "typing": typing,
+        "hints": 0,
     }
     due = sum(1 for v in priorities.values() if v >= 2)
     hint = f" Из них на повторение: {min(due, total)}." if due else ""
-    send_message(chat_id, f"Начинаем! Раунд «{LABELS[mode]}», {total} вопросов.{hint}")
+    how = " Пишешь ответ сам." if typing else ""
+    send_message(
+        chat_id,
+        f"Начинаем! Раунд «{LABELS[mode]}», {total} вопросов.{hint}{how}",
+    )
     send_question(chat_id)
 
 
@@ -279,6 +329,12 @@ def handle_answer(chat_id, question_idx, chosen_idx):
         text = f"❌ Неверно. Правильный ответ: {q['correct']}"
     send_message(chat_id, text)
 
+    finish_question(chat_id)
+
+
+def finish_question(chat_id):
+    """Переходит к следующему вопросу или закрывает раунд."""
+    s = sessions[chat_id]
     s["index"] += 1
     if s["index"] >= s["total"]:
         pct = round(100 * s["score"] / s["total"])
@@ -291,6 +347,52 @@ def handle_answer(chat_id, question_idx, chosen_idx):
         s["current"] = None
     else:
         send_question(chat_id)
+
+
+def handle_typed_answer(chat_id, typed):
+    """Ответ, набранный вручную (режим «Написать самому»)."""
+    s = sessions.get(chat_id)
+    if not s or not s["current"]:
+        return
+    q = s["current"]
+
+    # «?» — подсказка: показываем первые буквы, вопрос остаётся открытым
+    if typed.strip() == "?":
+        s["hints"] = s.get("hints", 0) + 1
+        send_message(chat_id, f"Подсказка: <code>{hint_for(q['correct'], s['hints'])}</code>")
+        return
+
+    if typed.strip().lower() in ("/skip", "пропустить"):
+        try:
+            db.record_answer(chat_id, s["mode"], q["ru"], False)
+        except Exception as e:
+            print(f"[handle_typed_answer] не удалось записать пропуск: {e}")
+        send_message(chat_id, f"Пропускаем. Правильный ответ: {q['correct']}")
+        finish_question(chat_id)
+        return
+
+    verdict = check_answer(typed, q["correct"], KNOWN_FORMS.get(s["mode"]))
+    # Подсказками пользовался — засчитываем, но в повторениях как неуверенный
+    is_correct = verdict in ("exact", "typo") and not s.get("hints")
+
+    try:
+        db.record_answer(chat_id, s["mode"], q["ru"], is_correct)
+    except Exception as e:
+        print(f"[handle_typed_answer] не удалось записать ответ: {e}")
+
+    if verdict == "exact":
+        s["score"] += 1
+        text = f"✅ Верно — {q['correct']}"
+        if s.get("hints"):
+            text += "\n<i>(с подсказкой — повторим ещё раз)</i>"
+    elif verdict == "typo":
+        s["score"] += 1
+        text = f"⚠️ Почти! Правильно пишется так: {q['correct']}"
+    else:
+        text = f"❌ Неверно. Правильный ответ: {q['correct']}"
+    send_message(chat_id, text)
+
+    finish_question(chat_id)
 
 
 # ---------- Статистика ----------
@@ -373,18 +475,23 @@ def _handle_webhook_update():
         chat_id = msg["chat"]["id"]
         text = msg.get("text", "")
 
+        s = sessions.get(chat_id)
+        in_typing_round = bool(s and s.get("current") and s.get("typing"))
+
         if text.startswith("/start") or text.startswith("/quiz"):
             send_message(chat_id, "Привет! Что тренируем сегодня?", main_menu_keyboard())
         elif text.startswith("/stats"):
             send_stats(chat_id)
-        else:
-            # Ответ на вопрос теперь приходит как обычное сообщение с
-            # нативной (reply) клавиатуры, а не callback_query.
-            s = sessions.get(chat_id)
-            if s and s.get("current"):
-                options = s["current"]["options"]
-                if text in options:
-                    handle_answer(chat_id, s["index"], options.index(text))
+        elif in_typing_round:
+            # В режиме набора принимаем любой текст: это и есть ответ
+            # (плюс «?» для подсказки и /skip для пропуска).
+            handle_typed_answer(chat_id, text)
+        elif s and s.get("current"):
+            # Ответ с выбором приходит как обычное сообщение с нативной
+            # (reply) клавиатуры, а не callback_query.
+            options = s["current"]["options"]
+            if text in options:
+                handle_answer(chat_id, s["index"], options.index(text))
 
     elif "callback_query" in update:
         cq = update["callback_query"]
@@ -402,6 +509,16 @@ def _handle_webhook_update():
             start_round(chat_id, "present")
         elif data == "start_future":
             start_round(chat_id, "future")
+        elif data == "typing_menu":
+            send_message(
+                chat_id,
+                "Что тренируем? Ответ нужно будет написать самому.",
+                typing_menu_keyboard(),
+            )
+        elif data == "main_menu":
+            send_message(chat_id, "Что тренируем сегодня?", main_menu_keyboard())
+        elif data.startswith("type_"):
+            start_round(chat_id, data[len("type_"):], typing=True)
         elif data == "show_stats":
             send_stats(chat_id)
 
