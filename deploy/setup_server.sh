@@ -45,7 +45,11 @@ apt update
 apt install -y caddy
 
 echo "== Системный пользователь botuser =="
-id -u botuser &>/dev/null || useradd --system --home "$APP_DIR" --create-home --shell /usr/sbin/nologin botuser
+# --no-create-home специально: если создать домашнюю папку заранее, в ней
+# появятся системные dotfile-заготовки (.bashrc и т.п.), и git clone потом
+# откажется клонировать в "непустую" директорию. Пусть папку создаст сам
+# git clone ниже.
+id -u botuser &>/dev/null || useradd --system --no-create-home --home "$APP_DIR" --shell /usr/sbin/nologin botuser
 
 echo "== Клонирование репозитория =="
 if [ -d "$APP_DIR/.git" ]; then
