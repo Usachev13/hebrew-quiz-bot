@@ -63,27 +63,41 @@ def flatten(bank):
     return items
 
 
-def flatten_conjugations(conj):
-    """Превращает CONJUGATIONS в плоский список (подсказка, форма, группа).
-    Группа = глагол+время, чтобы дистракторы брались из форм ТОГО ЖЕ
-    глагола в том же времени (тренируем именно лицо/род/число)."""
+def flatten_past(conj):
+    """Прошедшее время: (подсказка, форма, группа).
+    Группа = глагол, чтобы дистракторы брались из форм ТОГО ЖЕ глагола
+    в том же времени — так тренируется именно лицо/род/число, а не
+    угадывание по внешнему виду разных корней."""
     items = []
     for root, data in conj.items():
         verb_ru = data["ru"]
         for person in PAST_PERSONS:
-            he = data["past"][person]
-            prompt = f"{verb_ru} — прошедшее время, {PAST_LABELS[person]}"
+            he = data["past"].get(person)
+            if not he:
+                continue
+            prompt = f"{verb_ru} ({data['inf']}) — {PAST_LABELS[person]}"
             items.append((prompt, he, f"{root}_past"))
+    return items
+
+
+def flatten_present(conj):
+    """Настоящее время: (подсказка, форма, группа)."""
+    items = []
+    for root, data in conj.items():
+        verb_ru = data["ru"]
         for slot in PRESENT_SLOTS:
-            he = data["present"][slot]
-            prompt = f"{verb_ru} — настоящее время, {PRESENT_LABELS[slot]}"
+            he = data["present"].get(slot)
+            if not he:
+                continue
+            prompt = f"{verb_ru} ({data['inf']}) — {PRESENT_LABELS[slot]}"
             items.append((prompt, he, f"{root}_present"))
     return items
 
 
 VOCAB_FLAT = flatten(VOCAB)
 VERBS_FLAT = flatten(VERBS)
-CONJ_FLAT = flatten_conjugations(CONJUGATIONS)
+PAST_FLAT = flatten_past(CONJUGATIONS)
+PRESENT_FLAT = flatten_present(CONJUGATIONS)
 
 
 # ---------- Telegram API helpers ----------
@@ -116,7 +130,8 @@ def main_menu_keyboard():
         "inline_keyboard": [
             [{"text": "📖 Слова", "callback_data": "start_vocab"}],
             [{"text": "🔤 Глаголы (инфинитивы)", "callback_data": "start_verbs"}],
-            [{"text": "🧩 Спряжения (прош./наст.)", "callback_data": "start_conj"}],
+            [{"text": "⏪ Прошедшее время", "callback_data": "start_past"}],
+            [{"text": "▶️ Настоящее время", "callback_data": "start_present"}],
         ]
     }
 
@@ -169,15 +184,25 @@ def send_question(chat_id):
         "one_time_keyboard": True,
     }
     idx = s["index"] + 1
-    if s["mode"] == "conj":
+    if s["mode"] in ("past", "present"):
         text = f"Вопрос {idx}/{s['total']}\n<b>{q['ru']}</b>\nКакая это форма?"
     else:
         text = f"Вопрос {idx}/{s['total']}\nКак будет «<b>{q['ru']}</b>»?"
     send_message(chat_id, text, keyboard)
 
 
-POOLS = {"vocab": VOCAB_FLAT, "verbs": VERBS_FLAT, "conj": CONJ_FLAT}
-LABELS = {"vocab": "слова", "verbs": "глаголы", "conj": "спряжения"}
+POOLS = {
+    "vocab": VOCAB_FLAT,
+    "verbs": VERBS_FLAT,
+    "past": PAST_FLAT,
+    "present": PRESENT_FLAT,
+}
+LABELS = {
+    "vocab": "слова",
+    "verbs": "глаголы",
+    "past": "прошедшее время",
+    "present": "настоящее время",
+}
 
 
 def start_round(chat_id, mode):
@@ -280,8 +305,10 @@ def _handle_webhook_update():
             start_round(chat_id, "vocab")
         elif data == "start_verbs":
             start_round(chat_id, "verbs")
-        elif data == "start_conj":
-            start_round(chat_id, "conj")
+        elif data == "start_past":
+            start_round(chat_id, "past")
+        elif data == "start_present":
+            start_round(chat_id, "present")
 
 
 @app.route("/")
