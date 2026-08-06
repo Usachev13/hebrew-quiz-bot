@@ -39,7 +39,13 @@ Type=simple
 User=botuser
 WorkingDirectory=$APP_DIR
 EnvironmentFile=$APP_DIR/.env
-ExecStart=$APP_DIR/venv/bin/gunicorn --workers 2 --bind 127.0.0.1:8000 bot:app
+# --workers 1 обязательно: сессии игр (sessions = {}) хранятся в памяти
+# процесса. Больше одного воркера — запросы от одного пользователя будут
+# случайно попадать в разные процессы без общей памяти, и бот будет молча
+# "зависать" через пару ответов (сессия не найдена в другом воркере).
+# Если понадобится больше одного воркера — сначала нужно вынести sessions
+# в общее хранилище (Redis/файл/БД).
+ExecStart=$APP_DIR/venv/bin/gunicorn --workers 1 --bind 127.0.0.1:8000 bot:app
 Restart=always
 RestartSec=5
 
