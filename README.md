@@ -29,7 +29,7 @@
 API. Отключается `/voice_off`.
 
 **Команды:** `/start` · `/stats` · `/word` · `/daily_on` · `/daily_off` ·
-`/voice_on` · `/voice_off` · `/skip`
+`/voices` · `/voice_on` · `/voice_off` · `/skip`
 
 ## Как добавить озвучку
 
@@ -37,11 +37,14 @@ API. Отключается `/voice_off`.
 2. На сервере дописать в `.env`: `OPENAI_API_KEY=sk-...`
 3. Оценить стоимость, ничего не тратя:
    `venv/bin/python3 tools/generate_audio.py --dry-run`
-4. Проба на 10 словах — послушать, устраивает ли голос:
-   `venv/bin/python3 tools/generate_audio.py --limit 10`
-   Голос меняется через `TTS_VOICE` в `.env` (alloy, echo, fable, onyx,
-   nova, shimmer), после смены перегенерировать с `--force`.
-5. Всё остальное: `venv/bin/python3 tools/generate_audio.py`
+4. Выбрать голос. Сначала образцы одной ивритской фразы всеми голосами:
+   `venv/bin/python3 tools/voice_samples.py`, затем в боте команда
+   `/voices` — все образцы придут голосовыми. Понравившийся вписать в
+   `.env` как `TTS_VOICE=...`. Слушать английские демо на сайте OpenAI
+   смысла мало: голоса заметно различаются именно на иврите (ח, ע, «р»).
+5. Проба на 10 словах: `venv/bin/python3 tools/generate_audio.py --limit 10`
+   (после смены голоса перегенерировать с `--force`).
+6. Всё остальное: `venv/bin/python3 tools/generate_audio.py`
    Скрипт возобновляемый — можно прерывать и запускать снова.
 
 **Интервальные повторения.** Слова, в которых ошибаешься, возвращаются уже

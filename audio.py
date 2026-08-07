@@ -35,6 +35,41 @@ def has_audio(text):
     return os.path.exists(p) and os.path.getsize(p) > 0
 
 
+SAMPLES_DIR = os.path.join(AUDIO_DIR, "samples")
+
+
+def voice_samples():
+    """Готовые образцы голосов: [(имя голоса, путь к файлу), ...]."""
+    if not os.path.isdir(SAMPLES_DIR):
+        return []
+    out = []
+    for name in sorted(os.listdir(SAMPLES_DIR)):
+        if name.endswith(".ogg"):
+            path = os.path.join(SAMPLES_DIR, name)
+            if os.path.getsize(path) > 0:
+                out.append((name[:-4], path))
+    return out
+
+
+def send_voice_file(api_url, chat_id, path, caption=None):
+    """Отправляет конкретный файл голосовым."""
+    try:
+        with open(path, "rb") as f:
+            data = {"chat_id": str(chat_id)}
+            if caption:
+                data["caption"] = caption
+            requests.post(
+                f"{api_url}/sendVoice",
+                data=data,
+                files={"voice": (os.path.basename(path), f, "audio/ogg")},
+                timeout=20,
+            )
+        return True
+    except (requests.exceptions.RequestException, OSError) as e:
+        print(f"[send_voice_file] {e}")
+        return False
+
+
 def send_voice(api_url, chat_id, text, caption=None):
     """Отправляет голосовое с произношением. Молча ничего не делает,
     если файла нет — озвучка не должна ломать урок."""

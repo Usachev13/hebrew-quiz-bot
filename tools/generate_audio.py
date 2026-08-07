@@ -68,13 +68,13 @@ def collect(scope):
     return [t for t in items if not (t in seen or seen.add(t))]
 
 
-def synth(text):
+def synth(text, voice=None):
     r = requests.post(
         API_URL,
         headers={"Authorization": f"Bearer {API_KEY}"},
         json={
             "model": MODEL,
-            "voice": VOICE,
+            "voice": voice or VOICE,
             "input": text,
             # opus в контейнере ogg — ровно то, что Telegram ждёт
             # для голосовых сообщений, перекодировать не нужно

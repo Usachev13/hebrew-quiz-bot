@@ -443,6 +443,27 @@ def maybe_send_voice(chat_id, answer, mode):
         print(f"[maybe_send_voice] {e}")
 
 
+def send_voice_samples(chat_id):
+    """Одна и та же фраза всеми голосами — чтобы выбрать подходящий."""
+    samples = audio.voice_samples()
+    if not samples:
+        send_message(
+            chat_id,
+            "Образцы голосов ещё не сгенерированы.\n\n"
+            "На сервере: <code>venv/bin/python3 tools/voice_samples.py</code>",
+        )
+        return
+
+    send_message(
+        chat_id,
+        "🎧 <b>Образцы голосов</b>\n\n"
+        "Одна фраза всеми голосами: «שָׁלוֹם, אֲנִי לוֹמֵד עִבְרִית».\n"
+        "Выбранный вписывается в <code>TTS_VOICE</code> в .env на сервере.",
+    )
+    for name, path in samples:
+        audio.send_voice_file(API_URL, chat_id, path, caption=name)
+
+
 def with_reading(answer, mode):
     """Добавляет произношение кириллицей: «מִטְבָּח (митбах)».
 
@@ -659,6 +680,8 @@ def _handle_webhook_update():
         elif text.startswith("/daily_off"):
             db.set_daily_word(chat_id, False)
             send_message(chat_id, "Больше не присылаю слово дня. Вернуть — /daily_on.")
+        elif text.startswith("/voices"):
+            send_voice_samples(chat_id)
         elif text.startswith("/voice_on"):
             db.set_voice(chat_id, True)
             send_message(chat_id, "Буду присылать произношение голосом.")
