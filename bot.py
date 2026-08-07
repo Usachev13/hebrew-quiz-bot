@@ -457,8 +457,10 @@ def send_voice_samples(chat_id):
     send_message(
         chat_id,
         "🎧 <b>Образцы голосов</b>\n\n"
-        "Одна фраза всеми голосами: «שָׁלוֹם, אֲנִי לוֹמֵד עִבְרִית».\n"
-        "Выбранный вписывается в <code>TTS_VOICE</code> в .env на сервере.",
+        f"{audio.SAMPLE_TEXT}\n\n"
+        f"<i>{audio.SAMPLE_TRANSLATION}</i>\n\n"
+        "Один и тот же текст всеми голосами. Понравившийся вписывается в "
+        "<code>TTS_VOICE</code> в .env на сервере.",
     )
     for name, path in samples:
         audio.send_voice_file(API_URL, chat_id, path, caption=name)

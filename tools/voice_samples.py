@@ -25,9 +25,7 @@ from generate_audio import synth  # noqa: E402
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-# Фраза подобрана так, чтобы было слышно спорные звуки:
-# ח (горловое), ע, «р» и обычные гласные.
-SAMPLE_TEXT = "שָׁלוֹם, אֲנִי לוֹמֵד עִבְרִית. חָבֵר טוֹב עוֹזֵר לִי."
+SAMPLE_TEXT = audio.SAMPLE_TEXT
 
 VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer",
           "ash", "coral", "sage"]
