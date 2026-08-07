@@ -72,6 +72,12 @@ CREATE TABLE IF NOT EXISTS daily_word (
     subscribed  INTEGER NOT NULL DEFAULT 1,
     last_sent   TEXT
 );
+
+-- Настройки пользователя. Пока одна: присылать ли произношение голосом.
+CREATE TABLE IF NOT EXISTS prefs (
+    chat_id     TEXT PRIMARY KEY,
+    voice       INTEGER NOT NULL DEFAULT 1
+);
 """
 
 # Интервалы системы Лейтнера: сколько дней ждать до следующего показа.
@@ -259,6 +265,26 @@ def streak_days(chat_id):
         else:
             break
     return streak
+
+
+# ---------- настройки ----------
+
+def set_voice(chat_id, enabled):
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO prefs (chat_id, voice) VALUES (?, ?) "
+        "ON CONFLICT(chat_id) DO UPDATE SET voice = excluded.voice",
+        (str(chat_id), 1 if enabled else 0),
+    )
+    conn.commit()
+
+
+def voice_enabled(chat_id):
+    """По умолчанию озвучка включена — ради неё всё и делалось."""
+    row = get_conn().execute(
+        "SELECT voice FROM prefs WHERE chat_id = ?", (str(chat_id),)
+    ).fetchone()
+    return True if row is None else bool(row["voice"])
 
 
 # ---------- слово дня ----------

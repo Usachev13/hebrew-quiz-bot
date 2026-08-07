@@ -10,3 +10,6 @@ __pycache__/
 progress.db
 progress.db-wal
 progress.db-shm
+
+# Озвучка: ~20 МБ бинарников, генерируется скриптом на сервере
+audio/

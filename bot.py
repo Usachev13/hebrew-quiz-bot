@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 
 import alphabet
+import audio
 import db
 from matching import check_answer, accepted_forms, hint_for, scramble
 from translit import translit
@@ -420,8 +421,26 @@ def handle_answer(chat_id, question_idx, chosen_idx):
     else:
         text = f"❌ Неверно. Правильный ответ: {with_reading(q['correct'], s['mode'])}"
     send_message(chat_id, text)
+    maybe_send_voice(chat_id, q["correct"], s["mode"])
 
     finish_question(chat_id)
+
+
+def maybe_send_voice(chat_id, answer, mode):
+    """Присылает произношение голосом, если оно записано и не отключено.
+
+    Отсутствие файла — не ошибка: озвучка добавляется постепенно, и урок
+    не должен от неё зависеть.
+    """
+    if mode in ALPHABET_MODES:
+        return
+    if not audio.has_audio(answer):
+        return
+    try:
+        if db.voice_enabled(chat_id):
+            audio.send_voice(API_URL, chat_id, answer)
+    except Exception as e:
+        print(f"[maybe_send_voice] {e}")
 
 
 def with_reading(answer, mode):
@@ -495,6 +514,7 @@ def handle_typed_answer(chat_id, typed):
     else:
         text = f"❌ Неверно. Правильный ответ: {with_reading(q['correct'], s['mode'])}"
     send_message(chat_id, text)
+    maybe_send_voice(chat_id, q["correct"], s["mode"])
 
     finish_question(chat_id)
 
@@ -541,6 +561,7 @@ def send_word_of_day(chat_id, subscribe_hint=True):
         ]
     }
     send_message(chat_id, "\n".join(lines), keyboard)
+    maybe_send_voice(chat_id, he, "vocab")
 
 
 # ---------- Статистика ----------
@@ -638,6 +659,12 @@ def _handle_webhook_update():
         elif text.startswith("/daily_off"):
             db.set_daily_word(chat_id, False)
             send_message(chat_id, "Больше не присылаю слово дня. Вернуть — /daily_on.")
+        elif text.startswith("/voice_on"):
+            db.set_voice(chat_id, True)
+            send_message(chat_id, "Буду присылать произношение голосом.")
+        elif text.startswith("/voice_off"):
+            db.set_voice(chat_id, False)
+            send_message(chat_id, "Голосовые отключены. Вернуть — /voice_on.")
         elif in_typing_round:
             # В режиме набора принимаем любой текст: это и есть ответ
             # (плюс «?» для подсказки и /skip для пропуска).
