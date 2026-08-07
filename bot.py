@@ -21,6 +21,7 @@ from flask import Flask, request, jsonify
 import alphabet
 import db
 from matching import check_answer, accepted_forms, hint_for, scramble
+from translit import translit
 from words import VOCAB, VERBS
 from conjugations import (
     CONJUGATIONS,
@@ -157,6 +158,7 @@ def alphabet_menu_keyboard():
              {"text": "Конечные формы", "callback_data": "start_alef_finals"}],
             [{"text": "Огласовки", "callback_data": "start_alef_niqqud"},
              {"text": "Чтение слогов", "callback_data": "start_alef_syllables"}],
+            [{"text": "Точка меняет звук (בּ / ב)", "callback_data": "start_alef_dotted"}],
             [{"text": "‹ Назад", "callback_data": "main_menu"}],
         ]
     }
@@ -169,9 +171,13 @@ def send_alphabet_table(chat_id):
         final_note = f"  (в конце слова: {final})" if final else ""
         lines.append(f"<b>{letter}</b> — {name}, {sound}{final_note}")
 
-    lines += ["", "<b>Огласовки</b> (показаны на букве ב)", ""]
-    for shown, name, sound in alphabet.NIQQUD:
+    lines += ["", "<b>Точка внутри буквы меняет звук</b>", ""]
+    for shown, name, sound in alphabet.DOTTED:
         lines.append(f"<b>{shown}</b> — {name}, звук «{sound}»")
+
+    lines += ["", "<b>Огласовки</b> (показаны на букве ב)", ""]
+    for shown, _, sound in alphabet.NIQQUD:
+        lines.append(f"<b>{shown}</b> — звук «{sound}»")
 
     lines += [
         "",
@@ -321,6 +327,7 @@ POOLS = {
     "alef_finals": alphabet.pool_finals(),
     "alef_niqqud": alphabet.pool_niqqud(),
     "alef_syllables": alphabet.pool_syllables(),
+    "alef_dotted": alphabet.pool_dotted(),
 }
 LABELS = {
     "vocab": "слова",
@@ -334,6 +341,7 @@ LABELS = {
     "alef_finals": "конечные формы",
     "alef_niqqud": "огласовки",
     "alef_syllables": "чтение слогов",
+    "alef_dotted": "точка меняет звук",
 }
 
 # Режимы курса алфавита: вопрос формулируется иначе, чем «как будет…»
@@ -408,12 +416,24 @@ def handle_answer(chat_id, question_idx, chosen_idx):
 
     if is_correct:
         s["score"] += 1
-        text = f"✅ Верно — {q['correct']}"
+        text = f"✅ Верно — {with_reading(q['correct'], s['mode'])}"
     else:
-        text = f"❌ Неверно. Правильный ответ: {q['correct']}"
+        text = f"❌ Неверно. Правильный ответ: {with_reading(q['correct'], s['mode'])}"
     send_message(chat_id, text)
 
     finish_question(chat_id)
+
+
+def with_reading(answer, mode):
+    """Добавляет произношение кириллицей: «מִטְבָּח (митбах)».
+
+    В курсе алфавита не показываем — там ответ и так уже либо звук, либо
+    название буквы, произношение было бы шумом.
+    """
+    if mode in ALPHABET_MODES:
+        return answer
+    reading = translit(answer)
+    return f"{answer} ({reading})" if reading else answer
 
 
 def finish_question(chat_id):
@@ -451,7 +471,7 @@ def handle_typed_answer(chat_id, typed):
             db.record_answer(chat_id, s["mode"], q["ru"], False)
         except Exception as e:
             print(f"[handle_typed_answer] не удалось записать пропуск: {e}")
-        send_message(chat_id, f"Пропускаем. Правильный ответ: {q['correct']}")
+        send_message(chat_id, f"Пропускаем. Правильный ответ: {with_reading(q['correct'], s['mode'])}")
         finish_question(chat_id)
         return
 
@@ -466,14 +486,14 @@ def handle_typed_answer(chat_id, typed):
 
     if verdict == "exact":
         s["score"] += 1
-        text = f"✅ Верно — {q['correct']}"
+        text = f"✅ Верно — {with_reading(q['correct'], s['mode'])}"
         if s.get("hints"):
             text += "\n<i>(с подсказкой — повторим ещё раз)</i>"
     elif verdict == "typo":
         s["score"] += 1
-        text = f"⚠️ Почти! Правильно пишется так: {q['correct']}"
+        text = f"⚠️ Почти! Правильно пишется так: {with_reading(q['correct'], s['mode'])}"
     else:
-        text = f"❌ Неверно. Правильный ответ: {q['correct']}"
+        text = f"❌ Неверно. Правильный ответ: {with_reading(q['correct'], s['mode'])}"
     send_message(chat_id, text)
 
     finish_question(chat_id)
@@ -504,6 +524,7 @@ def send_word_of_day(chat_id, subscribe_hint=True):
         "🗓 <b>Слово дня</b>",
         "",
         f"<b>{he}</b> — {ru}",
+        f"<i>читается: {translit(he)}</i>",
     ]
     if subscribe_hint:
         lines += [
