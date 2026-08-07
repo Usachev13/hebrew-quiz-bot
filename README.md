@@ -68,97 +68,32 @@ API. Отключается `/voice_off`.
 Хостинг: **свой VPS** (Hetzner) + Caddy с автоматическим HTTPS + systemd.
 Обновление: `sudo ./deploy/update.sh` на сервере.
 
----
 
-## Шаг 1. Создать бота в Telegram (2 минуты)
+## Установка и обновление
 
-1. Открой Telegram, найди **@BotFather**.
-2. Отправь ему `/newbot`.
-3. Придумай название бота (например «Иврит Тренер») — это просто отображаемое имя.
-4. Придумай username, обязательно заканчивается на `bot` (например `ivrit_trener_bot`).
-5. BotFather пришлёт **токен** — строку вида `123456789:AAExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`.
-   Сохрани его, он понадобится дальше.
+Разворачивание на чистом сервере и все команды обновления — в
+`deploy/README.md`. Коротко:
 
-## Шаг 2. Завести аккаунт на PythonAnywhere
-
-1. Зайди на **pythonanywhere.com** → Pricing & signup → **Create a Beginner account** (бесплатно).
-2. Подтверди почту.
-
-## Шаг 3. Создать веб-приложение
-
-1. В панели PythonAnywhere открой вкладку **Web** → **Add a new web app**.
-2. Домен оставь предложенный (`твой_логин.pythonanywhere.com`).
-3. Выбери **Flask**, затем версию Python 3.10 (или новее из предложенных).
-4. PythonAnywhere создаст папку `/home/твой_логин/mysite/` с файлом `flask_app.py`.
-
-## Шаг 4. Загрузить файлы бота
-
-1. Вкладка **Files** → перейди в `/home/твой_логин/mysite/`.
-2. Загрузи `words.py`, `set_webhook.py` и `requirements.txt` в эту папку (кнопка Upload a file).
-3. Открой `flask_app.py` (создан автоматически) и полностью замени его содержимое на
-   содержимое нашего `bot.py`.
-4. В начале файла впиши свой токен вместо `PASTE_YOUR_TOKEN_HERE`:
-   ```python
-   TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "твой_токен_сюда")
-   ```
-5. Сохрани файл (Ctrl+S / кнопка Save).
-
-## Шаг 5. Установить зависимости
-
-1. Вкладка **Consoles** → **Bash** (открыть новую консоль).
-2. Выполни:
-   ```bash
-   pip3.10 install --user -r /home/твой_логин/mysite/requirements.txt
-   ```
-   (Flask на PythonAnywhere обычно уже есть, но requests лучше поставить явно.)
-
-## Шаг 6. Перезапустить веб-приложение
-
-1. Вкладка **Web** → зелёная кнопка **Reload твой_логин.pythonanywhere.com**.
-2. Открой `https://твой_логин.pythonanywhere.com/` в браузере — должно появиться
-   `Hebrew quiz bot is running.`
-
-## Шаг 7. Подключить webhook (один раз)
-
-1. Открой `set_webhook.py` в файловом менеджере PythonAnywhere, впиши в начале:
-   ```python
-   TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "твой_токен_сюда")
-   PA_USERNAME = os.environ.get("PA_USERNAME", "твой_логин")
-   ```
-2. В Bash-консоли выполни:
-   ```bash
-   python3.10 /home/твой_логин/mysite/set_webhook.py
-   ```
-3. В ответе должно быть `"ok": true`.
-
-## Шаг 8. Проверка
-
-Открой своего бота в Telegram, отправь `/start`. Должно появиться меню
-«Слова» / «Глаголы» — жми и отвечай.
-
----
+- обновить код: `sudo ./deploy/update.sh`
+- если менялись systemd-юниты или таймеры:
+  `sudo ./deploy/install_service.sh <домен>`
+- переподключить вебхук после смены домена:
+  `sudo -u botuser venv/bin/python3 set_webhook.py`
 
 ## Как добавить новые слова
 
-Открой `words.py`, добавь пары `("русский", "иврит")` в нужную категорию словаря
-`VOCAB` или `VERBS`. После правки — Reload веб-приложения на вкладке Web.
-Категория должна содержать минимум 4 слова, иначе боту не из чего выбрать
-варианты ответа.
+Открой `words.py`, добавь пары `("русский", "иврит с огласовками")` в
+нужную категорию. В категории должно быть минимум 4 слова — иначе боту
+не из чего собрать варианты ответа. После правки — `sudo ./deploy/update.sh`.
 
-## Обновление одной командой (deploy.sh)
-
-Вместо `git pull` + ручного Reload на вкладке Web — один скрипт:
-
-1. Разово: на pythonanywhere.com → **Account** → вкладка **API Token** →
-   создай токен, если его ещё нет.
-2. Добавь в `.env` рядом с `bot.py` строку `PA_API_TOKEN=твой_токен`.
-3. `chmod +x deploy.sh` (один раз).
-4. Дальше после каждого `git push` из PyCharm: в Bash-консоли PythonAnywhere
-   `./deploy.sh` — подтянет изменения и перезапустит приложение.
+Огласовки обязательны: из них выводится и произношение кириллицей,
+и проверка набранного ответа.
 
 ## Если что-то не работает
 
-- Вкладка **Web** → внизу страницы **Error log** и **Server log** — там видно,
-  если бот падает с ошибкой.
-- Убедись, что токен в `bot.py` и в `set_webhook.py` совпадает.
-- После любой правки кода — не забывай **Reload** на вкладке Web.
+```bash
+systemctl status hebrew-quiz-bot      # запущен ли бот
+journalctl -u hebrew-quiz-bot -n 50   # логи, traceback при падении
+systemctl status caddy                # HTTPS-прокси
+curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"   # что видит Telegram
+```
