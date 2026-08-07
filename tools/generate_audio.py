@@ -32,6 +32,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import audio  # noqa: E402
 from conjugations import CONJUGATIONS  # noqa: E402
+from matching import _full_spelling  # noqa: E402
+from translit import to_ktiv_male  # noqa: E402
 from words import VOCAB, VERBS  # noqa: E402
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
@@ -68,6 +70,18 @@ def collect(scope):
     return [t for t in items if not (t in seen or seen.add(t))]
 
 
+def for_speech(text, form):
+    """Что именно отправляем в синтезатор.
+
+    plain  — «полное написание» без огласовок (חולצה): именно так иврит
+             пишут в жизни и на таком тексте обучены модели TTS.
+    niqqud — как в нашем банке, с огласовками (חֻלְצָה). Диакритику модели
+             часто игнорируют или читают неверно, поэтому это запасной
+             вариант, а не основной.
+    """
+    return to_ktiv_male(text) if form == "plain" else text
+
+
 def synth(text, voice=None):
     r = requests.post(
         API_URL,
@@ -93,10 +107,24 @@ def main():
     ap.add_argument("--scope", choices=["all", "words", "forms"], default="all")
     ap.add_argument("--dry-run", action="store_true", help="только оценка, без трат")
     ap.add_argument("--force", action="store_true", help="перегенерировать существующие")
+    ap.add_argument("--text-form", choices=["plain", "niqqud"], default="plain",
+                    help="что отправлять в синтезатор: без огласовок (по умолчанию) или с ними")
+    ap.add_argument("--only", nargs="*", default=None,
+                    help="озвучить только указанные слова (иврит, можно без огласовок)")
     args = ap.parse_args()
 
     texts = collect(args.scope)
-    todo = texts if args.force else [t for t in texts if not audio.has_audio(t)]
+
+    if args.only:
+        # Сверяем по написанию без огласовок, чтобы можно было указать
+        # слово так, как оно набирается с клавиатуры.
+        wanted = {_full_spelling(w) for w in args.only}
+        texts = [t for t in texts if _full_spelling(t) in wanted]
+        if not texts:
+            print("Ни одно из указанных слов не найдено в банке.")
+            return 1
+
+    todo = texts if (args.force or args.only) else [t for t in texts if not audio.has_audio(t)]
     if args.limit:
         todo = todo[: args.limit]
 
@@ -104,7 +132,11 @@ def main():
     price = PRICE_PER_1M_CHARS.get(MODEL, 15.0) * chars / 1_000_000
     print(f"Всего текстов: {len(texts)}, уже озвучено: {len(texts) - len([t for t in texts if not audio.has_audio(t)])}")
     print(f"К озвучке сейчас: {len(todo)} ({chars} символов)")
-    print(f"Модель {MODEL}, голос {VOICE}. Ориентировочно: ${price:.2f}")
+    print(f"Модель {MODEL}, голос {VOICE}, текст: {args.text_form}. "
+          f"Ориентировочно: ${price:.2f}")
+    if todo:
+        example = todo[0]
+        print(f"Пример отправляемого текста: {example} -> {for_speech(example, args.text_form)}")
 
     if args.dry_run:
         print("Пробный расчёт, ничего не потрачено.")
@@ -118,18 +150,23 @@ def main():
 
     os.makedirs(audio.AUDIO_DIR, exist_ok=True)
     done = failed = 0
-    for i, text in enumerate(todo, 1):
-        try:
-            data = synth(text)
-            with open(audio.audio_path(text), "wb") as f:
-                f.write(data)
-            done += 1
-        except Exception as e:
-            failed += 1
-            print(f"  не удалось «{text}»: {e}")
-            time.sleep(2)   # скорее всего лимит запросов — подождём
-        if i % 25 == 0 or i == len(todo):
-            print(f"  {i}/{len(todo)}…")
+    try:
+        for i, text in enumerate(todo, 1):
+            try:
+                data = synth(for_speech(text, args.text_form))
+                with open(audio.audio_path(text), "wb") as f:
+                    f.write(data)
+                done += 1
+            except Exception as e:
+                failed += 1
+                print(f"  не удалось «{text}»: {e}")
+                time.sleep(2)   # скорее всего лимит запросов — подождём
+            if i % 25 == 0 or i == len(todo):
+                print(f"  {i}/{len(todo)}…")
+    except KeyboardInterrupt:
+        print(f"\nПрервано. Озвучено {done}, файлы сохранены.")
+        print("Запусти скрипт снова — продолжит с того же места.")
+        return 0
 
     print(f"Готово: озвучено {done}, ошибок {failed}.")
     print(f"Файлы: {audio.AUDIO_DIR}")
