@@ -48,9 +48,10 @@ FORMS = [
     ("plain", "без огласовок"),
 ]
 
-# Скорость сравниваем отдельно от способа подачи текста: если гонять все
-# сочетания, получится 18 сообщений, и слушать их невозможно.
-COMPARE_RATE = NORMAL_RATE
+SPEEDS = [
+    (NORMAL_RATE, "normal", "обычная"),
+    (SLOW_RATE, "slow", "помедленнее"),
+]
 
 
 def main():
@@ -69,27 +70,31 @@ def main():
     manifest = {}
     made = failed = 0
 
-    total = len(HEBREW_VOICES) * len(FORMS)
-    print(f"Комбинаций: {total} "
-          f"({len(HEBREW_VOICES)} голоса × {len(FORMS)} способа подачи текста), "
-          f"темп {COMPARE_RATE}")
+    total = len(HEBREW_VOICES) * len(FORMS) * len(SPEEDS)
+    print(f"Комбинаций: {total} ({len(HEBREW_VOICES)} голоса × "
+          f"{len(FORMS)} способа подачи × {len(SPEEDS)} скорости)")
     print(f"Символов: ~{total * len(SAMPLE_TEXT)} — доли процента от бесплатного лимита.\n")
 
     for voice in HEBREW_VOICES:
         for form, form_label in FORMS:
-            name = f"{voice}__{form}.ogg"
-            caption = f"{VOICE_LABELS.get(voice, voice)} · {form_label}"
-            try:
-                data = synth(SAMPLE_TEXT, voice=voice, rate=COMPARE_RATE,
-                             inner=ssml_inner(SAMPLE_TEXT, form))
-                with open(os.path.join(audio.SAMPLES_DIR, name), "wb") as f:
-                    f.write(data)
-                manifest[name] = caption
-                made += 1
-                print(f"  ✓ {caption}")
-            except Exception as e:
-                failed += 1
-                print(f"  ✗ {caption}: {str(e)[:100]}")
+            for rate, speed_tag, speed_label in SPEEDS:
+                name = f"{voice}__{form}__{speed_tag}.ogg"
+                caption = (f"{VOICE_LABELS.get(voice, voice)} · {form_label} · "
+                           f"{speed_label}")
+                try:
+                    data = synth(SAMPLE_TEXT, voice=voice, rate=rate,
+                                 inner=ssml_inner(SAMPLE_TEXT, form))
+                    with open(os.path.join(audio.SAMPLES_DIR, name), "wb") as f:
+                        f.write(data)
+                    # Скорость храним отдельным полем: бот показывает
+                    # образцы по одной скорости за раз, чтобы не заваливать
+                    # чат двенадцатью голосовыми сразу.
+                    manifest[name] = {"caption": caption, "speed": speed_tag}
+                    made += 1
+                    print(f"  ✓ {caption}")
+                except Exception as e:
+                    failed += 1
+                    print(f"  ✗ {caption}: {str(e)[:100]}")
 
     # Подписи храним рядом с файлами: разбирать их из имени файла было бы
     # хрупко, а показать в Telegram надо по-человечески.

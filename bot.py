@@ -443,9 +443,42 @@ def maybe_send_voice(chat_id, answer, mode):
         print(f"[maybe_send_voice] {e}")
 
 
-def send_voice_samples(chat_id):
-    """Одна и та же фраза всеми голосами — чтобы выбрать подходящий."""
-    samples = audio.voice_samples()
+SPEED_LABELS = {"normal": "обычная скорость", "slow": "помедленнее"}
+
+
+def ask_sample_speed(chat_id):
+    """Спрашивает скорость: образцов много, слать все сразу — каша."""
+    if not audio.voice_samples():
+        send_message(
+            chat_id,
+            "Образцы голосов ещё не сгенерированы.\n\n"
+            "На сервере: <code>venv/bin/python3 tools/voice_samples.py</code>",
+        )
+        return
+
+    speeds = audio.sample_speeds()
+    if not speeds:
+        # старые образцы без пометки скорости — просто отправляем всё
+        send_voice_samples(chat_id)
+        return
+
+    send_message(
+        chat_id,
+        "🎧 <b>Сравнение озвучки</b>\n\n"
+        f"{audio.SAMPLE_TEXT}\n\n"
+        f"<i>{audio.SAMPLE_TRANSLATION}</i>\n\n"
+        "На какой скорости прислать образцы?",
+        {"inline_keyboard": [[
+            {"text": f"🚶 {SPEED_LABELS[s]}" if s == "normal" else f"🐢 {SPEED_LABELS[s]}",
+             "callback_data": f"voices_{s}"}
+            for s in speeds
+        ]]},
+    )
+
+
+def send_voice_samples(chat_id, speed=None):
+    """Один и тот же текст в разных вариантах озвучки."""
+    samples = audio.voice_samples(speed=speed)
     if not samples:
         send_message(
             chat_id,
@@ -454,16 +487,13 @@ def send_voice_samples(chat_id):
         )
         return
 
-    send_message(
-        chat_id,
-        "🎧 <b>Сравнение озвучки</b>\n\n"
-        f"{audio.SAMPLE_TEXT}\n\n"
-        f"<i>{audio.SAMPLE_TRANSLATION}</i>\n\n"
-        "Один текст в разных вариантах: два голоса, с огласовками и без, "
-        "обычная скорость и помедленнее. Подпись под каждым.\n\n"
-        "Выбранное вписывается в .env: <code>TTS_VOICE</code>, "
-        "<code>TTS_TEXT_FORM</code>, <code>TTS_RATE</code>.",
-    )
+    if speed:
+        send_message(
+            chat_id,
+            f"Вариант: <b>{SPEED_LABELS.get(speed, speed)}</b>. "
+            "Выбранное вписывается в .env: <code>TTS_VOICE</code> и "
+            "<code>TTS_TEXT_FORM</code>.",
+        )
     for name, path in samples:
         audio.send_voice_file(API_URL, chat_id, path, caption=name)
 
@@ -709,7 +739,7 @@ def _handle_webhook_update():
             db.set_daily_word(chat_id, False)
             send_message(chat_id, "Больше не присылаю слово дня. Вернуть — /daily_on.")
         elif text.startswith("/voices"):
-            send_voice_samples(chat_id)
+            ask_sample_speed(chat_id)
         elif text.startswith("/stress"):
             send_stress_samples(chat_id)
         elif text.startswith("/voice_on"):
@@ -780,6 +810,8 @@ def _handle_webhook_update():
             send_alphabet_table(chat_id)
         elif data.startswith("start_alef_"):
             start_round(chat_id, data[len("start_"):])
+        elif data.startswith("voices_"):
+            send_voice_samples(chat_id, speed=data[len("voices_"):])
         elif data == "show_stats":
             send_stats(chat_id)
 

@@ -70,33 +70,60 @@ SAMPLE_TRANSLATION = (
 STRESS_DIR = os.path.join(AUDIO_DIR, "stress")
 
 
-def voice_samples(directory=None):
+def voice_samples(directory=None, speed=None):
     """Готовые образцы: [(подпись, путь к файлу), ...].
 
-    Подписи лежат в manifest.json рядом с файлами — разбирать их из имён
+    speed — отобрать только образцы этой скорости («normal» / «slow»).
+    Подписи лежат в manifest.json рядом с файлами: разбирать их из имён
     файлов было бы хрупко, а показать в Telegram надо по-человечески.
     """
-    SAMPLES_DIR = directory or globals()["SAMPLES_DIR"]
-    if not os.path.isdir(SAMPLES_DIR):
+    directory = directory or SAMPLES_DIR
+    if not os.path.isdir(directory):
         return []
 
-    captions = {}
-    manifest = os.path.join(SAMPLES_DIR, "manifest.json")
+    meta = {}
+    manifest = os.path.join(directory, "manifest.json")
     if os.path.exists(manifest):
         try:
             with open(manifest, encoding="utf-8") as f:
-                captions = json.load(f)
+                meta = json.load(f)
         except (ValueError, OSError) as e:
             print(f"[voice_samples] не читается manifest.json: {e}")
 
     out = []
-    for name in sorted(os.listdir(SAMPLES_DIR)):
+    for name in sorted(os.listdir(directory)):
         if not name.endswith(".ogg"):
             continue
-        path = os.path.join(SAMPLES_DIR, name)
-        if os.path.getsize(path) > 0:
-            out.append((captions.get(name, name[:-4]), path))
+        path = os.path.join(directory, name)
+        if os.path.getsize(path) == 0:
+            continue
+
+        info = meta.get(name)
+        # В старых манифестах подпись была просто строкой, без скорости
+        if isinstance(info, dict):
+            caption, item_speed = info.get("caption", name[:-4]), info.get("speed")
+        else:
+            caption, item_speed = (info or name[:-4]), None
+
+        if speed and item_speed and item_speed != speed:
+            continue
+        out.append((caption, path))
     return out
+
+
+def sample_speeds(directory=None):
+    """Какие скорости вообще есть среди образцов."""
+    directory = directory or SAMPLES_DIR
+    manifest = os.path.join(directory, "manifest.json")
+    if not os.path.exists(manifest):
+        return []
+    try:
+        with open(manifest, encoding="utf-8") as f:
+            meta = json.load(f)
+    except (ValueError, OSError):
+        return []
+    return sorted({v.get("speed") for v in meta.values()
+                   if isinstance(v, dict) and v.get("speed")})
 
 
 def send_voice_file(api_url, chat_id, path, caption=None):
