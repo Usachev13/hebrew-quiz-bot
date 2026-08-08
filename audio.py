@@ -58,12 +58,16 @@ SAMPLE_TRANSLATION = (
 )
 
 
-def voice_samples():
+STRESS_DIR = os.path.join(AUDIO_DIR, "stress")
+
+
+def voice_samples(directory=None):
     """Готовые образцы: [(подпись, путь к файлу), ...].
 
     Подписи лежат в manifest.json рядом с файлами — разбирать их из имён
     файлов было бы хрупко, а показать в Telegram надо по-человечески.
     """
+    SAMPLES_DIR = directory or globals()["SAMPLES_DIR"]
     if not os.path.isdir(SAMPLES_DIR):
         return []
 

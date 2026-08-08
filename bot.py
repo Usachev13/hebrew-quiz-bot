@@ -468,6 +468,30 @@ def send_voice_samples(chat_id):
         audio.send_voice_file(API_URL, chat_id, path, caption=name)
 
 
+def send_stress_samples(chat_id):
+    """Проверка ударения: одно слово несколькими способами синтеза."""
+    samples = audio.voice_samples(audio.STRESS_DIR)
+    if not samples:
+        send_message(
+            chat_id,
+            "Образцы для проверки ударения ещё не сгенерированы.\n\n"
+            "На сервере: <code>venv/bin/python3 tools/stress_test.py</code>",
+        )
+        return
+
+    send_message(
+        chat_id,
+        "🎯 <b>Проверка ударения</b>\n\n"
+        "У части ивритских слов ударение на предпоследнем слоге "
+        "(БО́кер, ЛЕ́хем, КЕ́сеф), а синтезатор ставит его по общему "
+        "правилу — на последний.\n\n"
+        "Каждое слово озвучено тремя способами. Послушай, какой звучит "
+        "правильно, и скажи — сделаю его основным.",
+    )
+    for caption, path in samples:
+        audio.send_voice_file(API_URL, chat_id, path, caption=caption)
+
+
 def with_reading(answer, mode):
     """Добавляет произношение кириллицей: «מִטְבָּח (митбах)».
 
@@ -686,6 +710,8 @@ def _handle_webhook_update():
             send_message(chat_id, "Больше не присылаю слово дня. Вернуть — /daily_on.")
         elif text.startswith("/voices"):
             send_voice_samples(chat_id)
+        elif text.startswith("/stress"):
+            send_stress_samples(chat_id)
         elif text.startswith("/voice_on"):
             db.set_voice(chat_id, True)
             send_message(chat_id, "Буду присылать произношение голосом.")
