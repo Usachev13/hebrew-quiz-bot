@@ -46,6 +46,11 @@ API_URL = "https://api.openai.com/v1/audio/speech"
 MODEL = os.environ.get("TTS_MODEL", "tts-1")
 VOICE = os.environ.get("TTS_VOICE", "nova")
 
+# С огласовками или без. По умолчанию с огласовками: на слух так
+# получилось лучше — модель реже угадывает гласные неверно, хотя текст
+# для неё непривычный. Меняется через TTS_TEXT_FORM в .env.
+TEXT_FORM = os.environ.get("TTS_TEXT_FORM", "niqqud")
+
 PRICE_PER_1M_CHARS = {"tts-1": 15.0, "tts-1-hd": 30.0}
 
 
@@ -70,15 +75,20 @@ def collect(scope):
     return [t for t in items if not (t in seen or seen.add(t))]
 
 
-def for_speech(text, form):
+def for_speech(text, form=None):
     """Что именно отправляем в синтезатор.
 
-    plain  — «полное написание» без огласовок (חולצה): именно так иврит
-             пишут в жизни и на таком тексте обучены модели TTS.
-    niqqud — как в нашем банке, с огласовками (חֻלְצָה). Диакритику модели
-             часто игнорируют или читают неверно, поэтому это запасной
-             вариант, а не основной.
+    niqqud — как в нашем банке, с огласовками (חֻלְצָה). Вариант по
+             умолчанию: на слух оказался лучше — огласовки прямо задают
+             гласные, и модель реже их выдумывает.
+    plain  — «полное написание» без огласовок (חולצה), как иврит пишут
+             в жизни. Текст для модели привычнее, но гласные она
+             восстанавливает сама и иногда ошибается.
+
+    Единого правильного ответа тут нет: это зависит от модели, поэтому
+    режим переключается и сравнивается на слух.
     """
+    form = form or TEXT_FORM
     return to_ktiv_male(text) if form == "plain" else text
 
 
@@ -107,8 +117,8 @@ def main():
     ap.add_argument("--scope", choices=["all", "words", "forms"], default="all")
     ap.add_argument("--dry-run", action="store_true", help="только оценка, без трат")
     ap.add_argument("--force", action="store_true", help="перегенерировать существующие")
-    ap.add_argument("--text-form", choices=["plain", "niqqud"], default="plain",
-                    help="что отправлять в синтезатор: без огласовок (по умолчанию) или с ними")
+    ap.add_argument("--text-form", choices=["plain", "niqqud"], default=TEXT_FORM,
+                    help="что отправлять в синтезатор: с огласовками (по умолчанию) или без")
     ap.add_argument("--only", nargs="*", default=None,
                     help="озвучить только указанные слова (иврит, можно без огласовок)")
     args = ap.parse_args()

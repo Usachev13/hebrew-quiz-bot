@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import audio  # noqa: E402
-from generate_audio import synth  # noqa: E402
+from generate_audio import synth, for_speech  # noqa: E402
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
@@ -44,10 +44,15 @@ def main():
 
     os.makedirs(SAMPLES_DIR, exist_ok=True)
 
+    # Образцы озвучиваем ровно так же, как карточки, иначе они не
+    # покажут реального звучания.
+    spoken = for_speech(SAMPLE_TEXT)
+    print(f"Текст для синтеза: {spoken[:60]}…\n")
+
     made, skipped = [], []
     for voice in VOICES:
         try:
-            data = synth(SAMPLE_TEXT, voice=voice)
+            data = synth(spoken, voice=voice)
             with open(sample_path(voice), "wb") as f:
                 f.write(data)
             made.append(voice)
