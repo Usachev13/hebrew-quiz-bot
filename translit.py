@@ -70,6 +70,127 @@ def _split(word):
     return out
 
 
+# --- IPA: транскрипция для синтезатора ---
+#
+# Синтезатор сам ударение не угадывает (говорит «бокЕр» вместо «бОкер»),
+# но принимает подсказку в IPA. Расписывать транскрипцию для 1884
+# карточек руками нереально, поэтому строим её из огласовок — тем же
+# разбором, что и произношение кириллицей.
+
+IPA_CONSONANTS = {
+    "א": "", "ב": "v", "ג": "ɡ", "ד": "d", "ה": "h", "ו": "v", "ז": "z",
+    "ח": "χ", "ט": "t", "י": "j", "כ": "χ", "ך": "χ", "ל": "l", "מ": "m",
+    "ם": "m", "נ": "n", "ן": "n", "ס": "s", "ע": "", "פ": "f", "ף": "f",
+    "צ": "ts", "ץ": "ts", "ק": "k", "ר": "ʁ", "ש": "ʃ", "ת": "t",
+}
+IPA_HARD = {"ב": "b", "כ": "k", "פ": "p"}
+IPA_VOWELS = {"а": "a", "е": "e", "и": "i", "о": "o", "у": "u"}
+
+
+def _is_segolate(units):
+    """Слово с ударением на предпоследнем слоге.
+
+    В иврите ударение обычно на последнем слоге, но у «сеголатных» слов
+    (בֹּקֶר, לֶחֶם, כֶּסֶף) — на предпоследнем. Признак: последняя гласная —
+    сеголь, и слово не оканчивается на ה (иначе это מוֹרֶה, где ударение
+    как раз на последнем).
+
+    Отдельно — «патах гнува» под конечными ע/ח: תַּפּוּחַ читается «тапУах»,
+    ударение тоже смещено.
+    """
+    letters = [(l, m) for l, m in units if l != " "]
+    if len(letters) < 2:
+        return False
+
+    last_letter, last_marks = letters[-1]
+    if last_letter in "עח" and "ַ" in last_marks:
+        return True
+    if last_letter == "ה":
+        return False
+
+    # ищем последнюю гласную в слове
+    for letter, marks in reversed(letters):
+        vowel = next((m for m in marks if m in VOWELS), None)
+        if vowel:
+            return vowel == "ֶ"
+    return False
+
+
+def to_ipa(word):
+    """Транскрипция слова в IPA с ударением."""
+    if " " in (word or ""):
+        return " ".join(to_ipa(w) for w in word.split())
+
+    units = _split(word)
+    syllables = []          # список слогов
+    current = ""            # накапливаемый слог
+
+    for i, (letter, marks) in enumerate(units):
+        if letter not in CONSONANTS:
+            continue
+
+        vowel = next((VOWELS[m] for m in marks if m in VOWELS), None)
+        if KAMATS in marks:
+            nxt_marks = units[i + 1][1] if i + 1 < len(units) else []
+            if unicodedata.normalize("NFC", word) in KAMATS_KATAN_WORDS \
+                    or HATAF_KAMATS in nxt_marks:
+                vowel = "о"
+
+        has_dagesh = DAGESH in marks
+        prev_marks = units[i - 1][1] if i > 0 else []
+        nxt = units[i + 1] if i + 1 < len(units) else None
+
+        # ו и י бывают частью гласной, а не согласными
+        if letter == "ו":
+            if has_dagesh and vowel is None:
+                current += "u"
+                syllables.append(current); current = ""
+                continue
+            if vowel == "о":
+                current += "o"
+                syllables.append(current); current = ""
+                continue
+        if letter == "י" and vowel is None and "ִ" in prev_marks:
+            continue
+
+        if letter in IPA_HARD and has_dagesh:
+            snd = IPA_HARD[letter]
+        elif letter == "ש":
+            snd = "s" if SIN_DOT in marks else "ʃ"
+        else:
+            snd = IPA_CONSONANTS[letter]
+
+        is_last = nxt is None or nxt[0] == " "
+        if is_last and letter in ("ה", "א") and vowel is None:
+            continue
+
+        # патах гнува: гласная звучит ПЕРЕД буквой
+        if is_last and letter in ("ע", "ח") and "ַ" in marks:
+            syllables.append(current + "a") if current else syllables.append("a")
+            current = snd
+            continue
+
+        current += snd
+        if vowel:
+            current += IPA_VOWELS.get(vowel, vowel)
+            syllables.append(current); current = ""
+        elif SHVA in marks and (i == 0 or units[i - 1][0] == " "):
+            current += "e"
+            syllables.append(current); current = ""
+
+    if current:                      # хвост из согласных — в последний слог
+        if syllables:
+            syllables[-1] += current
+        else:
+            syllables.append(current)
+
+    if not syllables:
+        return ""
+
+    stressed = len(syllables) - (2 if _is_segolate(units) and len(syllables) > 1 else 1)
+    return "".join(("ˈ" if n == stressed else "") + s for n, s in enumerate(syllables))
+
+
 def to_ktiv_male(word):
     """Огласованная запись -> обычное израильское письмо (כתיב מלא).
 

@@ -438,7 +438,7 @@ def maybe_send_voice(chat_id, answer, mode):
         return
     try:
         if db.voice_enabled(chat_id):
-            audio.send_voice(API_URL, chat_id, answer)
+            audio.send_voice(API_URL, chat_id, answer, slow=db.slow_voice(chat_id))
     except Exception as e:
         print(f"[maybe_send_voice] {e}")
 
@@ -718,6 +718,15 @@ def _handle_webhook_update():
         elif text.startswith("/voice_off"):
             db.set_voice(chat_id, False)
             send_message(chat_id, "Голосовые отключены. Вернуть — /voice_on.")
+        elif text.startswith("/speed"):
+            slow = not db.slow_voice(chat_id)
+            db.set_slow_voice(chat_id, slow)
+            send_message(
+                chat_id,
+                "🐢 Озвучка помедленнее — легче разобрать по звукам."
+                if slow else
+                "🚶 Обычная скорость озвучки.",
+            )
         elif in_typing_round:
             # В режиме набора принимаем любой текст: это и есть ответ
             # (плюс «?» для подсказки и /skip для пропуска).

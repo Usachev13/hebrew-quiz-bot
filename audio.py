@@ -27,12 +27,15 @@ def audio_key(text):
     return hashlib.sha1(text.encode("utf-8")).hexdigest()[:16]
 
 
-def audio_path(text):
-    return os.path.join(AUDIO_DIR, f"{audio_key(text)}.ogg")
+def audio_path(text, slow=False):
+    """Файл озвучки. Медленный вариант хранится отдельно: переключать
+    скорость на лету нельзя — файлы сгенерированы заранее."""
+    suffix = "_slow" if slow else ""
+    return os.path.join(AUDIO_DIR, f"{audio_key(text)}{suffix}.ogg")
 
 
-def has_audio(text):
-    p = audio_path(text)
+def has_audio(text, slow=False):
+    p = audio_path(text, slow)
     return os.path.exists(p) and os.path.getsize(p) > 0
 
 
@@ -43,18 +46,24 @@ SAMPLES_DIR = os.path.join(AUDIO_DIR, "samples")
 # TTS_TEXT_FORM), поэтому образец всегда отражает реальное звучание.
 # Подобран из нашей же лексики и так, чтобы звучали спорные места:
 # гортанные ח и ע, «р», ש/שׂ, разные типы предложений.
+# Текст намеренно набит проблемными словами, а не «красивый»:
+#   • сеголатные (ударение на предпоследнем слоге, синтезатор ошибается):
+#     בֹּקֶר, יֶלֶד, לֶחֶם, סֵפֶר, דֶּלֶת, כֶּסֶף, חֶדֶר, עֶרֶב
+#   • камац катан (читается «о», а не «а»): כָּל
+#   • патах гнува (гласная звучит перед буквой): תַּפּוּחַ, לוֹקֵחַ, שָׁבוּעַ
+#   • гортанные: חָבֵר, עִבְרִית
 SAMPLE_TEXT = (
-    "שָׁלוֹם! קוֹרְאִים לִי דָּנִיֵּאל וַאֲנִי לוֹמֵד עִבְרִית. "
-    "אֲנִי גָּר בְּיִשְׂרָאֵל. כָּל בֹּקֶר אֲנִי שׁוֹתֶה קָפֶה עִם חָבֵר טוֹב. "
-    "בָּעֶרֶב אֲנִי הוֹלֵךְ לַשּׁוּק, קוֹנֶה לֶחֶם וִירָקוֹת, וּמְשַׁלֵּם בְּכַרְטִיס. "
-    "מָחָר אֲנִי רוֹצֶה לִנְסוֹעַ לַיָּם וְלָנוּחַ קְצָת."
+    "בַּבֹּקֶר הַיֶּלֶד אוֹכֵל לֶחֶם וְתַפּוּחַ. "
+    "אַחַר כָּךְ הוּא לוֹקֵחַ סֵפֶר וְיוֹצֵא מֵהַדֶּלֶת. "
+    "כָּל שָׁבוּעַ אֲנִי מְשַׁלֵּם כֶּסֶף עַל הַחֶדֶר. "
+    "בָּעֶרֶב חָבֵר טוֹב מְדַבֵּר אִתִּי בְּעִבְרִית."
 )
 
 SAMPLE_TRANSLATION = (
-    "Привет! Меня зовут Даниэль, и я учу иврит. "
-    "Я живу в Израиле. Каждое утро пью кофе с хорошим другом. "
-    "Вечером иду на рынок, покупаю хлеб и овощи, плачу картой. "
-    "Завтра хочу поехать на море и немного отдохнуть."
+    "Утром ребёнок ест хлеб и яблоко. "
+    "Потом он берёт книгу и выходит из двери. "
+    "Каждую неделю я плачу деньги за комнату. "
+    "Вечером хороший друг говорит со мной на иврите."
 )
 
 
@@ -109,24 +118,11 @@ def send_voice_file(api_url, chat_id, path, caption=None):
         return False
 
 
-def send_voice(api_url, chat_id, text, caption=None):
+def send_voice(api_url, chat_id, text, caption=None, slow=False):
     """Отправляет голосовое с произношением. Молча ничего не делает,
     если файла нет — озвучка не должна ломать урок."""
-    path = audio_path(text)
-    if not has_audio(text):
+    if slow and not has_audio(text, slow=True):
+        slow = False          # медленного варианта нет — отдаём обычный
+    if not has_audio(text, slow):
         return False
-    try:
-        with open(path, "rb") as f:
-            data = {"chat_id": str(chat_id)}
-            if caption:
-                data["caption"] = caption
-            requests.post(
-                f"{api_url}/sendVoice",
-                data=data,
-                files={"voice": (f"{audio_key(text)}.ogg", f, "audio/ogg")},
-                timeout=20,
-            )
-        return True
-    except requests.exceptions.RequestException as e:
-        print(f"[send_voice] сетевая ошибка: {e}")
-        return False
+    return send_voice_file(api_url, chat_id, audio_path(text, slow), caption)

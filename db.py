@@ -76,9 +76,15 @@ CREATE TABLE IF NOT EXISTS daily_word (
 -- Настройки пользователя. Пока одна: присылать ли произношение голосом.
 CREATE TABLE IF NOT EXISTS prefs (
     chat_id     TEXT PRIMARY KEY,
-    voice       INTEGER NOT NULL DEFAULT 1
+    voice       INTEGER NOT NULL DEFAULT 1,
+    slow_voice  INTEGER NOT NULL DEFAULT 0
 );
 """
+
+# Столбцы, которые появились позже схемы. SQLite не умеет
+# ADD COLUMN IF NOT EXISTS, поэтому проверяем сами — иначе у тех, у кого
+# база уже создана, новые настройки молча не заработают.
+LATER_COLUMNS = [("prefs", "slow_voice", "INTEGER NOT NULL DEFAULT 0")]
 
 # Интервалы системы Лейтнера: сколько дней ждать до следующего показа.
 BOX_INTERVALS = {1: 0, 2: 1, 3: 3, 4: 7, 5: 21}
@@ -102,6 +108,10 @@ def init_db():
     """Создаёт таблицы, если их ещё нет. Безопасно вызывать при каждом старте."""
     conn = get_conn()
     conn.executescript(SCHEMA)
+    for table, column, decl in LATER_COLUMNS:
+        cols = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if column not in cols:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
     conn.commit()
 
 
@@ -285,6 +295,24 @@ def voice_enabled(chat_id):
         "SELECT voice FROM prefs WHERE chat_id = ?", (str(chat_id),)
     ).fetchone()
     return True if row is None else bool(row["voice"])
+
+
+def set_slow_voice(chat_id, slow):
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO prefs (chat_id, slow_voice) VALUES (?, ?) "
+        "ON CONFLICT(chat_id) DO UPDATE SET slow_voice = excluded.slow_voice",
+        (str(chat_id), 1 if slow else 0),
+    )
+    conn.commit()
+
+
+def slow_voice(chat_id):
+    """Медленная озвучка. По умолчанию обычная скорость."""
+    row = get_conn().execute(
+        "SELECT slow_voice FROM prefs WHERE chat_id = ?", (str(chat_id),)
+    ).fetchone()
+    return bool(row["slow_voice"]) if row else False
 
 
 # ---------- слово дня ----------

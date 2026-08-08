@@ -29,7 +29,9 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import audio  # noqa: E402
-from generate_audio import synth, for_speech, missing_key, HEBREW_VOICES  # noqa: E402
+from generate_audio import (  # noqa: E402
+    synth, ssml_inner, missing_key, HEBREW_VOICES, NORMAL_RATE, SLOW_RATE,
+)
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
@@ -41,14 +43,14 @@ VOICE_LABELS = {
 }
 
 FORMS = [
+    ("ipa", "транскрипция с ударением"),
     ("niqqud", "с огласовками"),
     ("plain", "без огласовок"),
 ]
 
-RATES = [
-    ("0%", "обычная скорость"),
-    ("-15%", "помедленнее"),
-]
+# Скорость сравниваем отдельно от способа подачи текста: если гонять все
+# сочетания, получится 18 сообщений, и слушать их невозможно.
+COMPARE_RATE = NORMAL_RATE
 
 
 def main():
@@ -57,31 +59,37 @@ def main():
         print(problem)
         return 1
 
+    # Чистим папку: иначе рядом остаются образцы от прошлых прогонов
+    # (в том числе от другого провайдера) и путают при сравнении.
+    if os.path.isdir(audio.SAMPLES_DIR):
+        for old in os.listdir(audio.SAMPLES_DIR):
+            os.remove(os.path.join(audio.SAMPLES_DIR, old))
     os.makedirs(audio.SAMPLES_DIR, exist_ok=True)
+
     manifest = {}
     made = failed = 0
 
-    total = len(HEBREW_VOICES) * len(FORMS) * len(RATES)
+    total = len(HEBREW_VOICES) * len(FORMS)
     print(f"Комбинаций: {total} "
-          f"({len(HEBREW_VOICES)} голоса × {len(FORMS)} формы текста × {len(RATES)} скорости)")
-    print(f"Символов: ~{total * len(SAMPLE_TEXT)} — это доли процента от "
-          f"бесплатного лимита.\n")
+          f"({len(HEBREW_VOICES)} голоса × {len(FORMS)} способа подачи текста), "
+          f"темп {COMPARE_RATE}")
+    print(f"Символов: ~{total * len(SAMPLE_TEXT)} — доли процента от бесплатного лимита.\n")
 
     for voice in HEBREW_VOICES:
         for form, form_label in FORMS:
-            for rate, rate_label in RATES:
-                name = f"{voice}__{form}__{rate.replace('%','').replace('-','m')}.ogg"
-                caption = f"{VOICE_LABELS.get(voice, voice)} · {form_label} · {rate_label}"
-                try:
-                    data = synth(for_speech(SAMPLE_TEXT, form), voice=voice, rate=rate)
-                    with open(os.path.join(audio.SAMPLES_DIR, name), "wb") as f:
-                        f.write(data)
-                    manifest[name] = caption
-                    made += 1
-                    print(f"  ✓ {caption}")
-                except Exception as e:
-                    failed += 1
-                    print(f"  ✗ {caption}: {str(e)[:100]}")
+            name = f"{voice}__{form}.ogg"
+            caption = f"{VOICE_LABELS.get(voice, voice)} · {form_label}"
+            try:
+                data = synth(SAMPLE_TEXT, voice=voice, rate=COMPARE_RATE,
+                             inner=ssml_inner(SAMPLE_TEXT, form))
+                with open(os.path.join(audio.SAMPLES_DIR, name), "wb") as f:
+                    f.write(data)
+                manifest[name] = caption
+                made += 1
+                print(f"  ✓ {caption}")
+            except Exception as e:
+                failed += 1
+                print(f"  ✗ {caption}: {str(e)[:100]}")
 
     # Подписи храним рядом с файлами: разбирать их из имени файла было бы
     # хрупко, а показать в Telegram надо по-человечески.
