@@ -68,6 +68,7 @@ SAMPLE_TRANSLATION = (
 
 
 STRESS_DIR = os.path.join(AUDIO_DIR, "stress")
+VARIANTS_DIR = os.path.join(AUDIO_DIR, "variants")
 
 
 def voice_samples(directory=None, speed=None):

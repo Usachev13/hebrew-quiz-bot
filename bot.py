@@ -522,6 +522,30 @@ def send_stress_samples(chat_id):
         audio.send_voice_file(API_URL, chat_id, path, caption=caption)
 
 
+def send_stress_variants(chat_id):
+    """Одно слово несколькими способами записи ударения."""
+    samples = audio.voice_samples(audio.VARIANTS_DIR)
+    if not samples:
+        send_message(
+            chat_id,
+            "Варианты записи ещё не сгенерированы.\n\n"
+            "На сервере: <code>venv/bin/python3 tools/stress_variants.py</code>",
+        )
+        return
+
+    send_message(
+        chat_id,
+        "🔬 <b>Какую запись ударения понимает синтезатор</b>\n\n"
+        "Слово <b>תַּפּוּחַ</b>, должно звучать «та-ПУ-ах».\n\n"
+        "D и E — контрольные, там ударение намеренно поставлено неверно. "
+        "Если они звучат по-разному, значит позиция знака учитывается — "
+        "и тогда один из A, B, C окажется правильным.\n\n"
+        "Скажи, в каком варианте слышно «та-ПУ-ах».",
+    )
+    for caption, path in samples:
+        audio.send_voice_file(API_URL, chat_id, path, caption=caption)
+
+
 def with_reading(answer, mode):
     """Добавляет произношение кириллицей: «מִטְבָּח (митбах)».
 
@@ -742,6 +766,8 @@ def _handle_webhook_update():
             ask_sample_speed(chat_id)
         elif text.startswith("/stress"):
             send_stress_samples(chat_id)
+        elif text.startswith("/variants"):
+            send_stress_variants(chat_id)
         elif text.startswith("/voice_on"):
             db.set_voice(chat_id, True)
             send_message(chat_id, "Буду присылать произношение голосом.")

@@ -29,7 +29,7 @@
 API. Отключается `/voice_off`.
 
 **Команды:** `/start` · `/stats` · `/word` · `/daily_on` · `/daily_off` ·
-`/voices` · `/stress` · `/voice_on` · `/voice_off` · `/speed` · `/skip`
+`/voices` · `/stress` · `/variants` · `/voice_on` · `/voice_off` · `/speed` · `/skip`
 
 ## Как добавить озвучку
 
