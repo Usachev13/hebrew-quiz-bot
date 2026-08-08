@@ -32,6 +32,18 @@ VOWELS = {
     "ֳ": "о",   # хатаф-камац
 }
 SHVA = "ְ"
+KAMATS = "ָ"
+HATAF_KAMATS = "ֳ"
+
+# «Камац катан» — камац, который читается как «о», а не «а»
+# (כָּל = коль, צָהֳרַיִם = цохорайим). Формально это камац в закрытом
+# безударном слоге, но надёжно вывести это из одних огласовок нельзя:
+# нужна информация об ударении, которой у нас нет. На весь наш банк
+# таких слов ровно два, поэтому — одно правило и один список.
+#
+# Правило: камац перед буквой с хатаф-камацем — всегда катан.
+# Список: слова, которые под правило не подпадают.
+KAMATS_KATAN_WORDS = {"כָּל"}
 
 # Согласные. Для ב, כ, פ звук зависит от дагеша, для ש — от точки сбоку.
 CONSONANTS = {
@@ -99,7 +111,13 @@ def to_ktiv_male(word):
 
 def translit(word):
     """Произношение слова кириллицей."""
+    # Слова разбираем по отдельности: камац катан определяется в пределах
+    # слова, а не всей фразы.
+    if " " in (word or ""):
+        return " ".join(translit(w) for w in word.split())
+
     units = _split(word)
+    whole_word_katan = unicodedata.normalize("NFC", word or "") in KAMATS_KATAN_WORDS
     res = []
 
     for i, (letter, marks) in enumerate(units):
@@ -110,6 +128,14 @@ def translit(word):
             continue
 
         vowel = next((VOWELS[m] for m in marks if m in VOWELS), None)
+
+        # Камац катан читается как «о»: перед хатаф-камацем (צָהֳרַיִם)
+        # или в слове из списка (כָּל).
+        if KAMATS in marks:
+            next_marks = units[i + 1][1] if i + 1 < len(units) else []
+            if whole_word_katan or HATAF_KAMATS in next_marks:
+                vowel = "о"
+
         has_dagesh = DAGESH in marks
         prev_letter, prev_marks = units[i - 1] if i > 0 else (None, [])
         nxt = units[i + 1] if i + 1 < len(units) else None
