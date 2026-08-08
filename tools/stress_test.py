@@ -83,9 +83,33 @@ def main():
         print(problem)
         return 1
 
+    # Чистим папку, чтобы не смешивать с прошлым прогоном
+    if os.path.isdir(STRESS_DIR):
+        for f in os.listdir(STRESS_DIR):
+            os.remove(os.path.join(STRESS_DIR, f))
     os.makedirs(STRESS_DIR, exist_ok=True)
     manifest = {}
     made = failed = 0
+
+    # Контрольный образец: транскрипция заведомо не та. Если он прозвучит
+    # как настоящее слово — значит Azure тег <phoneme> для иврита
+    # игнорирует, и всё, что мы делаем с ударением через IPA, бесполезно.
+    canary_word, _ = WORDS[0]
+    canary_plain = to_ktiv_male(canary_word)
+    try:
+        with open(os.path.join(STRESS_DIR, "000_canary.ogg"), "wb") as f:
+            f.write(synth_ssml(
+                f"<phoneme alphabet='ipa' ph='ˈzu.zu.zu'>{escape(canary_plain)}</phoneme>"
+            ))
+        manifest["000_canary.ogg"] = (
+            f"🧪 ПРОВЕРКА: {canary_word} с транскрипцией «zuzuzu».\n"
+            "Слышно «зузузу» — транскрипция работает.\n"
+            "Слышно обычное слово — Azure её игнорирует."
+        )
+        made += 1
+        print("  ✓ контрольный образец (zuzuzu)")
+    except Exception as e:
+        print(f"  ✗ контрольный образец: {str(e)[:100]}")
 
     for word, ru_stress in WORDS:
         plain = to_ktiv_male(word)
