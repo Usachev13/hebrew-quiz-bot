@@ -25,6 +25,7 @@ Azure выбран потому, что у него есть голоса, об�
 
 import argparse
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -63,6 +64,11 @@ RATE = NORMAL_RATE
 #   niqqud — с огласовками
 #   plain  — обычное израильское письмо без огласовок
 TEXT_FORM = os.environ.get("TTS_TEXT_FORM", "ipa")
+
+# Паузы в режиме ipa. Транскрипция задаёт звуки, но не ритм, поэтому без
+# пауз слова склеиваются в сплошной поток. «0ms» — выключить.
+WORD_BREAK = os.environ.get("TTS_WORD_BREAK", "150ms")
+SENTENCE_BREAK = os.environ.get("TTS_SENTENCE_BREAK", "500ms")
 
 # Нейроголоса Azure: 500 тыс. символов в месяц бесплатно, дальше ~$16
 # за миллион. Наши ~17 тыс. укладываются в бесплатный лимит.
@@ -140,15 +146,33 @@ def ssml_inner(text, form=None):
     if form != "ipa":
         return escape(for_speech(text, form))
 
-    parts = []
-    for word in text.split(" "):
+    parts = []          # [(разметка слова, пауза после него), ...]
+    for token in text.split(" "):
+        # Знаки препинания выносим ЗА тег: внутри <phoneme> они не читаются,
+        # синтезатор перестаёт видеть границы предложений и всё сливается
+        # в сплошной поток без пауз.
+        m = re.match(r"^(.*?)([.,!?;:\"'»)]*)$", token, re.S)
+        word, tail = m.group(1), m.group(2)
+
         ipa = to_ipa(word)
-        shown = escape(to_ktiv_male(word))
         if ipa:
-            parts.append(f"<phoneme alphabet='ipa' ph='{escape(ipa)}'>{shown}</phoneme>")
+            shown = escape(to_ktiv_male(word))
+            markup = (f"<phoneme alphabet='ipa' ph='{escape(ipa)}'>{shown}</phoneme>"
+                      + escape(tail))
         else:
-            parts.append(shown)
-    return " ".join(parts)
+            markup = escape(token)
+
+        # После конца предложения пауза должна быть заметно длиннее,
+        # иначе предложения слипаются так же, как слова.
+        ends_sentence = any(c in tail for c in ".!?")
+        parts.append((markup, SENTENCE_BREAK if ends_sentence else WORD_BREAK))
+
+    out = []
+    for i, (markup, pause) in enumerate(parts):
+        out.append(markup)
+        if i < len(parts) - 1:
+            out.append(f'<break time="{pause}"/>' if pause and pause != "0ms" else " ")
+    return "".join(out)
 
 
 def synth(text, voice=None, rate=None, inner=None):
