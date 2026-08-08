@@ -456,11 +456,13 @@ def send_voice_samples(chat_id):
 
     send_message(
         chat_id,
-        "🎧 <b>Образцы голосов</b>\n\n"
+        "🎧 <b>Сравнение озвучки</b>\n\n"
         f"{audio.SAMPLE_TEXT}\n\n"
         f"<i>{audio.SAMPLE_TRANSLATION}</i>\n\n"
-        "Один и тот же текст всеми голосами. Понравившийся вписывается в "
-        "<code>TTS_VOICE</code> в .env на сервере.",
+        "Один текст в разных вариантах: два голоса, с огласовками и без, "
+        "обычная скорость и помедленнее. Подпись под каждым.\n\n"
+        "Выбранное вписывается в .env: <code>TTS_VOICE</code>, "
+        "<code>TTS_TEXT_FORM</code>, <code>TTS_RATE</code>.",
     )
     for name, path in samples:
         audio.send_voice_file(API_URL, chat_id, path, caption=name)

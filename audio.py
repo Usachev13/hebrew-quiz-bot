@@ -11,6 +11,7 @@
 """
 
 import hashlib
+import json
 import os
 
 import requests
@@ -58,15 +59,30 @@ SAMPLE_TRANSLATION = (
 
 
 def voice_samples():
-    """Готовые образцы голосов: [(имя голоса, путь к файлу), ...]."""
+    """Готовые образцы: [(подпись, путь к файлу), ...].
+
+    Подписи лежат в manifest.json рядом с файлами — разбирать их из имён
+    файлов было бы хрупко, а показать в Telegram надо по-человечески.
+    """
     if not os.path.isdir(SAMPLES_DIR):
         return []
+
+    captions = {}
+    manifest = os.path.join(SAMPLES_DIR, "manifest.json")
+    if os.path.exists(manifest):
+        try:
+            with open(manifest, encoding="utf-8") as f:
+                captions = json.load(f)
+        except (ValueError, OSError) as e:
+            print(f"[voice_samples] не читается manifest.json: {e}")
+
     out = []
     for name in sorted(os.listdir(SAMPLES_DIR)):
-        if name.endswith(".ogg"):
-            path = os.path.join(SAMPLES_DIR, name)
-            if os.path.getsize(path) > 0:
-                out.append((name[:-4], path))
+        if not name.endswith(".ogg"):
+            continue
+        path = os.path.join(SAMPLES_DIR, name)
+        if os.path.getsize(path) > 0:
+            out.append((captions.get(name, name[:-4]), path))
     return out
 
 

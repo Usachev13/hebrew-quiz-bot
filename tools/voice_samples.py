@@ -1,17 +1,25 @@
 # -*- coding: utf-8 -*-
 """
-Образцы голосов: одна и та же ивритская фраза всеми голосами OpenAI.
+Сравнение вариантов озвучки: голос × огласовки × скорость.
 
-Слушать английские демо на сайте бесполезно — вопрос в том, как голос
-читает именно иврит, а тут они различаются заметно (гортанные ח и ע,
-ударения, «р»).
+Слушать демо на сайте бесполезно — вопрос в том, как конкретный голос
+читает наш текст. А ещё два решения, которые заранее не очевидны:
+
+  • отдавать в синтезатор текст с огласовками или без. С огласовками
+    гласные заданы явно, но текст для модели непривычный; без огласовок
+    наоборот. Что лучше — зависит от модели, это надо слышать.
+  • обычная скорость или помедленнее. Медленнее легче разобрать по
+    звукам, но звучит неестественно.
+
+Скрипт генерирует все комбинации и подписывает их, чтобы в Telegram
+было понятно, где что.
 
     python3 tools/voice_samples.py
 
-Потом в боте команда /voices пришлёт все образцы голосовыми.
-Стоит копейки: ~30 символов на голос.
+Потом в боте команда /voices.
 """
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -21,26 +29,26 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import audio  # noqa: E402
-from generate_audio import synth, for_speech, PROVIDER, missing_key  # noqa: E402
+from generate_audio import synth, for_speech, missing_key, HEBREW_VOICES  # noqa: E402
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 SAMPLE_TEXT = audio.SAMPLE_TEXT
 
-# У Azure это голоса, обученные именно на иврите (he-IL), у OpenAI —
-# универсальные многоязычные. Поэтому и списки разные.
-VOICES_BY_PROVIDER = {
-    "azure": ["he-IL-HilaNeural", "he-IL-AvriNeural"],
-    "openai": ["alloy", "echo", "fable", "onyx", "nova", "shimmer",
-               "ash", "coral", "sage"],
+VOICE_LABELS = {
+    "he-IL-HilaNeural": "Хила (жен.)",
+    "he-IL-AvriNeural": "Аври (муж.)",
 }
-VOICES = VOICES_BY_PROVIDER.get(PROVIDER, VOICES_BY_PROVIDER["openai"])
 
-SAMPLES_DIR = os.path.join(audio.AUDIO_DIR, "samples")
+FORMS = [
+    ("niqqud", "с огласовками"),
+    ("plain", "без огласовок"),
+]
 
-
-def sample_path(voice):
-    return os.path.join(SAMPLES_DIR, f"{voice}.ogg")
+RATES = [
+    ("0%", "обычная скорость"),
+    ("-15%", "помедленнее"),
+]
 
 
 def main():
@@ -49,31 +57,43 @@ def main():
         print(problem)
         return 1
 
-    print(f"Провайдер: {PROVIDER}, голосов к сравнению: {len(VOICES)}")
-    os.makedirs(SAMPLES_DIR, exist_ok=True)
+    os.makedirs(audio.SAMPLES_DIR, exist_ok=True)
+    manifest = {}
+    made = failed = 0
 
-    # Образцы озвучиваем ровно так же, как карточки, иначе они не
-    # покажут реального звучания.
-    spoken = for_speech(SAMPLE_TEXT)
-    print(f"Текст для синтеза: {spoken[:60]}…\n")
+    total = len(HEBREW_VOICES) * len(FORMS) * len(RATES)
+    print(f"Комбинаций: {total} "
+          f"({len(HEBREW_VOICES)} голоса × {len(FORMS)} формы текста × {len(RATES)} скорости)")
+    print(f"Символов: ~{total * len(SAMPLE_TEXT)} — это доли процента от "
+          f"бесплатного лимита.\n")
 
-    made, skipped = [], []
-    for voice in VOICES:
-        try:
-            data = synth(spoken, voice=voice)
-            with open(sample_path(voice), "wb") as f:
-                f.write(data)
-            made.append(voice)
-            print(f"  {voice}: готово")
-        except Exception as e:
-            skipped.append(voice)
-            print(f"  {voice}: пропущен ({str(e)[:80]})")
+    for voice in HEBREW_VOICES:
+        for form, form_label in FORMS:
+            for rate, rate_label in RATES:
+                name = f"{voice}__{form}__{rate.replace('%','').replace('-','m')}.ogg"
+                caption = f"{VOICE_LABELS.get(voice, voice)} · {form_label} · {rate_label}"
+                try:
+                    data = synth(for_speech(SAMPLE_TEXT, form), voice=voice, rate=rate)
+                    with open(os.path.join(audio.SAMPLES_DIR, name), "wb") as f:
+                        f.write(data)
+                    manifest[name] = caption
+                    made += 1
+                    print(f"  ✓ {caption}")
+                except Exception as e:
+                    failed += 1
+                    print(f"  ✗ {caption}: {str(e)[:100]}")
 
-    print(f"\nГотово: {len(made)} голосов -> {SAMPLES_DIR}")
-    if skipped:
-        print(f"Недоступны для выбранной модели: {', '.join(skipped)}")
-    print("Теперь отправь боту /voices, чтобы послушать их в Telegram.")
-    return 0
+    # Подписи храним рядом с файлами: разбирать их из имени файла было бы
+    # хрупко, а показать в Telegram надо по-человечески.
+    if manifest:
+        with open(os.path.join(audio.SAMPLES_DIR, "manifest.json"), "w",
+                  encoding="utf-8") as f:
+            json.dump(manifest, f, ensure_ascii=False, indent=2)
+
+    print(f"\nГотово: {made} образцов, ошибок {failed}.")
+    if made:
+        print("Отправь боту /voices, чтобы послушать их в Telegram.")
+    return 0 if made else 1
 
 
 if __name__ == "__main__":

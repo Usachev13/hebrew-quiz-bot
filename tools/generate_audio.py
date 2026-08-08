@@ -1,22 +1,26 @@
 # -*- coding: utf-8 -*-
 """
-Разовая генерация озвучки через OpenAI TTS.
+Разовая генерация озвучки через Azure Speech.
 
-Запускать вручную: синтез стоит денег, поэтому он не должен происходить
-сам по себе. Скрипт возобновляемый — уже готовые файлы пропускаются,
-так что его можно прерывать и запускать снова.
+Azure выбран потому, что у него есть голоса, обученные именно на иврите
+(he-IL), а не многоязычные модели, для которых иврит побочная
+возможность — на гласных разница слышна.
+
+Запускать вручную: синтез расходует квоту, поэтому он не должен
+происходить сам по себе. Скрипт возобновляемый — уже готовые файлы
+пропускаются, так что его можно прерывать и запускать снова.
 
 Использование:
-    # сначала посмотреть, сколько это будет стоить (ничего не тратит)
+    # сколько будет символов (ничего не тратит)
     python3 tools/generate_audio.py --dry-run
 
-    # проба на 10 словах: послушать, устраивает ли голос
+    # проба на 10 словах
     python3 tools/generate_audio.py --limit 10
 
     # всё остальное
     python3 tools/generate_audio.py
 
-Ключ берётся из OPENAI_API_KEY в .env рядом с ботом.
+Ключ и регион берутся из AZURE_SPEECH_KEY / AZURE_SPEECH_REGION в .env.
 """
 
 import argparse
@@ -39,36 +43,24 @@ from words import VOCAB, VERBS  # noqa: E402
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-# Провайдер синтеза. Azure — по умолчанию: у него есть голоса, обученные
-# именно на иврите (he-IL), а не многоязычные модели, для которых иврит
-# побочная возможность. Это как раз и слышно на гласных.
-PROVIDER = os.environ.get("TTS_PROVIDER", "azure")
-
-# --- OpenAI ---
-OPENAI_KEY = os.environ.get("OPENAI_API_KEY", "")
-OPENAI_URL = "https://api.openai.com/v1/audio/speech"
-OPENAI_MODEL = os.environ.get("TTS_MODEL", "tts-1")
-
-# --- Azure Speech ---
 AZURE_KEY = os.environ.get("AZURE_SPEECH_KEY", "")
 AZURE_REGION = os.environ.get("AZURE_SPEECH_REGION", "westeurope")
 
-# Голос по умолчанию для каждого провайдера
-DEFAULT_VOICE = {"openai": "nova", "azure": "he-IL-HilaNeural"}
-VOICE = os.environ.get("TTS_VOICE") or DEFAULT_VOICE.get(PROVIDER, "nova")
+# Голоса, обученные на иврите: женский и мужской.
+VOICE = os.environ.get("TTS_VOICE", "he-IL-HilaNeural")
+HEBREW_VOICES = ["he-IL-HilaNeural", "he-IL-AvriNeural"]
 
-# Темп речи. Для разбора слова на слух медленнее обычно полезнее:
-# «-10%» заметно помогает расслышать огласовки. Поддерживает только Azure.
+# Темп речи. Медленнее обычно полезнее для разбора слова на слух,
+# но это дело вкуса — сравнивается через tools/voice_samples.py.
 RATE = os.environ.get("TTS_RATE", "-10%")
 
-# С огласовками или без. По умолчанию с огласовками: на слух так
-# получилось лучше — модель реже угадывает гласные неверно, хотя текст
-# для неё непривычный. Меняется через TTS_TEXT_FORM в .env.
+# С огласовками или без. По умолчанию с огласовками: они прямо задают
+# гласные, и модель реже их выдумывает. Меняется через TTS_TEXT_FORM.
 TEXT_FORM = os.environ.get("TTS_TEXT_FORM", "niqqud")
 
-# Цена за миллион символов. У Azure нейроголоса ещё и с бесплатным
-# лимитом 500 тыс. символов в месяц — наши ~17 тыс. в него укладываются.
-PRICE_PER_1M_CHARS = {"tts-1": 15.0, "tts-1-hd": 30.0, "azure": 16.0}
+# Нейроголоса Azure: 500 тыс. символов в месяц бесплатно, дальше ~$16
+# за миллион. Наши ~17 тыс. укладываются в бесплатный лимит.
+PRICE_PER_1M_CHARS = 16.0
 
 
 def collect(scope):
@@ -109,34 +101,18 @@ def for_speech(text, form=None):
     return to_ktiv_male(text) if form == "plain" else text
 
 
-def synth_openai(text, voice):
-    r = requests.post(
-        OPENAI_URL,
-        headers={"Authorization": f"Bearer {OPENAI_KEY}"},
-        json={
-            "model": OPENAI_MODEL,
-            "voice": voice,
-            "input": text,
-            # opus в контейнере ogg — ровно то, что Telegram ждёт
-            # для голосовых сообщений, перекодировать не нужно
-            "response_format": "opus",
-        },
-        timeout=60,
-    )
-    if r.status_code != 200:
-        raise RuntimeError(f"{r.status_code}: {r.text[:200]}")
-    return r.content
+def synth(text, voice=None, rate=None):
+    """Синтез через Azure Speech.
 
-
-def synth_azure(text, voice):
-    """Azure Speech. Текст передаётся в SSML, поэтому его надо экранировать:
-    в наших словах спецсимволов нет, но одна кавычка в будущем словаре
-    сломала бы запрос молча."""
+    Текст идёт внутри SSML, поэтому его обязательно экранировать: сейчас
+    спецсимволов в словах нет, но одна кавычка в будущем словаре сломала
+    бы запрос молча.
+    """
     safe = escape(text)
     ssml = (
         "<speak version='1.0' xml:lang='he-IL'>"
-        f"<voice name='{voice}'>"
-        f"<prosody rate='{RATE}'>{safe}</prosody>"
+        f"<voice name='{voice or VOICE}'>"
+        f"<prosody rate='{rate if rate is not None else RATE}'>{safe}</prosody>"
         "</voice></speak>"
     )
     r = requests.post(
@@ -144,7 +120,8 @@ def synth_azure(text, voice):
         headers={
             "Ocp-Apim-Subscription-Key": AZURE_KEY,
             "Content-Type": "application/ssml+xml",
-            # тот же ogg/opus, что и у OpenAI — Telegram примет как есть
+            # ogg/opus — ровно то, что Telegram ждёт для голосовых
+            # сообщений, перекодировывать не нужно
             "X-Microsoft-OutputFormat": "ogg-48khz-16bit-mono-opus",
             "User-Agent": "hebrew-quiz-bot",
         },
@@ -156,20 +133,11 @@ def synth_azure(text, voice):
     return r.content
 
 
-def synth(text, voice=None):
-    voice = voice or VOICE
-    if PROVIDER == "azure":
-        return synth_azure(text, voice)
-    return synth_openai(text, voice)
-
-
 def missing_key():
     """Понятное сообщение, если ключ не настроен."""
-    if PROVIDER == "azure" and not AZURE_KEY:
+    if not AZURE_KEY:
         return ("Не найден AZURE_SPEECH_KEY — добавь его и AZURE_SPEECH_REGION "
                 "в .env рядом с ботом.")
-    if PROVIDER == "openai" and not OPENAI_KEY:
-        return "Не найден OPENAI_API_KEY — добавь его в .env рядом с ботом."
     return None
 
 
@@ -201,16 +169,12 @@ def main():
         todo = todo[: args.limit]
 
     chars = sum(len(t) for t in todo)
-    rate_key = "azure" if PROVIDER == "azure" else OPENAI_MODEL
-    price = PRICE_PER_1M_CHARS.get(rate_key, 15.0) * chars / 1_000_000
+    price = PRICE_PER_1M_CHARS * chars / 1_000_000
     print(f"Всего текстов: {len(texts)}, уже озвучено: {len(texts) - len([t for t in texts if not audio.has_audio(t)])}")
     print(f"К озвучке сейчас: {len(todo)} ({chars} символов)")
-    details = f"Провайдер {PROVIDER}, голос {VOICE}, текст: {args.text_form}"
-    if PROVIDER == "azure":
-        details += f", темп {RATE}, регион {AZURE_REGION}"
-    print(f"{details}. Ориентировочно: ${price:.2f}")
-    if PROVIDER == "azure":
-        print("(у Azure 500 тыс. символов в месяц бесплатно — этот объём в них укладывается)")
+    print(f"Голос {VOICE}, темп {RATE}, текст: {args.text_form}, регион {AZURE_REGION}.")
+    print(f"Сверх бесплатного лимита это стоило бы ${price:.2f}, "
+          f"но 500 тыс. символов в месяц бесплатны — объём в них укладывается.")
     if todo:
         example = todo[0]
         print(f"Пример отправляемого текста: {example} -> {for_speech(example, args.text_form)}")
