@@ -174,9 +174,19 @@ def to_ipa(word):
         if vowel:
             current += IPA_VOWELS.get(vowel, vowel)
             syllables.append(current); current = ""
-        elif SHVA in marks and (i == 0 or units[i - 1][0] == " "):
-            current += "e"
-            syllables.append(current); current = ""
+        elif SHVA in marks:
+            if i == 0 or units[i - 1][0] == " ":
+                # шва в начале слова читается как «е» и открывает слог
+                current += "e"
+                syllables.append(current); current = ""
+            elif syllables or any(v in current for v in "aeiou"):
+                # шва-нах: согласный ЗАКРЫВАЕТ предыдущий слог, а не
+                # начинает следующий. Без этого выходило hi.tka.ʃaˈʁti
+                # вместо hit.ka.ʃarˈti, и синтезатор относил ударение
+                # не к тому слогу.
+                if syllables and not any(v in current for v in "aeiou"):
+                    syllables[-1] += current
+                    current = ""
 
     if current:                      # хвост из согласных — в последний слог
         if syllables:
@@ -188,7 +198,19 @@ def to_ipa(word):
         return ""
 
     stressed = len(syllables) - (2 if _is_segolate(units) and len(syllables) > 1 else 1)
-    return "".join(("ˈ" if n == stressed else "") + s for n, s in enumerate(syllables))
+
+    # Границы слогов обязательны. Знак ˈ в IPA означает «начало ударного
+    # слога», но без разделителей синтезатор сам решает, где слоги
+    # начинаются, и ставит ударение мимо: taˈpuaχ читалось как «тАпуах».
+    # Перед ударным слогом ставим ˈ вместо точки: taˈpu.aχ.
+    out = []
+    for n, syl in enumerate(syllables):
+        if n == stressed:
+            out.append("ˈ")
+        elif n > 0:
+            out.append(".")
+        out.append(syl)
+    return "".join(out)
 
 
 def to_ktiv_male(word):

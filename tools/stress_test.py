@@ -35,21 +35,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import audio  # noqa: E402
 from generate_audio import AZURE_KEY, AZURE_REGION, VOICE, RATE, missing_key  # noqa: E402
-from translit import to_ktiv_male, translit  # noqa: E402
+from translit import to_ktiv_male, to_ipa  # noqa: E402
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 STRESS_DIR = os.path.join(audio.AUDIO_DIR, "stress")
 
-# Слова с ударением на предпоследнем слоге и их произношение по-русски
-# (заглавной отмечен ударный слог) плюс запись в IPA.
+# Слова, на которых синтезатор чаще всего промахивается с ударением
+# (заглавной отмечен ударный слог). Транскрипция не хранится рядом —
+# она строится тем же кодом, что и для карточек, иначе проверка
+# показывала бы не то, что уходит в реальную озвучку.
 WORDS = [
-    ("בֹּקֶר", "БО-кер", "ˈbokeʁ"),
-    ("לֶחֶם", "ЛЕ-хем", "ˈleχem"),
-    ("כֶּסֶף", "КЕ-сеф", "ˈkesef"),
-    ("סֵפֶר", "СЕ-фер", "ˈsefeʁ"),
-    ("יֶלֶד", "ЙЕ-лед", "ˈjeled"),
-    ("דֶּלֶת", "ДЕ-лет", "ˈdelet"),
+    ("בֹּקֶר", "БО-кер"),
+    ("לֶחֶם", "ЛЕ-хем"),
+    ("כֶּסֶף", "КЕ-сеф"),
+    ("סֵפֶר", "СЕ-фер"),
+    ("תַּפּוּחַ", "та-ПУ-ах"),
+    ("מְדַבֶּרֶת", "меда-БЕ-рет"),
 ]
 
 
@@ -85,13 +87,14 @@ def main():
     manifest = {}
     made = failed = 0
 
-    for word, ru_stress, ipa in WORDS:
+    for word, ru_stress in WORDS:
         plain = to_ktiv_male(word)
+        ipa = to_ipa(word)
         variants = [
             ("niqqud", f"{word} — с огласовками", escape(word)),
             ("plain", f"{word} — без огласовок", escape(plain)),
-            ("ipa", f"{word} — подсказка ударения (IPA)",
-             f"<phoneme alphabet='ipa' ph='{ipa}'>{escape(plain)}</phoneme>"),
+            ("ipa", f"{word} — транскрипция {ipa}",
+             f"<phoneme alphabet='ipa' ph='{escape(ipa)}'>{escape(plain)}</phoneme>"),
         ]
         for tag, label, inner in variants:
             name = f"{plain}__{tag}.ogg"
