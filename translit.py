@@ -199,16 +199,16 @@ def to_ipa(word):
 
     stressed = len(syllables) - (2 if _is_segolate(units) and len(syllables) > 1 else 1)
 
-    # Границы слогов обязательны. Знак ˈ в IPA означает «начало ударного
-    # слога», но без разделителей синтезатор сам решает, где слоги
-    # начинаются, и ставит ударение мимо: taˈpuaχ читалось как «тАпуах».
-    # Перед ударным слогом ставим ˈ вместо точки: taˈpu.aχ.
+    # Формат проверен на слух (tools/stress_variants.py): точка стоит
+    # между ВСЕМИ слогами, а знак ударения добавляется к ней, а не
+    # заменяет её — ta.ˈpu.aχ. Если ставить ˈ вместо точки (taˈpu.aχ),
+    # синтезатор относит ударение не к тому слогу.
     out = []
     for n, syl in enumerate(syllables):
+        if n > 0:
+            out.append(".")
         if n == stressed:
             out.append("ˈ")
-        elif n > 0:
-            out.append(".")
         out.append(syl)
     return "".join(out)
 
