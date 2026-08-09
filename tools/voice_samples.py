@@ -3,16 +3,9 @@
 Сравнение вариантов озвучки: голос × огласовки × скорость.
 
 Слушать демо на сайте бесполезно — вопрос в том, как конкретный голос
-читает наш текст. А ещё два решения, которые заранее не очевидны:
-
-  • отдавать в синтезатор текст с огласовками или без. С огласовками
-    гласные заданы явно, но текст для модели непривычный; без огласовок
-    наоборот. Что лучше — зависит от модели, это надо слышать.
-  • обычная скорость или помедленнее. Медленнее легче разобрать по
-    звукам, но звучит неестественно.
-
-Скрипт генерирует все комбинации и подписывает их, чтобы в Telegram
-было понятно, где что.
+читает наш текст. Сравниваются два голоса и две скорости; способ подачи
+текста больше не варьируется — транскрипция с ударением победила
+остальные варианты по итогам прослушивания.
 
     python3 tools/voice_samples.py
 
@@ -42,12 +35,6 @@ VOICE_LABELS = {
     "he-IL-AvriNeural": "Аври (муж.)",
 }
 
-FORMS = [
-    ("ipa", "транскрипция с ударением"),
-    ("niqqud", "с огласовками"),
-    ("plain", "без огласовок"),
-]
-
 SPEEDS = [
     (NORMAL_RATE, "normal", "обычная"),
     (SLOW_RATE, "slow", "помедленнее"),
@@ -70,31 +57,28 @@ def main():
     manifest = {}
     made = failed = 0
 
-    total = len(HEBREW_VOICES) * len(FORMS) * len(SPEEDS)
+    total = len(HEBREW_VOICES) * len(SPEEDS)
     print(f"Комбинаций: {total} ({len(HEBREW_VOICES)} голоса × "
-          f"{len(FORMS)} способа подачи × {len(SPEEDS)} скорости)")
+          f"{len(SPEEDS)} скорости)")
     print(f"Символов: ~{total * len(SAMPLE_TEXT)} — доли процента от бесплатного лимита.\n")
 
     for voice in HEBREW_VOICES:
-        for form, form_label in FORMS:
-            for rate, speed_tag, speed_label in SPEEDS:
-                name = f"{voice}__{form}__{speed_tag}.ogg"
-                caption = (f"{VOICE_LABELS.get(voice, voice)} · {form_label} · "
-                           f"{speed_label}")
-                try:
-                    data = synth(SAMPLE_TEXT, voice=voice, rate=rate,
-                                 inner=ssml_inner(SAMPLE_TEXT, form))
-                    with open(os.path.join(audio.SAMPLES_DIR, name), "wb") as f:
-                        f.write(data)
-                    # Скорость храним отдельным полем: бот показывает
-                    # образцы по одной скорости за раз, чтобы не заваливать
-                    # чат двенадцатью голосовыми сразу.
-                    manifest[name] = {"caption": caption, "speed": speed_tag}
-                    made += 1
-                    print(f"  ✓ {caption}")
-                except Exception as e:
-                    failed += 1
-                    print(f"  ✗ {caption}: {str(e)[:100]}")
+        for rate, speed_tag, speed_label in SPEEDS:
+            name = f"{voice}__{speed_tag}.ogg"
+            caption = f"{VOICE_LABELS.get(voice, voice)} · {speed_label}"
+            try:
+                data = synth(SAMPLE_TEXT, voice=voice, rate=rate,
+                             inner=ssml_inner(SAMPLE_TEXT))
+                with open(os.path.join(audio.SAMPLES_DIR, name), "wb") as f:
+                    f.write(data)
+                # Скорость храним отдельным полем: бот показывает образцы
+                # по одной скорости за раз.
+                manifest[name] = {"caption": caption, "speed": speed_tag}
+                made += 1
+                print(f"  ✓ {caption}")
+            except Exception as e:
+                failed += 1
+                print(f"  ✗ {caption}: {str(e)[:100]}")
 
     # Подписи храним рядом с файлами: разбирать их из имени файла было бы
     # хрупко, а показать в Telegram надо по-человечески.

@@ -58,12 +58,10 @@ NORMAL_RATE = os.environ.get("TTS_RATE", "0%")
 SLOW_RATE = os.environ.get("TTS_RATE_SLOW", "-25%")
 RATE = NORMAL_RATE
 
-# Как отдавать текст синтезатору:
-#   ipa    — транскрипция с ударением (по умолчанию): только так
-#            получается «бОкер», а не «бокЕр»
-#   niqqud — с огласовками
-#   plain  — обычное израильское письмо без огласовок
-TEXT_FORM = os.environ.get("TTS_TEXT_FORM", "ipa")
+# Текст всегда уходит транскрипцией с ударением. Варианты «с огласовками»
+# и «без огласовок» проверялись на слух и отброшены: синтезатор в обоих
+# случаях ставит ударение по общему правилу и ошибается на целом классе
+# слов (бокЕр вместо бОкер), а гласные читает не всегда верно.
 
 # Паузы в режиме ipa. По умолчанию выключены: после того как знаки
 # препинания стали выноситься за тег <phoneme>, синтезатор снова видит
@@ -99,56 +97,12 @@ def collect(scope):
     return [t for t in items if not (t in seen or seen.add(t))]
 
 
-# Слова, которые синтезатору лучше отдавать без огласовок.
-#
-# Причина: камац катан читается как «о» (כָּל — «коль»), но по написанию
-# он неотличим от обычного камаца — чтобы их различить, нужно знать
-# ударение. Синтезатор этого не знает и с огласовками читает букву в
-# лоб: «каль». Зато без огласовок он узнаёт частотное слово по своему
-# словарю и произносит верно.
-#
-# Подстановка идёт по словам, поэтому работает и внутри фраз
-# («אֲרוּחַת צָהֳרַיִם»), и в тексте образца.
-FORCE_PLAIN_WORDS = {"כָּל", "צָהֳרַיִם"}
+def ssml_inner(text):
+    """Содержимое SSML: транскрипция каждого слова с ударением.
 
-
-def for_speech(text, form=None):
-    """Что именно отправляем в синтезатор.
-
-    niqqud — как в нашем банке, с огласовками (חֻלְצָה). Вариант по
-             умолчанию: на слух оказался лучше — огласовки прямо задают
-             гласные, и модель реже их выдумывает.
-    plain  — «полное написание» без огласовок (חולצה), как иврит пишут
-             в жизни. Текст для модели привычнее, но гласные она
-             восстанавливает сама и иногда ошибается.
-
-    Единого правильного ответа тут нет: это зависит от модели, поэтому
-    режим переключается и сравнивается на слух.
-    """
-    form = form or TEXT_FORM
-    if form == "plain":
-        return to_ktiv_male(text)
-    # режим с огласовками: снимаем их только у проблемных слов
-    return " ".join(
-        to_ktiv_male(w) if w in FORCE_PLAIN_WORDS else w
-        for w in text.split(" ")
-    )
-
-
-def ssml_inner(text, form=None):
-    """Содержимое SSML: либо просто текст, либо транскрипция IPA.
-
-    Режим ipa — единственный, где мы управляем ударением. Синтезатор
-    сам ставит его по общему правилу (последний слог) и стабильно
-    ошибается на сеголатных словах: «бокЕр» вместо «бОкер».
-
-    Тег <phoneme> вешаем на каждое слово отдельно: он задаёт чтение
+    Тег <phoneme> вешается на каждое слово отдельно — он задаёт чтение
     одного слова, а не всей фразы.
     """
-    form = form or TEXT_FORM
-    if form != "ipa":
-        return escape(for_speech(text, form))
-
     parts = []          # [(разметка слова, пауза после него), ...]
     for token in text.split(" "):
         # Знаки препинания выносим ЗА тег: внутри <phoneme> они не читаются,
@@ -224,9 +178,6 @@ def main():
     ap.add_argument("--scope", choices=["all", "words", "forms"], default="all")
     ap.add_argument("--dry-run", action="store_true", help="только оценка, без трат")
     ap.add_argument("--force", action="store_true", help="перегенерировать существующие")
-    ap.add_argument("--text-form", choices=["ipa", "niqqud", "plain"], default=TEXT_FORM,
-                    help="что отправлять: транскрипцию с ударением (по умолчанию), "
-                         "текст с огласовками или без них")
     ap.add_argument("--no-slow", action="store_true",
                     help="только обычный темп, без медленного варианта")
     ap.add_argument("--only", nargs="*", default=None,
@@ -264,13 +215,12 @@ def main():
     ready = len([t for t in texts if not pending(t)])
     print(f"Всего текстов: {len(texts)}, полностью озвучено: {ready}")
     print(f"К озвучке сейчас: {len(todo)} слов, {len(jobs)} файлов ({chars} символов)")
-    print(f"Голос {VOICE}, темпы {[r for r, _ in speeds]}, текст: {args.text_form}, "
-          f"регион {AZURE_REGION}.")
+    print(f"Голос {VOICE}, темпы {[r for r, _ in speeds]}, регион {AZURE_REGION}.")
     print(f"Сверх бесплатного лимита это стоило бы ${price:.2f}, "
           f"но 500 тыс. символов в месяц бесплатны — объём в них укладывается.")
     if todo:
         example = todo[0]
-        print(f"Пример: {example} -> {ssml_inner(example, args.text_form)[:120]}")
+        print(f"Пример: {example} -> {ssml_inner(example)[:120]}")
 
     if args.dry_run:
         print("Пробный расчёт, ничего не потрачено.")
@@ -288,7 +238,7 @@ def main():
     try:
         for i, (text, rate, slow) in enumerate(jobs, 1):
             try:
-                data = synth(text, rate=rate, inner=ssml_inner(text, args.text_form))
+                data = synth(text, rate=rate, inner=ssml_inner(text))
                 with open(audio.audio_path(text, slow=slow), "wb") as f:
                     f.write(data)
                 done += 1

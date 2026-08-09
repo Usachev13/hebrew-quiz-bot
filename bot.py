@@ -491,59 +491,12 @@ def send_voice_samples(chat_id, speed=None):
         send_message(
             chat_id,
             f"Вариант: <b>{SPEED_LABELS.get(speed, speed)}</b>. "
-            "Выбранное вписывается в .env: <code>TTS_VOICE</code> и "
-            "<code>TTS_TEXT_FORM</code>.",
+            "Выбранный голос вписывается в .env как <code>TTS_VOICE</code>.",
         )
     for name, path in samples:
         audio.send_voice_file(API_URL, chat_id, path, caption=name)
 
 
-def send_stress_samples(chat_id):
-    """Проверка ударения: одно слово несколькими способами синтеза."""
-    samples = audio.voice_samples(audio.STRESS_DIR)
-    if not samples:
-        send_message(
-            chat_id,
-            "Образцы для проверки ударения ещё не сгенерированы.\n\n"
-            "На сервере: <code>venv/bin/python3 tools/stress_test.py</code>",
-        )
-        return
-
-    send_message(
-        chat_id,
-        "🎯 <b>Проверка ударения</b>\n\n"
-        "У части ивритских слов ударение на предпоследнем слоге "
-        "(БО́кер, ЛЕ́хем, КЕ́сеф), а синтезатор ставит его по общему "
-        "правилу — на последний.\n\n"
-        "Каждое слово озвучено тремя способами. Послушай, какой звучит "
-        "правильно, и скажи — сделаю его основным.",
-    )
-    for caption, path in samples:
-        audio.send_voice_file(API_URL, chat_id, path, caption=caption)
-
-
-def send_stress_variants(chat_id):
-    """Одно слово несколькими способами записи ударения."""
-    samples = audio.voice_samples(audio.VARIANTS_DIR)
-    if not samples:
-        send_message(
-            chat_id,
-            "Варианты записи ещё не сгенерированы.\n\n"
-            "На сервере: <code>venv/bin/python3 tools/stress_variants.py</code>",
-        )
-        return
-
-    send_message(
-        chat_id,
-        "🔬 <b>Какую запись ударения понимает синтезатор</b>\n\n"
-        "Слово <b>תַּפּוּחַ</b>, должно звучать «та-ПУ-ах».\n\n"
-        "D и E — контрольные, там ударение намеренно поставлено неверно. "
-        "Если они звучат по-разному, значит позиция знака учитывается — "
-        "и тогда один из A, B, C окажется правильным.\n\n"
-        "Скажи, в каком варианте слышно «та-ПУ-ах».",
-    )
-    for caption, path in samples:
-        audio.send_voice_file(API_URL, chat_id, path, caption=caption)
 
 
 def with_reading(answer, mode):
@@ -764,10 +717,6 @@ def _handle_webhook_update():
             send_message(chat_id, "Больше не присылаю слово дня. Вернуть — /daily_on.")
         elif text.startswith("/voices"):
             ask_sample_speed(chat_id)
-        elif text.startswith("/stress"):
-            send_stress_samples(chat_id)
-        elif text.startswith("/variants"):
-            send_stress_variants(chat_id)
         elif text.startswith("/voice_on"):
             db.set_voice(chat_id, True)
             send_message(chat_id, "Буду присылать произношение голосом.")
