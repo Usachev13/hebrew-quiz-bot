@@ -6,10 +6,11 @@
 у нас всюду проставлены огласовки, а они однозначно задают чтение.
 Поэтому произношение строится по тем же правилам, что и спряжения.
 
-Точность: передаём звучание так, как его слышит русскоязычный. Ударение
-не проставляем — в огласовках его нет, а угадывать (в иврите оно чаще
-на последнем слоге, но у целого класса слов — на предпоследнем) значит
-регулярно учить неправильно.
+Точность: передаём звучание так, как его слышит русскоязычный.
+
+В кириллице ударение не отмечаем — она нужна, чтобы прочитать слово.
+А вот для синтезатора ударение обязательно (см. to_ipa ниже): сам он
+ставит его по общему правилу и ошибается на целом классе слов.
 """
 
 import unicodedata
@@ -101,6 +102,43 @@ def _stress_exception(word):
     return STRESS_EXCEPTIONS.get(unicodedata.normalize("NFC", word or ""))
 
 
+def _verb_ending_stress(units):
+    """Ударение по глагольному окончанию прошедшего времени.
+
+    В прошедшем времени ударение зависит от лица, а не от вида слова:
+        כָּתַבְתִּי — ка-ТАВ-ти      (-ти  тянет ударение назад)
+        כָּתַבְתָּ  — ка-ТАВ-та      (-та  тоже)
+        כָּתַבְנוּ — ка-ТАВ-ну      (-ну  тоже)
+        כְּתַבְתֶּם — кта-в-ТЕМ      (-тем оставляет на последнем)
+        כָּתַב     — ка-ТАВ         (без окончания — на последнем)
+
+    Возвращает True (предпоследний слог), False (последний) или None,
+    если окончание ни о чём не говорит и надо смотреть дальше.
+    """
+    letters = [(l, m) for l, m in units if l != " "]
+    if len(letters) < 3:
+        return None
+
+    last, last_marks = letters[-1]
+    prev, prev_marks = letters[-2]
+
+    # ...תִּי — «я»
+    if last == "י" and prev == "ת" and "ִ" in prev_marks:
+        return True
+    # ...נוּ — «мы»
+    if last == "ו" and DAGESH in last_marks and prev == "נ":
+        return True
+    # ...תָּ — «ты (муж.)»
+    if last == "ת" and KAMATS in last_marks:
+        return True
+    # ...תֶּם / ...תֶּן — «вы»: ударение остаётся на последнем слоге,
+    # хотя по виду слова сработало бы правило сеголатных
+    if last in ("ם", "ן") and prev == "ת" and "ֶ" in prev_marks:
+        return False
+
+    return None
+
+
 def _is_segolate(units):
     """Слово с ударением на предпоследнем слоге.
 
@@ -138,6 +176,7 @@ def to_ipa(word):
     units = _split(word)
     syllables = []          # список слогов
     current = ""            # накапливаемый слог
+    prev_was_vocal_shva = False
 
     for i, (letter, marks) in enumerate(units):
         if letter not in CONSONANTS:
@@ -189,18 +228,27 @@ def to_ipa(word):
             current += IPA_VOWELS.get(vowel, vowel)
             syllables.append(current); current = ""
         elif SHVA in marks:
-            if i == 0 or units[i - 1][0] == " ":
-                # шва в начале слова читается как «е» и открывает слог
+            at_start = i == 0 or units[i - 1][0] == " "
+            # Два шва подряд: второй всегда читается. Иначе תִּכְתְּבִי
+            # выходило «тихтви» вместо «тихтеви».
+            after_shva = (not at_start
+                          and SHVA in units[i - 1][1]
+                          and not prev_was_vocal_shva)
+            if at_start or after_shva:
                 current += "e"
                 syllables.append(current); current = ""
-            elif syllables or any(v in current for v in "aeiou"):
-                # шва-нах: согласный ЗАКРЫВАЕТ предыдущий слог, а не
-                # начинает следующий. Без этого выходило hi.tka.ʃaˈʁti
-                # вместо hit.ka.ʃarˈti, и синтезатор относил ударение
-                # не к тому слогу.
-                if syllables and not any(v in current for v in "aeiou"):
-                    syllables[-1] += current
-                    current = ""
+                prev_was_vocal_shva = True
+                continue
+            # шва-нах: согласный ЗАКРЫВАЕТ предыдущий слог, а не
+            # начинает следующий. Без этого выходило hi.tka.ʃaˈʁti
+            # вместо hit.ka.ʃarˈti, и синтезатор относил ударение
+            # не к тому слогу.
+            if syllables and not any(v in current for v in "aeiou"):
+                syllables[-1] += current
+                current = ""
+            prev_was_vocal_shva = False
+        else:
+            prev_was_vocal_shva = False
 
     if current:                      # хвост из согласных — в последний слог
         if syllables:
@@ -211,11 +259,17 @@ def to_ipa(word):
     if not syllables:
         return ""
 
+    # Порядок важен: сначала явные исключения, затем глагольные
+    # окончания (они надёжнее, потому что задают ударение грамматически),
+    # и только потом правило по виду слова.
     exception = _stress_exception(word)
+    by_ending = _verb_ending_stress(units)
     if exception == "milel":
         penultimate = True
     elif exception == "milra":
         penultimate = False
+    elif by_ending is not None:
+        penultimate = by_ending
     else:
         penultimate = _is_segolate(units)
     stressed = len(syllables) - (2 if penultimate and len(syllables) > 1 else 1)
@@ -283,6 +337,7 @@ def translit(word):
     units = _split(word)
     whole_word_katan = unicodedata.normalize("NFC", word or "") in KAMATS_KATAN_WORDS
     res = []
+    prev_was_vocal_shva = False
 
     for i, (letter, marks) in enumerate(units):
         if letter == " ":
@@ -339,10 +394,21 @@ def translit(word):
 
         if vowel:
             res.append(vowel)
+            prev_was_vocal_shva = False
         elif SHVA in marks:
-            # Шва в начале слова читается как «е», внутри чаще беззвучна
+            # Шва читается как «е» в начале слова, а внутри — если перед
+            # ним стоит ещё один шва (תִּכְתְּבִי — «тихтеви», не «тихтви»).
+            # В остальных случаях беззвучен.
             at_start = i == 0 or units[i - 1][0] == " "
-            if at_start:
+            after_shva = (not at_start
+                          and SHVA in units[i - 1][1]
+                          and not prev_was_vocal_shva)
+            if at_start or after_shva:
                 res.append("е")
+                prev_was_vocal_shva = True
+            else:
+                prev_was_vocal_shva = False
+        else:
+            prev_was_vocal_shva = False
 
     return "".join(res).strip()
