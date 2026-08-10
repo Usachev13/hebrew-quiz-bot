@@ -87,6 +87,20 @@ IPA_HARD = {"ב": "b", "כ": "k", "פ": "p"}
 IPA_VOWELS = {"а": "a", "е": "e", "и": "i", "о": "o", "у": "u"}
 
 
+# Слова, где ударение не выводится из огласовок правилами ниже.
+# Пополняется по мере находок на слух — в огласовках ударения нет,
+# и вывести его в общем виде невозможно.
+#
+# milel — ударение на предпоследнем слоге, milra — на последнем.
+STRESS_EXCEPTIONS = {
+    "לָמָּה": "milel",      # ЛА-ма, а не ла-МА
+}
+
+
+def _stress_exception(word):
+    return STRESS_EXCEPTIONS.get(unicodedata.normalize("NFC", word or ""))
+
+
 def _is_segolate(units):
     """Слово с ударением на предпоследнем слоге.
 
@@ -197,7 +211,14 @@ def to_ipa(word):
     if not syllables:
         return ""
 
-    stressed = len(syllables) - (2 if _is_segolate(units) and len(syllables) > 1 else 1)
+    exception = _stress_exception(word)
+    if exception == "milel":
+        penultimate = True
+    elif exception == "milra":
+        penultimate = False
+    else:
+        penultimate = _is_segolate(units)
+    stressed = len(syllables) - (2 if penultimate and len(syllables) > 1 else 1)
 
     # Формат проверен на слух (tools/stress_variants.py): точка стоит
     # между ВСЕМИ слогами, а знак ударения добавляется к ней, а не
