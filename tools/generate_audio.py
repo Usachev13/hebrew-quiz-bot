@@ -24,6 +24,7 @@ Azure выбран потому, что у него есть голоса, об�
 """
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -76,6 +77,9 @@ SENTENCE_BREAK = os.environ.get("TTS_SENTENCE_BREAK", "0ms")
 PRICE_PER_1M_CHARS = 16.0
 
 
+SCOPES = ["all", "words", "forms", "present", "past", "future"]
+
+
 def collect(scope):
     """Тексты для озвучки. Порядок — от самого нужного к менее нужному,
     чтобы при --limit сначала озвучились слова, а не редкие формы."""
@@ -87,9 +91,11 @@ def collect(scope):
         for cat, pairs in VERBS.items():
             for ru, he in pairs:
                 items.append(he)
-    if scope in ("all", "forms"):
+    sections = [s for s in ("present", "past", "future")
+                if scope in ("all", "forms", s)]
+    if sections:
         for root, data in CONJUGATIONS.items():
-            for section in ("present", "past", "future"):
+            for section in sections:
                 for form in data[section].values():
                     items.append(form)
     # уникальные, порядок сохраняем
@@ -130,6 +136,39 @@ def ssml_inner(text):
         if i < len(parts) - 1:
             out.append(f'<break time="{pause}"/>' if pause and pause != "0ms" else " ")
     return "".join(out)
+
+
+# Как именно был озвучен каждый текст. Нужно, чтобы скрипт сам замечал
+# правки в translit.py: имя файла — хеш от слова, и при исправлении
+# ударения оно не меняется, так что готовый файл выглядит свежим, хотя
+# звучит уже неправильно. Раньше это лечилось --force на весь банк —
+# то есть переозвучкой всего из-за десятка правок.
+#
+# Слепок — это готовая разметка (транскрипция, ударение, паузы) плюс
+# голос: всё, от чего зависит звучание. Изменился слепок — файл устарел.
+RECIPE_PATH = Path(audio.AUDIO_DIR) / "pronunciation.json"
+
+
+def recipe(text):
+    return f"{VOICE}|{ssml_inner(text)}"
+
+
+def load_recipes():
+    if RECIPE_PATH.exists():
+        try:
+            return json.loads(RECIPE_PATH.read_text(encoding="utf-8"))
+        except (ValueError, OSError) as e:
+            print(f"Слепки произношения не читаются ({e}), считаем всё свежим.")
+    return {}
+
+
+def save_recipes(data):
+    try:
+        RECIPE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        RECIPE_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=1),
+                               encoding="utf-8")
+    except OSError as e:
+        print(f"Не удалось сохранить слепки произношения: {e}")
 
 
 def synth(text, voice=None, rate=None, inner=None):
@@ -175,7 +214,7 @@ def missing_key():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=0, help="озвучить только N штук")
-    ap.add_argument("--scope", choices=["all", "words", "forms"], default="all")
+    ap.add_argument("--scope", choices=SCOPES, default="all")
     ap.add_argument("--dry-run", action="store_true", help="только оценка, без трат")
     ap.add_argument("--force", action="store_true", help="перегенерировать существующие")
     ap.add_argument("--no-slow", action="store_true",
@@ -203,17 +242,32 @@ def main():
     def pending(t):
         return [(r, s) for r, s in speeds if not audio.has_audio(t, slow=s)]
 
-    todo = texts if (args.force or args.only) else [t for t in texts if pending(t)]
+    # Устаревшие — те, чей слепок произношения разошёлся с нынешним.
+    # Про слова без слепка (озвученные до появления этой проверки) мы
+    # ничего не знаем и считаем свежими; слепок им проставится в конце
+    # этого же запуска, и дальше правки будут ловиться сами.
+    recipes = load_recipes()
+
+    def stale(t):
+        was = recipes.get(t)
+        return was is not None and was != recipe(t)
+
+    redo = args.force or args.only
+    outdated = [t for t in texts if stale(t)]
+    todo = texts if redo else [t for t in texts if pending(t) or stale(t)]
     if args.limit:
         todo = todo[: args.limit]
 
     jobs = [(t, r, s) for t in todo
-            for (r, s) in (speeds if (args.force or args.only) else pending(t))]
+            for (r, s) in (speeds if (redo or stale(t)) else pending(t))]
 
     chars = sum(len(t) for t, _, _ in jobs)
     price = PRICE_PER_1M_CHARS * chars / 1_000_000
     ready = len([t for t in texts if not pending(t)])
     print(f"Всего текстов: {len(texts)}, полностью озвучено: {ready}")
+    if outdated:
+        print(f"Из них устарело после правок произношения: {len(outdated)} "
+              f"(например, {', '.join(outdated[:3])})")
     print(f"К озвучке сейчас: {len(todo)} слов, {len(jobs)} файлов ({chars} символов)")
     print(f"Голос {VOICE}, темпы {[r for r, _ in speeds]}, регион {AZURE_REGION}.")
     print(f"Сверх бесплатного лимита это стоило бы ${price:.2f}, "
@@ -235,6 +289,17 @@ def main():
 
     os.makedirs(audio.AUDIO_DIR, exist_ok=True)
     done = failed = 0
+    broken = set()
+
+    def remember():
+        """Слепок ставим только тем, кто действительно озвучен сейчас:
+        иначе после сбоя связи файл навсегда остался бы помечен как
+        свежий, хотя звучит по-старому."""
+        for t in texts:
+            if t not in broken and not pending(t):
+                recipes[t] = recipe(t)
+        save_recipes(recipes)
+
     try:
         for i, (text, rate, slow) in enumerate(jobs, 1):
             try:
@@ -244,15 +309,18 @@ def main():
                 done += 1
             except Exception as e:
                 failed += 1
+                broken.add(text)
                 print(f"  не удалось «{text}» ({rate}): {e}")
                 time.sleep(2)   # скорее всего лимит запросов — подождём
             if i % 50 == 0 or i == len(jobs):
                 print(f"  {i}/{len(jobs)}…")
     except KeyboardInterrupt:
+        remember()
         print(f"\nПрервано. Озвучено {done}, файлы сохранены.")
         print("Запусти скрипт снова — продолжит с того же места.")
         return 0
 
+    remember()
     print(f"Готово: озвучено {done}, ошибок {failed}.")
     print(f"Файлы: {audio.AUDIO_DIR}")
     return 0
