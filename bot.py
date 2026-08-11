@@ -12,6 +12,7 @@ Telegram-бот для тренировки слов и глаголов ивр�
 
 import os
 import random
+import time
 from pathlib import Path
 
 import requests
@@ -47,6 +48,33 @@ if TELEGRAM_TOKEN == "PASTE_YOUR_TOKEN_HERE":
 API_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
 ROUND_LEN = 10
+
+# Одна HTTP-сессия на процесс. Голый requests.post открывает новое
+# соединение на каждый вызов и заново жмёт руки по TLS, а на один вопрос
+# уходит три запроса подряд. Сессия держит соединение открытым.
+SESSION = audio.SESSION
+
+# Порог, после которого шаг считается медленным и попадает в журнал.
+# Бот отвечает на один тап тремя запросами к Telegram подряд, и если
+# один из них тормозит, со стороны это выглядит как «подвисает» — но по
+# логам без замера не понять, какой именно. Смотреть:
+#   journalctl -u hebrew-quiz-bot | grep медленно
+SLOW_STEP_SECONDS = float(os.environ.get("BOT_SLOW_STEP", "1.0"))
+
+
+def timed(step):
+    """Замеряет шаг и пишет в журнал, если он вышел долгим."""
+    class _T:
+        def __enter__(self):
+            self.t = time.monotonic()
+            return self
+
+        def __exit__(self, *exc):
+            spent = time.monotonic() - self.t
+            if spent >= SLOW_STEP_SECONDS:
+                print(f"[медленно] {step}: {spent:.2f} с")
+            return False
+    return _T()
 
 app = Flask(__name__)
 
@@ -114,7 +142,8 @@ def send_message(chat_id, text, reply_markup=None):
     if reply_markup:
         payload["reply_markup"] = reply_markup
     try:
-        requests.post(f"{API_URL}/sendMessage", json=payload, timeout=10)
+        with timed("sendMessage"):
+            SESSION.post(f"{API_URL}/sendMessage", json=payload, timeout=10)
     except requests.exceptions.RequestException as e:
         # Сбой сети/прокси не должен ронять весь webhook в 500 — иначе
         # Telegram решит, что апдейт не доставлен, и будет слать его
@@ -133,7 +162,7 @@ def set_reaction(chat_id, message_id, emoji):
     if not message_id or not emoji:
         return
     try:
-        requests.post(
+        SESSION.post(
             f"{API_URL}/setMessageReaction",
             json={"chat_id": chat_id, "message_id": message_id,
                   "reaction": [{"type": "emoji", "emoji": emoji}]},
@@ -148,7 +177,7 @@ def answer_callback(callback_id, text=None):
     if text:
         payload["text"] = text
     try:
-        requests.post(f"{API_URL}/answerCallbackQuery", json=payload, timeout=10)
+        SESSION.post(f"{API_URL}/answerCallbackQuery", json=payload, timeout=10)
     except requests.exceptions.RequestException as e:
         print(f"[answer_callback] сетевая ошибка: {e}")
 
@@ -542,8 +571,23 @@ def maybe_send_voice(chat_id, answer, mode):
     if not audio.has_audio(answer):
         return
     try:
-        if db.voice_enabled(chat_id):
-            audio.send_voice(API_URL, chat_id, answer, slow=db.slow_voice(chat_id))
+        if not db.voice_enabled(chat_id):
+            return
+        slow = db.slow_voice(chat_id)
+        if slow and not audio.has_audio(answer, slow=True):
+            slow = False
+
+        # Первая отправка грузит файл, все следующие идут по file_id —
+        # мгновенно. Без этого каждое голосовое заливалось заново, и
+        # перед ним была заметная пауза.
+        path = audio.audio_path(answer, slow=slow)
+        key = audio.file_key(path)
+        file_id = db.voice_file_id(key)
+        with timed("загрузка голосового" if not file_id else "отправка по file_id"):
+            got = audio.send_voice(API_URL, chat_id, answer, slow=slow,
+                                   file_id=file_id)
+        if got and got != file_id:
+            db.save_voice_file_id(key, got)
     except Exception as e:
         print(f"[maybe_send_voice] {e}")
 

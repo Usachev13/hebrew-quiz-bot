@@ -80,6 +80,16 @@ CREATE TABLE IF NOT EXISTS prefs (
     slow_voice  INTEGER NOT NULL DEFAULT 0,
     reactions   INTEGER NOT NULL DEFAULT 1
 );
+
+-- Идентификаторы уже загруженных в Telegram голосовых. Загрузка файла
+-- занимает заметное время, а по file_id то же аудио уходит мгновенно.
+-- Ключ включает размер и время правки файла, поэтому после
+-- перегенерации озвучки старая запись просто перестаёт совпадать.
+CREATE TABLE IF NOT EXISTS voice_files (
+    file_key    TEXT PRIMARY KEY,
+    file_id     TEXT NOT NULL,
+    saved_at    TEXT NOT NULL
+);
 """
 
 # Столбцы, которые появились позже схемы. SQLite не умеет
@@ -350,6 +360,33 @@ def reactions_enabled(chat_id):
         "SELECT reactions FROM prefs WHERE chat_id = ?", (str(chat_id),)
     ).fetchone()
     return True if row is None else bool(row["reactions"])
+
+
+# ---------- слово дня ----------
+
+# ---------- кэш загруженных голосовых ----------
+
+def voice_file_id(file_key):
+    """Идентификатор уже загруженного файла или None."""
+    if not file_key:
+        return None
+    row = get_conn().execute(
+        "SELECT file_id FROM voice_files WHERE file_key = ?", (file_key,)
+    ).fetchone()
+    return row["file_id"] if row else None
+
+
+def save_voice_file_id(file_key, file_id):
+    if not file_key or not file_id:
+        return
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO voice_files (file_key, file_id, saved_at) VALUES (?, ?, ?) "
+        "ON CONFLICT(file_key) DO UPDATE SET file_id = excluded.file_id, "
+        "saved_at = excluded.saved_at",
+        (file_key, file_id, datetime.utcnow().isoformat()),
+    )
+    conn.commit()
 
 
 # ---------- слово дня ----------

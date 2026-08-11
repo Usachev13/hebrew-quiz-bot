@@ -16,6 +16,13 @@ import os
 
 import requests
 
+# Одна сессия на процесс вместо голого requests.post. Без неё каждый
+# запрос к Telegram открывает новое TCP-соединение и заново жмёт руки по
+# TLS — а на один вопрос их уходит три (вердикт, голосовое, следующий
+# вопрос). Сессия держит соединение открытым, и накладные расходы
+# платятся один раз.
+SESSION = requests.Session()
+
 AUDIO_DIR = os.environ.get(
     "BOT_AUDIO_DIR",
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "audio"),
@@ -37,6 +44,22 @@ def audio_path(text, slow=False):
 def has_audio(text, slow=False):
     p = audio_path(text, slow)
     return os.path.exists(p) and os.path.getsize(p) > 0
+
+
+def file_key(path):
+    """Ключ кэша file_id для конкретного файла.
+
+    Telegram, приняв файл, отдаёт file_id — по нему то же аудио можно
+    слать без повторной загрузки. Но file_id привязан к содержимому: если
+    карточку переозвучили, старый идентификатор укажет на старое звучание.
+    Поэтому в ключ входят размер и время правки — после перегенерации
+    ключ меняется сам, и файл заливается заново ровно один раз.
+    """
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    return f"{os.path.basename(path)}:{st.st_size}:{int(st.st_mtime)}"
 
 
 SAMPLES_DIR = os.path.join(AUDIO_DIR, "samples")
@@ -127,30 +150,65 @@ def sample_speeds(directory=None):
                    if isinstance(v, dict) and v.get("speed")})
 
 
-def send_voice_file(api_url, chat_id, path, caption=None):
-    """Отправляет конкретный файл голосовым."""
+def _sent_file_id(response):
+    """file_id из ответа Telegram — если отправка удалась."""
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    if not body.get("ok"):
+        return None
+    return (body.get("result") or {}).get("voice", {}).get("file_id")
+
+
+def send_voice_file(api_url, chat_id, path, caption=None, file_id=None):
+    """Отправляет файл голосовым. Возвращает file_id или None.
+
+    file_id — идентификатор уже загруженного файла. Если он есть, аудио
+    не заливается вовсе: Telegram берёт его со своей стороны, и вместо
+    загрузки уходит короткий запрос. Именно эта загрузка и была причиной
+    паузы перед каждым голосовым.
+
+    Возвращённый file_id стоит сохранить: со второго раза то же слово
+    отправляется мгновенно.
+    """
+    data = {"chat_id": str(chat_id)}
+    if caption:
+        data["caption"] = caption
+
+    if file_id:
+        try:
+            r = SESSION.post(f"{api_url}/sendVoice",
+                             data={**data, "voice": file_id}, timeout=20)
+            got = _sent_file_id(r)
+            if got:
+                return got
+            # file_id протух (файл перезалили, бот сменился) — не беда,
+            # ниже загрузим обычным путём.
+            print(f"[send_voice_file] file_id не принят, гружу файл: {path}")
+        except requests.exceptions.RequestException as e:
+            print(f"[send_voice_file] по file_id не вышло: {e}")
+
     try:
         with open(path, "rb") as f:
-            data = {"chat_id": str(chat_id)}
-            if caption:
-                data["caption"] = caption
-            requests.post(
+            r = SESSION.post(
                 f"{api_url}/sendVoice",
                 data=data,
                 files={"voice": (os.path.basename(path), f, "audio/ogg")},
                 timeout=20,
             )
-        return True
+        return _sent_file_id(r)
     except (requests.exceptions.RequestException, OSError) as e:
         print(f"[send_voice_file] {e}")
-        return False
+        return None
 
 
-def send_voice(api_url, chat_id, text, caption=None, slow=False):
+def send_voice(api_url, chat_id, text, caption=None, slow=False, file_id=None):
     """Отправляет голосовое с произношением. Молча ничего не делает,
     если файла нет — озвучка не должна ломать урок."""
     if slow and not has_audio(text, slow=True):
         slow = False          # медленного варианта нет — отдаём обычный
     if not has_audio(text, slow):
-        return False
-    return send_voice_file(api_url, chat_id, audio_path(text, slow), caption)
+        return None
+    return send_voice_file(api_url, chat_id, audio_path(text, slow),
+                           caption, file_id)
