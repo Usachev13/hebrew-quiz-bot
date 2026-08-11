@@ -247,6 +247,15 @@ def main():
     # ничего не знаем и считаем свежими; слепок им проставится в конце
     # этого же запуска, и дальше правки будут ловиться сами.
     recipes = load_recipes()
+    broken = set()
+
+    def remember():
+        """Слепок ставим только тем, кто реально озвучен: иначе сбой
+        связи навсегда пометил бы файл свежим, хотя он звучит по-старому."""
+        for t in texts:
+            if t not in broken and not pending(t):
+                recipes[t] = recipe(t)
+        save_recipes(recipes)
 
     def stale(t):
         was = recipes.get(t)
@@ -280,6 +289,10 @@ def main():
         print("Пробный расчёт, ничего не потрачено.")
         return 0
     if not todo:
+        # Слепки записываем даже когда работы нет: иначе для набора,
+        # который озвучили до появления этой проверки, они не появятся
+        # никогда — и правку произношения скрипт молча пропустит.
+        remember()
         print("Всё уже озвучено.")
         return 0
     problem = missing_key()
@@ -289,16 +302,6 @@ def main():
 
     os.makedirs(audio.AUDIO_DIR, exist_ok=True)
     done = failed = 0
-    broken = set()
-
-    def remember():
-        """Слепок ставим только тем, кто действительно озвучен сейчас:
-        иначе после сбоя связи файл навсегда остался бы помечен как
-        свежий, хотя звучит по-старому."""
-        for t in texts:
-            if t not in broken and not pending(t):
-                recipes[t] = recipe(t)
-        save_recipes(recipes)
 
     try:
         for i, (text, rate, slow) in enumerate(jobs, 1):
