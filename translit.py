@@ -168,6 +168,36 @@ def _is_segolate(units):
     return False
 
 
+HIRIQ = "ִ"
+
+
+def _helping_hiriq(units):
+    """Слово вида בַּיִת / מַיִם / ־ַיִם — ударение на предпоследнем слоге.
+
+    Хирик под йодом здесь не настоящая гласная, а вставка для
+    произносимости — ровно как сеголь у сеголатных. Слог «-йи-» ударение
+    не притягивает: БÁйит, МÁйим, шамÁйим, цохорÁйим, меÁйин.
+    Сюда же попадает всё двойственное число на ־ַיִם (יָדַיִם, נַעֲלַיִם,
+    מִשְׁקָפַיִם) — оно всегда так и звучит.
+
+    Отличать надо от תִּהְיִי «тихйИ», где хирик настоящий: там слово
+    кончается на йод-мать чтения, а не на согласную.
+    """
+    letters = [(l, m) for l, m in units if l != " "]
+    if len(letters) < 3:
+        return False
+
+    last, last_marks = letters[-1]
+    prev, prev_marks = letters[-2]
+    if prev != "י" or HIRIQ not in prev_marks:
+        return False
+    # последняя буква должна закрывать слог настоящей согласной
+    if last in ("י", "ו", "ה") or any(m in VOWELS for m in last_marks):
+        return False
+    # перед йодом стоит гласная — иначе вставки не было бы
+    return any(m in VOWELS for m in letters[-3][1])
+
+
 def to_ipa(word):
     """Транскрипция слова в IPA с ударением."""
     if " " in (word or ""):
@@ -271,7 +301,7 @@ def to_ipa(word):
     elif by_ending is not None:
         penultimate = by_ending
     else:
-        penultimate = _is_segolate(units)
+        penultimate = _is_segolate(units) or _helping_hiriq(units)
     stressed = len(syllables) - (2 if penultimate and len(syllables) > 1 else 1)
 
     # Формат проверен на слух (tools/stress_variants.py): точка стоит
