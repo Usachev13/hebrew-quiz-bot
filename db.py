@@ -77,14 +77,18 @@ CREATE TABLE IF NOT EXISTS daily_word (
 CREATE TABLE IF NOT EXISTS prefs (
     chat_id     TEXT PRIMARY KEY,
     voice       INTEGER NOT NULL DEFAULT 1,
-    slow_voice  INTEGER NOT NULL DEFAULT 0
+    slow_voice  INTEGER NOT NULL DEFAULT 0,
+    reactions   INTEGER NOT NULL DEFAULT 1
 );
 """
 
 # Столбцы, которые появились позже схемы. SQLite не умеет
 # ADD COLUMN IF NOT EXISTS, поэтому проверяем сами — иначе у тех, у кого
 # база уже создана, новые настройки молча не заработают.
-LATER_COLUMNS = [("prefs", "slow_voice", "INTEGER NOT NULL DEFAULT 0")]
+LATER_COLUMNS = [
+    ("prefs", "slow_voice", "INTEGER NOT NULL DEFAULT 0"),
+    ("prefs", "reactions", "INTEGER NOT NULL DEFAULT 1"),
+]
 
 # Интервалы системы Лейтнера: сколько дней ждать до следующего показа.
 BOX_INTERVALS = {1: 0, 2: 1, 3: 3, 4: 7, 5: 21}
@@ -221,6 +225,21 @@ def card_priorities(chat_id, mode):
 
 # ---------- статистика ----------
 
+def card_history(chat_id, card_id):
+    """Что мы знаем про карточку ДО текущего ответа.
+
+    Вызывать строго перед record_answer: она обновляет счётчики, и после
+    неё «сколько раз ты на этом спотыкался» уже включает текущий раз.
+    None — карточка встретилась впервые.
+    """
+    row = get_conn().execute(
+        "SELECT box, n_correct, n_wrong FROM card_state "
+        "WHERE chat_id = ? AND card_id = ?",
+        (str(chat_id), card_id),
+    ).fetchone()
+    return dict(row) if row else None
+
+
 def overall_stats(chat_id):
     """Сводка: сколько всего ответов и общая точность."""
     row = get_conn().execute(
@@ -313,6 +332,24 @@ def slow_voice(chat_id):
         "SELECT slow_voice FROM prefs WHERE chat_id = ?", (str(chat_id),)
     ).fetchone()
     return bool(row["slow_voice"]) if row else False
+
+
+def set_reactions(chat_id, enabled):
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO prefs (chat_id, reactions) VALUES (?, ?) "
+        "ON CONFLICT(chat_id) DO UPDATE SET reactions = excluded.reactions",
+        (str(chat_id), 1 if enabled else 0),
+    )
+    conn.commit()
+
+
+def reactions_enabled(chat_id):
+    """Живые реплики и отметки серий. По умолчанию включены."""
+    row = get_conn().execute(
+        "SELECT reactions FROM prefs WHERE chat_id = ?", (str(chat_id),)
+    ).fetchone()
+    return True if row is None else bool(row["reactions"])
 
 
 # ---------- слово дня ----------

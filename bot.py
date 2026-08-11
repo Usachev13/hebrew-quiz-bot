@@ -21,6 +21,7 @@ from flask import Flask, request, jsonify
 import alphabet
 import audio
 import db
+import reactions
 from matching import check_answer, accepted_forms, hint_for, scramble
 from translit import translit
 from words import VOCAB, VERBS
@@ -119,6 +120,27 @@ def send_message(chat_id, text, reply_markup=None):
         # Telegram решит, что апдейт не доставлен, и будет слать его
         # повторно, копя pending_update_count. Логируем и едем дальше.
         print(f"[send_message] сетевая ошибка: {e}")
+
+
+def set_reaction(chat_id, message_id, emoji):
+    """Ставит эмодзи-реакцию на сообщение ученика.
+
+    Так реагирует живой человек в чате, и это единственный способ
+    ответить, не добавляя ещё одно сообщение в ленту. Работает не во
+    всех чатах и не со всеми эмодзи, поэтому неудача — не ошибка:
+    молча едем дальше, урок от этого не зависит.
+    """
+    if not message_id or not emoji:
+        return
+    try:
+        requests.post(
+            f"{API_URL}/setMessageReaction",
+            json={"chat_id": chat_id, "message_id": message_id,
+                  "reaction": [{"type": "emoji", "emoji": emoji}]},
+            timeout=10,
+        )
+    except requests.exceptions.RequestException as e:
+        print(f"[set_reaction] {e}")
 
 
 def answer_callback(callback_id, text=None):
@@ -380,6 +402,11 @@ def start_round(chat_id, mode, typing=False, anagram=False):
         "typing": typing or anagram,   # ответ в обоих случаях набирается руками
         "anagram": anagram,
         "hints": 0,
+        "streak": 0,          # верных подряд прямо сейчас
+        "best_streak": 0,     # лучшая серия за раунд
+        "recent": [],         # недавние реплики, чтобы не повторяться
+        "last_memory": -9,    # на каком вопросе бот последний раз вспоминал
+        "reacted_msg": None,  # на какое сообщение уже повесили реакцию
     }
     due = sum(1 for v in priorities.values() if v >= 2)
     hint = f" Из них на повторение: {min(due, total)}." if due else ""
@@ -396,7 +423,83 @@ def start_round(chat_id, mode, typing=False, anagram=False):
     send_question(chat_id)
 
 
-def handle_answer(chat_id, question_idx, chosen_idx):
+# Как склеивается реплика с самим ответом. У «верно» ответ идёт через
+# тире («✅ Точно — מִטְבָּח»), у остальных реплика уже кончается
+# двоеточием («❌ Мимо. Правильно: מִטְבָּח»).
+VERDICT_POOLS = {
+    "correct": (reactions.CORRECT, " — "),
+    "typo": (reactions.TYPO, " "),
+    "wrong": (reactions.WRONG, " "),
+    "skip": (reactions.SKIPPED, " "),
+}
+
+# Как часто бот может вспоминать историю слова. Без паузы он делал бы
+# это почти каждый вопрос — а замечание, которое звучит всегда, перестаёт
+# быть замечанием.
+MEMORY_COOLDOWN = 3
+
+
+def lively(chat_id):
+    """Включены ли живые реплики. Сбой БД не должен глушить бота."""
+    try:
+        return db.reactions_enabled(chat_id)
+    except Exception:
+        return True
+
+
+def say_verdict(chat_id, s, outcome, answer, message_id=None, before=None,
+                extra=None):
+    """Ответ на попытку: реплика, память о слове, отметка серии.
+
+    Собрано в одном месте, потому что выбор с кнопок, набор руками и
+    анаграмма отвечают по-разному, а звучать должны одинаково.
+    """
+    pool, sep = VERDICT_POOLS[outcome]
+    alive = lively(chat_id)
+    # С выключенными реакциями поведение прежнее: одна и та же формулировка.
+    phrase = reactions.pick(pool, s["recent"], random) if alive else pool[0]
+
+    lines = [f"{phrase}{sep}{with_reading(answer, s['mode'])}"]
+    if extra:
+        lines.append(extra)
+
+    # Серия. Описку засчитываем как верный ответ: слово вспомнил,
+    # промахнулся по буквам — серию за это обрывать несправедливо.
+    scored = outcome in ("correct", "typo")
+    s["streak"] = s["streak"] + 1 if scored else 0
+    s["best_streak"] = max(s["best_streak"], s["streak"])
+
+    emoji = None
+    if alive:
+        memory = reactions.memory_line(before, scored)
+        if memory and s["index"] - s["last_memory"] >= MEMORY_COOLDOWN:
+            lines.append(f"<i>{memory}</i>")
+            s["last_memory"] = s["index"]
+
+        event = reactions.streak_event(s["streak"]) if scored else None
+        if event:
+            line, emoji = event
+            lines.append(line)
+
+    send_message(chat_id, "\n".join(lines))
+    if emoji:
+        set_reaction(chat_id, message_id, emoji)
+        # Telegram хранит одну реакцию бота на сообщение: вторая молча
+        # затирает первую. Десятая подряд и идеальный раунд приходят на
+        # один и тот же тап, поэтому запоминаем, что уже отметили.
+        s["reacted_msg"] = message_id
+
+
+def card_history(chat_id, card_id):
+    """История карточки до текущего ответа (для «я это помню»)."""
+    try:
+        return db.card_history(chat_id, card_id)
+    except Exception as e:
+        print(f"[card_history] {e}")
+        return None
+
+
+def handle_answer(chat_id, question_idx, chosen_idx, message_id=None):
     s = sessions.get(chat_id)
     if not s or not s["current"]:
         return
@@ -408,6 +511,10 @@ def handle_answer(chat_id, question_idx, chosen_idx):
     chosen = q["options"][chosen_idx]
     is_correct = chosen == q["correct"]
 
+    # Историю читаем ДО записи ответа: record_answer обновит счётчики, и
+    # «сколько раз ты на этом спотыкался» уже включит текущий раз.
+    before = card_history(chat_id, q["ru"])
+
     # Записываем ответ в БД: отсюда берутся и статистика, и расписание
     # повторений. Сбой БД не должен ломать игру, поэтому не роняем раунд.
     try:
@@ -417,10 +524,8 @@ def handle_answer(chat_id, question_idx, chosen_idx):
 
     if is_correct:
         s["score"] += 1
-        text = f"✅ Верно — {with_reading(q['correct'], s['mode'])}"
-    else:
-        text = f"❌ Неверно. Правильный ответ: {with_reading(q['correct'], s['mode'])}"
-    send_message(chat_id, text)
+    say_verdict(chat_id, s, "correct" if is_correct else "wrong",
+                q["correct"], message_id, before)
     maybe_send_voice(chat_id, q["correct"], s["mode"])
 
     finish_question(chat_id)
@@ -517,18 +622,24 @@ def finish_question(chat_id):
     s["index"] += 1
     if s["index"] >= s["total"]:
         pct = round(100 * s["score"] / s["total"])
+        if lively(chat_id):
+            head, emoji = reactions.round_summary(
+                s["score"], s["total"], s["best_streak"])
+        else:
+            head, emoji = f"Итог раунда: {s['score']}/{s['total']} ({pct}%)", None
         send_message(
             chat_id,
-            f"Итог раунда: {s['score']}/{s['total']} ({pct}%)\n\n"
-            f"Жми /start, чтобы начать новый раунд.",
+            f"{head}\n\nЖми /start, чтобы начать новый раунд.",
             main_menu_keyboard(),
         )
+        if emoji and s.get("last_msg") != s.get("reacted_msg"):
+            set_reaction(chat_id, s.get("last_msg"), emoji)
         s["current"] = None
     else:
         send_question(chat_id)
 
 
-def handle_typed_answer(chat_id, typed):
+def handle_typed_answer(chat_id, typed, message_id=None):
     """Ответ, набранный вручную (режим «Написать самому»)."""
     s = sessions.get(chat_id)
     if not s or not s["current"]:
@@ -542,11 +653,12 @@ def handle_typed_answer(chat_id, typed):
         return
 
     if typed.strip().lower() in ("/skip", "пропустить"):
+        before = card_history(chat_id, q["ru"])
         try:
             db.record_answer(chat_id, s["mode"], q["ru"], False)
         except Exception as e:
             print(f"[handle_typed_answer] не удалось записать пропуск: {e}")
-        send_message(chat_id, f"Пропускаем. Правильный ответ: {with_reading(q['correct'], s['mode'])}")
+        say_verdict(chat_id, s, "skip", q["correct"], message_id, before)
         finish_question(chat_id)
         return
 
@@ -554,22 +666,20 @@ def handle_typed_answer(chat_id, typed):
     # Подсказками пользовался — засчитываем, но в повторениях как неуверенный
     is_correct = verdict in ("exact", "typo") and not s.get("hints")
 
+    before = card_history(chat_id, q["ru"])
     try:
         db.record_answer(chat_id, s["mode"], q["ru"], is_correct)
     except Exception as e:
         print(f"[handle_typed_answer] не удалось записать ответ: {e}")
 
-    if verdict == "exact":
+    outcome = {"exact": "correct", "typo": "typo"}.get(verdict, "wrong")
+    if verdict in ("exact", "typo"):
         s["score"] += 1
-        text = f"✅ Верно — {with_reading(q['correct'], s['mode'])}"
-        if s.get("hints"):
-            text += "\n<i>(с подсказкой — повторим ещё раз)</i>"
-    elif verdict == "typo":
-        s["score"] += 1
-        text = f"⚠️ Почти! Правильно пишется так: {with_reading(q['correct'], s['mode'])}"
-    else:
-        text = f"❌ Неверно. Правильный ответ: {with_reading(q['correct'], s['mode'])}"
-    send_message(chat_id, text)
+    # Подсказка — это не провал, но и не чистое попадание: честнее сказать
+    # вслух, что слово вернётся, чем молча подсунуть его снова.
+    extra = ("<i>(с подсказкой — повторим ещё раз)</i>"
+             if verdict == "exact" and s.get("hints") else None)
+    say_verdict(chat_id, s, outcome, q["correct"], message_id, before, extra)
     maybe_send_voice(chat_id, q["correct"], s["mode"])
 
     finish_question(chat_id)
@@ -699,8 +809,13 @@ def _handle_webhook_update():
         msg = update["message"]
         chat_id = msg["chat"]["id"]
         text = msg.get("text", "")
+        message_id = msg.get("message_id")
 
         s = sessions.get(chat_id)
+        if s is not None:
+            # На это сообщение вешается реакция за серию, а в конце
+            # раунда — за итог.
+            s["last_msg"] = message_id
         in_typing_round = bool(s and s.get("current") and s.get("typing"))
 
         if text.startswith("/start") or text.startswith("/quiz"):
@@ -723,6 +838,15 @@ def _handle_webhook_update():
         elif text.startswith("/voice_off"):
             db.set_voice(chat_id, False)
             send_message(chat_id, "Голосовые отключены. Вернуть — /voice_on.")
+        elif text.startswith("/reactions_on"):
+            db.set_reactions(chat_id, True)
+            send_message(chat_id, "Живые реплики и отметки серий включены.")
+        elif text.startswith("/reactions_off"):
+            db.set_reactions(chat_id, False)
+            send_message(
+                chat_id,
+                "Оставляю только сухие «верно / неверно». Вернуть — /reactions_on.",
+            )
         elif text.startswith("/speed"):
             slow = not db.slow_voice(chat_id)
             db.set_slow_voice(chat_id, slow)
@@ -735,13 +859,13 @@ def _handle_webhook_update():
         elif in_typing_round:
             # В режиме набора принимаем любой текст: это и есть ответ
             # (плюс «?» для подсказки и /skip для пропуска).
-            handle_typed_answer(chat_id, text)
+            handle_typed_answer(chat_id, text, message_id)
         elif s and s.get("current"):
             # Ответ с выбором приходит как обычное сообщение с нативной
             # (reply) клавиатуры, а не callback_query.
             options = s["current"]["options"]
             if text in options:
-                handle_answer(chat_id, s["index"], options.index(text))
+                handle_answer(chat_id, s["index"], options.index(text), message_id)
 
     elif "callback_query" in update:
         cq = update["callback_query"]
