@@ -399,6 +399,11 @@ LABELS = {
 # Режимы курса алфавита: вопрос формулируется иначе, чем «как будет…»
 ALPHABET_MODES = {m for m in LABELS if m.startswith("alef_")}
 
+# Обратный поиск: по card_id (подсказке, с которой карточка легла в базу)
+# найти сам ответ. Нужен статистике: список слабых мест без ивритского
+# слова только перечисляет промахи, а с ним — повторяет материал.
+ANSWERS = {mode: {ru: he for ru, he, _ in pool} for mode, pool in POOLS.items()}
+
 # Все допустимые написания каждого пула. Нужны, чтобы отличить описку от
 # случая «набрал другое существующее слово» (см. matching.check_answer).
 KNOWN_FORMS = {
@@ -519,10 +524,10 @@ def say_verdict(chat_id, s, outcome, answer, message_id=None, before=None,
         s["reacted_msg"] = message_id
 
 
-def card_history(chat_id, card_id):
+def card_history(chat_id, card_id, mode):
     """История карточки до текущего ответа (для «я это помню»)."""
     try:
-        return db.card_history(chat_id, card_id)
+        return db.card_history(chat_id, card_id, mode)
     except Exception as e:
         print(f"[card_history] {e}")
         return None
@@ -542,7 +547,7 @@ def handle_answer(chat_id, question_idx, chosen_idx, message_id=None):
 
     # Историю читаем ДО записи ответа: record_answer обновит счётчики, и
     # «сколько раз ты на этом спотыкался» уже включит текущий раз.
-    before = card_history(chat_id, q["ru"])
+    before = card_history(chat_id, q["ru"], s["mode"])
 
     # Записываем ответ в БД: отсюда берутся и статистика, и расписание
     # повторений. Сбой БД не должен ломать игру, поэтому не роняем раунд.
@@ -648,6 +653,20 @@ def send_voice_samples(chat_id, speed=None):
 
 
 
+def plural(n, one, few, many):
+    """«1 ошибка», «2 ошибки», «5 ошибок».
+
+    Мелочь, но «ошибок 1» — ровно та шероховатость, из-за которой текст
+    читается как вывод программы, а не как речь.
+    """
+    n = abs(n)
+    if n % 10 == 1 and n % 100 != 11:
+        return one
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return few
+    return many
+
+
 def with_reading(answer, mode):
     """Добавляет произношение кириллицей: «מִטְבָּח (митбах)».
 
@@ -656,8 +675,15 @@ def with_reading(answer, mode):
     """
     if mode in ALPHABET_MODES:
         return answer
+    return f"{answer}{reading_suffix(answer, mode)}"
+
+
+def reading_suffix(answer, mode):
+    """« (митбах)» — произношение в скобках, если его есть чем показать."""
+    if mode in ALPHABET_MODES:
+        return ""
     reading = translit(answer)
-    return f"{answer} ({reading})" if reading else answer
+    return f" ({reading})" if reading else ""
 
 
 def finish_question(chat_id):
@@ -697,7 +723,7 @@ def handle_typed_answer(chat_id, typed, message_id=None):
         return
 
     if typed.strip().lower() in ("/skip", "пропустить"):
-        before = card_history(chat_id, q["ru"])
+        before = card_history(chat_id, q["ru"], s["mode"])
         try:
             db.record_answer(chat_id, s["mode"], q["ru"], False)
         except Exception as e:
@@ -710,7 +736,7 @@ def handle_typed_answer(chat_id, typed, message_id=None):
     # Подсказками пользовался — засчитываем, но в повторениях как неуверенный
     is_correct = verdict in ("exact", "typo") and not s.get("hints")
 
-    before = card_history(chat_id, q["ru"])
+    before = card_history(chat_id, q["ru"], s["mode"])
     try:
         db.record_answer(chat_id, s["mode"], q["ru"], is_correct)
     except Exception as e:
@@ -801,7 +827,8 @@ def send_stats(chat_id):
         f"Правильных: {overall['correct']} ({pct}%)",
     ]
     if streak:
-        lines.append(f"Занимаешься подряд: {streak} дн.")
+        lines.append(f"Занимаешься подряд: {streak} "
+                     f"{plural(streak, 'день', 'дня', 'дней')}")
     if due:
         lines.append(f"Ждут повторения: {due}")
 
@@ -817,7 +844,19 @@ def send_stats(chat_id):
     if weak:
         lines += ["", "<b>Чаще всего ошибаешься:</b>"]
         for w in weak:
-            lines.append(f"• {w['card_id']} — ошибок {w['n_wrong']}")
+            n = w["n_wrong"]
+            errors = f"{n} {plural(n, 'ошибка', 'ошибки', 'ошибок')}"
+            he = ANSWERS.get(w["mode"], {}).get(w["card_id"])
+            if he:
+                # Ответ первым: глаз цепляется за то, что надо выучить,
+                # а не за русскую подсказку, которую и так знаешь.
+                lines.append(
+                    f"• <b>{he}</b>{reading_suffix(he, w['mode'])} — "
+                    f"{w['card_id']} · {errors}")
+            else:
+                # Карточки из старых версий словаря: подсказка в базе
+                # осталась, а слова уже нет — показываем что есть.
+                lines.append(f"• {w['card_id']} · {errors}")
         lines.append("")
         lines.append("<i>Эти карточки бот будет показывать чаще.</i>")
 

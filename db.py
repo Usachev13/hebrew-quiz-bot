@@ -59,7 +59,13 @@ CREATE TABLE IF NOT EXISTS card_state (
     due_date    TEXT NOT NULL,                -- когда показать снова
     n_correct   INTEGER NOT NULL DEFAULT 0,
     n_wrong     INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (chat_id, card_id)
+    -- Режим ОБЯЗАН входить в ключ. Подсказка карточки складывается из
+    -- глагола и лица («писать (לִכְתּוֹב) — я»), а лица в прошедшем и
+    -- будущем называются одинаково — значит 388 подсказок совпадают
+    -- дословно. Без режима в ключе прошедшее и будущее делят одну
+    -- строку: ответ по одному времени переписывал коробку Лейтнера
+    -- другому, и форма молча выпадала из повторений.
+    PRIMARY KEY (chat_id, card_id, mode)
 );
 
 CREATE INDEX IF NOT EXISTS idx_state_due ON card_state(chat_id, mode, due_date);
@@ -118,6 +124,44 @@ def get_conn():
     return conn
 
 
+def _migrate_card_state_key(conn):
+    """Добавляет mode в первичный ключ card_state.
+
+    SQLite не умеет менять первичный ключ на месте — таблицу приходится
+    пересобирать. Делается один раз: если mode уже в ключе, выходим.
+
+    Уже слипшиеся строки разделить невозможно — данные о том, какому
+    времени принадлежал прогресс, потеряны безвозвратно. Оставляем как
+    есть: дальше расхождение просто перестанет накапливаться.
+    """
+    info = list(conn.execute("PRAGMA table_info(card_state)"))
+    if not info:
+        return
+    if any(r["name"] == "mode" and r["pk"] for r in info):
+        return
+
+    conn.executescript("""
+        CREATE TABLE card_state_new (
+            chat_id     TEXT NOT NULL,
+            card_id     TEXT NOT NULL,
+            mode        TEXT NOT NULL,
+            box         INTEGER NOT NULL DEFAULT 1,
+            due_date    TEXT NOT NULL,
+            n_correct   INTEGER NOT NULL DEFAULT 0,
+            n_wrong     INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (chat_id, card_id, mode)
+        );
+        INSERT OR IGNORE INTO card_state_new
+            SELECT chat_id, card_id, mode, box, due_date, n_correct, n_wrong
+            FROM card_state;
+        DROP TABLE card_state;
+        ALTER TABLE card_state_new RENAME TO card_state;
+        CREATE INDEX IF NOT EXISTS idx_state_due
+            ON card_state(chat_id, mode, due_date);
+    """)
+    print("[db] card_state пересобрана: режим добавлен в первичный ключ")
+
+
 def init_db():
     """Создаёт таблицы, если их ещё нет. Безопасно вызывать при каждом старте."""
     conn = get_conn()
@@ -126,6 +170,7 @@ def init_db():
         cols = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
         if column not in cols:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+    _migrate_card_state_key(conn)
     conn.commit()
 
 
@@ -171,8 +216,9 @@ def record_answer(chat_id, mode, card_id, correct):
     )
 
     row = conn.execute(
-        "SELECT box, n_correct, n_wrong FROM card_state WHERE chat_id = ? AND card_id = ?",
-        (chat_id, card_id),
+        "SELECT box, n_correct, n_wrong FROM card_state "
+        "WHERE chat_id = ? AND card_id = ? AND mode = ?",
+        (chat_id, card_id, mode),
     ).fetchone()
 
     if row is None:
@@ -189,8 +235,8 @@ def record_answer(chat_id, mode, card_id, correct):
     conn.execute(
         "INSERT INTO card_state (chat_id, card_id, mode, box, due_date, n_correct, n_wrong) "
         "VALUES (?, ?, ?, ?, ?, ?, ?) "
-        "ON CONFLICT(chat_id, card_id) DO UPDATE SET "
-        "  box = excluded.box, due_date = excluded.due_date, mode = excluded.mode,"
+        "ON CONFLICT(chat_id, card_id, mode) DO UPDATE SET "
+        "  box = excluded.box, due_date = excluded.due_date,"
         "  n_correct = excluded.n_correct, n_wrong = excluded.n_wrong",
         (chat_id, card_id, mode, box, due, n_correct, n_wrong),
     )
@@ -235,7 +281,7 @@ def card_priorities(chat_id, mode):
 
 # ---------- статистика ----------
 
-def card_history(chat_id, card_id):
+def card_history(chat_id, card_id, mode):
     """Что мы знаем про карточку ДО текущего ответа.
 
     Вызывать строго перед record_answer: она обновляет счётчики, и после
@@ -244,8 +290,8 @@ def card_history(chat_id, card_id):
     """
     row = get_conn().execute(
         "SELECT box, n_correct, n_wrong FROM card_state "
-        "WHERE chat_id = ? AND card_id = ?",
-        (str(chat_id), card_id),
+        "WHERE chat_id = ? AND card_id = ? AND mode = ?",
+        (str(chat_id), card_id, mode),
     ).fetchone()
     return dict(row) if row else None
 
