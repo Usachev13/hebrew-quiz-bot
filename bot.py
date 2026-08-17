@@ -182,22 +182,73 @@ def answer_callback(callback_id, text=None):
         print(f"[answer_callback] сетевая ошибка: {e}")
 
 
+# Меню разложено в дерево, а не списком. Причина не в красоте: главный
+# экран — это место под разговорные темы (ТЗ, раздел 7), и если весь
+# словарь с временами лежит на нём плашмя, ставить туда будет некуда.
+# Формат ответа (выбор / написать / анаграмма) вынесен в последний шаг:
+# раньше он был отдельной веткой меню и дублировал весь список тем.
+
 def main_menu_keyboard():
     return {
         "inline_keyboard": [
-            # По две кнопки в ряд, иначе меню растягивается на весь экран
-            [{"text": "📖 Слова", "callback_data": "start_vocab"},
-             {"text": "🔤 Инфинитивы", "callback_data": "start_verbs"}],
-            [{"text": "⏪ Прошедшее", "callback_data": "start_past"},
-             {"text": "▶️ Настоящее", "callback_data": "start_present"}],
-            [{"text": "⏩ Будущее", "callback_data": "start_future"}],
-            [{"text": "⌨️ Написать самому", "callback_data": "typing_menu"},
-             {"text": "🔡 Анаграмма", "callback_data": "start_anagram"}],
+            [{"text": "📚 Слова и грамматика", "callback_data": "menu|words"}],
             [{"text": "🔤 Алфавит (с нуля)", "callback_data": "alphabet_menu"}],
             [{"text": "🗓 Слово дня", "callback_data": "word_of_day"},
              {"text": "📊 Статистика", "callback_data": "show_stats"}],
         ]
     }
+
+
+def words_menu_keyboard():
+    return {
+        "inline_keyboard": [
+            [{"text": "🗂 По темам", "callback_data": "menu|topics"}],
+            [{"text": "✏️ Грамматика", "callback_data": "menu|grammar"}],
+            [{"text": "🔤 Глаголы", "callback_data": "menu|verbs"}],
+            [{"text": "⚡ Мои слабые места", "callback_data": "pick|weak|"}],
+            [{"text": "‹ Назад", "callback_data": "main_menu"}],
+        ]
+    }
+
+
+def category_keyboard(labels, back):
+    """Список категорий по две в ряд плюс «всё вперемешку»."""
+    buttons = [{"text": name, "callback_data": f"pick|vocab|{key}"}
+               for key, name in labels.items()]
+    rows = keyboard_rows(buttons, per_row=2)
+    rows.append([{"text": "🎲 Всё вперемешку", "callback_data": "pick|vocab|"}])
+    rows.append([{"text": "‹ Назад", "callback_data": back}])
+    return {"inline_keyboard": rows}
+
+
+def verbs_menu_keyboard():
+    return {
+        "inline_keyboard": [
+            [{"text": "🔤 Инфинитивы", "callback_data": "pick|verbs|"}],
+            [{"text": "⏪ Прошедшее", "callback_data": "pick|past|"},
+             {"text": "▶️ Настоящее", "callback_data": "pick|present|"}],
+            [{"text": "⏩ Будущее", "callback_data": "pick|future|"}],
+            [{"text": "‹ Назад", "callback_data": "menu|words"}],
+        ]
+    }
+
+
+# Анаграмму предлагаем только там, где собирать слово из букв осмысленно:
+# длинная глагольная форма разбирается на пятнадцать букв и учит терпению,
+# а не языку.
+ANAGRAM_MODES = {"vocab", "weak"}
+
+
+def format_keyboard(mode, cat):
+    """Последний шаг: как отвечать."""
+    rows = [
+        [{"text": "🔘 Выбрать из вариантов", "callback_data": f"go|choice|{mode}|{cat}"}],
+        [{"text": "⌨️ Написать самому", "callback_data": f"go|type|{mode}|{cat}"}],
+    ]
+    if mode in ANAGRAM_MODES:
+        rows.append([{"text": "🔡 Собрать из букв", "callback_data": f"go|anagram|{mode}|{cat}"}])
+    rows.append([{"text": "‹ Назад", "callback_data": "menu|words"}])
+    return {"inline_keyboard": rows}
 
 
 def alphabet_menu_keyboard():
@@ -236,20 +287,6 @@ def send_alphabet_table(chat_id):
         "<i>Пять букв в конце слова пишутся иначе: כ→ך, מ→ם, נ→ן, פ→ף, צ→ץ.</i>",
     ]
     send_message(chat_id, "\n".join(lines), alphabet_menu_keyboard())
-
-
-def typing_menu_keyboard():
-    """Тот же набор тем, но с ответом от руки вместо выбора из четырёх."""
-    return {
-        "inline_keyboard": [
-            [{"text": "📖 Слова", "callback_data": "type_vocab"}],
-            [{"text": "🔤 Глаголы (инфинитивы)", "callback_data": "type_verbs"}],
-            [{"text": "⏪ Прошедшее время", "callback_data": "type_past"}],
-            [{"text": "▶️ Настоящее время", "callback_data": "type_present"}],
-            [{"text": "⏩ Будущее время", "callback_data": "type_future"}],
-            [{"text": "‹ Назад", "callback_data": "main_menu"}],
-        ]
-    }
 
 
 # ---------- Игровая логика ----------
@@ -319,7 +356,8 @@ def send_question(chat_id):
     # занимают высоту стандартной системной клавиатуры, то есть выше.
     # one_time_keyboard прячет клавиатуру сразу после тапа.
     idx = s["index"] + 1
-    is_form = s["mode"] in ("past", "present", "future")
+    mode = card_mode(s, q)
+    is_form = mode in ("past", "present", "future")
 
     if s.get("anagram"):
         # Буквы вразброс — задача собрать из них слово.
@@ -356,7 +394,7 @@ def send_question(chat_id):
         "keyboard": keyboard_rows(q["options"], per_row=2),
         "one_time_keyboard": True,
     }
-    if s["mode"] in ALPHABET_MODES:
+    if mode in ALPHABET_MODES:
         # Подсказка уже сформулирована как вопрос («буква א», «прочитай מָ»)
         text = f"Вопрос {idx}/{s['total']}\n<b>{q['ru']}</b>?"
     elif is_form:
@@ -396,13 +434,34 @@ LABELS = {
     "alef_dotted": "точка меняет звук",
 }
 
+# Словарь разложен по двум разрезам. Бытовые темы — как в ульпане:
+# человек учит слова кусками жизни, а не списком существительных.
+# Грамматические группы вынесены отдельно, потому что тренируются иначе:
+# там важна не тема, а форма.
+TOPIC_LABELS = {
+    "greetings": "Приветствия", "family": "Семья", "food": "Еда",
+    "home": "Дом", "city": "Город", "transport": "Транспорт",
+    "time": "Время", "weather": "Погода", "health": "Здоровье",
+    "shopping": "Покупки", "work_study": "Работа и учёба",
+    "clothes": "Одежда", "emotions": "Эмоции",
+}
+GRAMMAR_LABELS = {
+    "adjectives": "Прилагательные", "adverbs": "Наречия",
+    "personal_pronouns": "Местоимения (я, ты…)",
+    "object_pronouns": "Местоимения (меня, его…)",
+    "cardinals": "Числительные", "ordinals": "Порядковые",
+    "question_words": "Вопросительные слова", "particles": "Частицы",
+    "place_prepositions": "Предлоги места",
+}
+
 # Режимы курса алфавита: вопрос формулируется иначе, чем «как будет…»
 ALPHABET_MODES = {m for m in LABELS if m.startswith("alef_")}
 
 # Обратный поиск: по card_id (подсказке, с которой карточка легла в базу)
 # найти сам ответ. Нужен статистике: список слабых мест без ивритского
 # слова только перечисляет промахи, а с ним — повторяет материал.
-ANSWERS = {mode: {ru: he for ru, he, _ in pool} for mode, pool in POOLS.items()}
+ANSWERS = {mode: {ru: (he, cat) for ru, he, cat in pool}
+           for mode, pool in POOLS.items()}
 
 # Все допустимые написания каждого пула. Нужны, чтобы отличить описку от
 # случая «набрал другое существующее слово» (см. matching.check_answer).
@@ -410,16 +469,69 @@ KNOWN_FORMS = {
     mode: set().union(*(accepted_forms(he) for _, he, _ in pool)) if pool else set()
     for mode, pool in POOLS.items()
 }
+# Раунд «слабые места» смешанный, поэтому описку в нём сверяем по всему
+# банку сразу: иначе набранное слово из другого режима сойдёт за опечатку.
+KNOWN_FORMS["weak"] = set().union(*KNOWN_FORMS.values())
 
 
-def start_round(chat_id, mode, typing=False, anagram=False):
+def weak_pool(chat_id, limit=30):
+    """Карточки, где больше всего ошибок — со всех режимов сразу.
+
+    Возвращает (пул, {(подсказка, ответ): режим}). Режим на карточку
+    нужен потому, что раунд смешанный: ответ должен лечь в статистику
+    того режима, откуда карточка пришла, иначе повторения разъедутся.
+    """
+    try:
+        weak = db.weak_cards(chat_id, limit=limit)
+    except Exception as e:
+        print(f"[weak_pool] {e}")
+        return [], {}
+
+    pool, modes = [], {}
+    for w in weak:
+        found = ANSWERS.get(w["mode"], {}).get(w["card_id"])
+        if not found:
+            continue          # карточка из старой версии словаря
+        he, cat = found
+        pool.append((w["card_id"], he, cat))
+        modes[(w["card_id"], he)] = w["mode"]
+    return pool, modes
+
+
+def round_pool(chat_id, mode, cat):
+    """Пул раунда, подпись к нему и карта режимов по карточкам."""
+    if mode == "weak":
+        pool, modes = weak_pool(chat_id)
+        return pool, "мои слабые места", modes
+
     pool = POOLS[mode]
+    if cat:
+        pool = [w for w in pool if w[2] == cat]
+        label = TOPIC_LABELS.get(cat) or GRAMMAR_LABELS.get(cat) or LABELS[mode]
+        return pool, label.lower(), {}
+    return pool, LABELS[mode], {}
+
+
+def start_round(chat_id, mode, cat=None, typing=False, anagram=False):
+    pool, label, modes = round_pool(chat_id, mode, cat)
+    if len(pool) < 4:
+        # Меньше четырёх карточек — не из чего собрать варианты ответа.
+        send_message(
+            chat_id,
+            "Пока нечего повторять: ошибок слишком мало. Это хорошая новость."
+            if mode == "weak" else
+            "В этой теме слишком мало слов для раунда.",
+            main_menu_keyboard(),
+        )
+        return
     total = min(ROUND_LEN, len(pool))
     # Приоритеты читаем один раз на раунд, а не на каждый вопрос —
     # лишние обращения к БД внутри раунда не нужны.
     try:
         db.touch_user(chat_id)
-        priorities = db.card_priorities(chat_id, mode)
+        # В смешанном раунде приоритеты не нужны: карточки и так отобраны
+        # по числу ошибок, это уже и есть приоритет.
+        priorities = {} if mode == "weak" else db.card_priorities(chat_id, mode)
     except Exception as e:
         print(f"[start_round] БД недоступна, играем без повторений: {e}")
         priorities = {}
@@ -435,6 +547,8 @@ def start_round(chat_id, mode, typing=False, anagram=False):
         "priorities": priorities,
         "typing": typing or anagram,   # ответ в обоих случаях набирается руками
         "anagram": anagram,
+        "modes": modes,       # режим по карточке (только в «слабых местах»)
+        "label": label,
         "hints": 0,
         "streak": 0,          # верных подряд прямо сейчас
         "best_streak": 0,     # лучшая серия за раунд
@@ -452,7 +566,7 @@ def start_round(chat_id, mode, typing=False, anagram=False):
         how = ""
     send_message(
         chat_id,
-        f"Начинаем! Раунд «{LABELS[mode]}», {total} вопросов.{hint}{how}",
+        f"Начинаем! Раунд «{label}», {total} вопросов.{hint}{how}",
     )
     send_question(chat_id)
 
@@ -473,6 +587,12 @@ VERDICT_POOLS = {
 MEMORY_COOLDOWN = 3
 
 
+def card_mode(s, q):
+    """Режим карточки. В обычном раунде он один на всех, в «слабых
+    местах» — свой у каждой: они собраны из разных режимов."""
+    return s.get("modes", {}).get((q["ru"], q["correct"]), s["mode"])
+
+
 def lively(chat_id):
     """Включены ли живые реплики. Сбой БД не должен глушить бота."""
     try:
@@ -482,7 +602,7 @@ def lively(chat_id):
 
 
 def say_verdict(chat_id, s, outcome, answer, message_id=None, before=None,
-                extra=None):
+                extra=None, mode=None):
     """Ответ на попытку: реплика, память о слове, отметка серии.
 
     Собрано в одном месте, потому что выбор с кнопок, набор руками и
@@ -493,7 +613,7 @@ def say_verdict(chat_id, s, outcome, answer, message_id=None, before=None,
     # С выключенными реакциями поведение прежнее: одна и та же формулировка.
     phrase = reactions.pick(pool, s["recent"], random) if alive else pool[0]
 
-    lines = [f"{phrase}{sep}{with_reading(answer, s['mode'])}"]
+    lines = [f"{phrase}{sep}{with_reading(answer, mode or s['mode'])}"]
     if extra:
         lines.append(extra)
 
@@ -547,20 +667,21 @@ def handle_answer(chat_id, question_idx, chosen_idx, message_id=None):
 
     # Историю читаем ДО записи ответа: record_answer обновит счётчики, и
     # «сколько раз ты на этом спотыкался» уже включит текущий раз.
-    before = card_history(chat_id, q["ru"], s["mode"])
+    mode = card_mode(s, q)
+    before = card_history(chat_id, q["ru"], mode)
 
     # Записываем ответ в БД: отсюда берутся и статистика, и расписание
     # повторений. Сбой БД не должен ломать игру, поэтому не роняем раунд.
     try:
-        db.record_answer(chat_id, s["mode"], q["ru"], is_correct)
+        db.record_answer(chat_id, mode, q["ru"], is_correct)
     except Exception as e:
         print(f"[handle_answer] не удалось записать ответ: {e}")
 
     if is_correct:
         s["score"] += 1
     say_verdict(chat_id, s, "correct" if is_correct else "wrong",
-                q["correct"], message_id, before)
-    maybe_send_voice(chat_id, q["correct"], s["mode"])
+                q["correct"], message_id, before, mode=mode)
+    maybe_send_voice(chat_id, q["correct"], mode)
 
     finish_question(chat_id)
 
@@ -723,22 +844,24 @@ def handle_typed_answer(chat_id, typed, message_id=None):
         return
 
     if typed.strip().lower() in ("/skip", "пропустить"):
-        before = card_history(chat_id, q["ru"], s["mode"])
+        mode = card_mode(s, q)
+        before = card_history(chat_id, q["ru"], mode)
         try:
-            db.record_answer(chat_id, s["mode"], q["ru"], False)
+            db.record_answer(chat_id, mode, q["ru"], False)
         except Exception as e:
             print(f"[handle_typed_answer] не удалось записать пропуск: {e}")
-        say_verdict(chat_id, s, "skip", q["correct"], message_id, before)
+        say_verdict(chat_id, s, "skip", q["correct"], message_id, before, mode=mode)
         finish_question(chat_id)
         return
 
-    verdict = check_answer(typed, q["correct"], KNOWN_FORMS.get(s["mode"]))
+    verdict = check_answer(typed, q["correct"], KNOWN_FORMS.get(card_mode(s, q)))
     # Подсказками пользовался — засчитываем, но в повторениях как неуверенный
     is_correct = verdict in ("exact", "typo") and not s.get("hints")
 
-    before = card_history(chat_id, q["ru"], s["mode"])
+    mode = card_mode(s, q)
+    before = card_history(chat_id, q["ru"], mode)
     try:
-        db.record_answer(chat_id, s["mode"], q["ru"], is_correct)
+        db.record_answer(chat_id, mode, q["ru"], is_correct)
     except Exception as e:
         print(f"[handle_typed_answer] не удалось записать ответ: {e}")
 
@@ -749,8 +872,9 @@ def handle_typed_answer(chat_id, typed, message_id=None):
     # вслух, что слово вернётся, чем молча подсунуть его снова.
     extra = ("<i>(с подсказкой — повторим ещё раз)</i>"
              if verdict == "exact" and s.get("hints") else None)
-    say_verdict(chat_id, s, outcome, q["correct"], message_id, before, extra)
-    maybe_send_voice(chat_id, q["correct"], s["mode"])
+    say_verdict(chat_id, s, outcome, q["correct"], message_id, before, extra,
+                mode=mode)
+    maybe_send_voice(chat_id, q["correct"], mode)
 
     finish_question(chat_id)
 
@@ -846,7 +970,8 @@ def send_stats(chat_id):
         for w in weak:
             n = w["n_wrong"]
             errors = f"{n} {plural(n, 'ошибка', 'ошибки', 'ошибок')}"
-            he = ANSWERS.get(w["mode"], {}).get(w["card_id"])
+            found = ANSWERS.get(w["mode"], {}).get(w["card_id"])
+            he = found[0] if found else None
             if he:
                 # Ответ первым: глаз цепляется за то, что надо выучить,
                 # а не за русскую подсказку, которую и так знаешь.
@@ -860,7 +985,15 @@ def send_stats(chat_id):
         lines.append("")
         lines.append("<i>Эти карточки бот будет показывать чаще.</i>")
 
-    send_message(chat_id, "\n".join(lines), main_menu_keyboard())
+    keyboard = main_menu_keyboard()
+    if weak:
+        # Видеть свои ошибки мало — до сих пор, чтобы их проработать,
+        # надо было запускать обычный раунд и надеяться, что они выпадут.
+        keyboard["inline_keyboard"] = (
+            [[{"text": "⚡ Потренировать эти", "callback_data": "pick|weak|"}]]
+            + keyboard["inline_keyboard"])
+
+    send_message(chat_id, "\n".join(lines), keyboard)
 
 
 # ---------- Webhook ----------
@@ -956,30 +1089,31 @@ def _handle_webhook_update():
         data = cq.get("data", "")
         answer_callback(cq["id"])
 
-        if data == "start_vocab":
-            start_round(chat_id, "vocab")
-        elif data == "start_verbs":
-            start_round(chat_id, "verbs")
-        elif data == "start_past":
-            start_round(chat_id, "past")
-        elif data == "start_present":
-            start_round(chat_id, "present")
-        elif data == "start_future":
-            start_round(chat_id, "future")
-        elif data == "typing_menu":
-            send_message(
-                chat_id,
-                "Что тренируем? Ответ нужно будет написать самому.",
-                typing_menu_keyboard(),
-            )
-        elif data == "main_menu":
+        if data == "main_menu":
             send_message(chat_id, "Что тренируем сегодня?", main_menu_keyboard())
-        elif data.startswith("type_"):
-            start_round(chat_id, data[len("type_"):], typing=True)
-        elif data == "start_anagram":
-            # Анаграмма только по словам: собирать из букв длинную
-            # глагольную форму мучительно и мало чему учит.
-            start_round(chat_id, "vocab", anagram=True)
+        elif data == "menu|words":
+            send_message(chat_id, "Что тренируем?", words_menu_keyboard())
+        elif data == "menu|topics":
+            send_message(chat_id, "Выбери тему:",
+                         category_keyboard(TOPIC_LABELS, "menu|words"))
+        elif data == "menu|grammar":
+            send_message(chat_id, "Что из грамматики?",
+                         category_keyboard(GRAMMAR_LABELS, "menu|words"))
+        elif data == "menu|verbs":
+            send_message(chat_id, "Глаголы — что тренируем?",
+                         verbs_menu_keyboard())
+        elif data.startswith("pick|"):
+            # Тема выбрана — остался формат ответа. Раньше формат был
+            # отдельной веткой меню и дублировал весь список тем.
+            _, mode, cat = data.split("|", 2)
+            send_message(chat_id, "Как отвечаем?", format_keyboard(mode, cat))
+        elif data.startswith("go|"):
+            _, fmt, mode, cat = data.split("|", 3)
+            start_round(chat_id, mode, cat or None,
+                        typing=(fmt == "type"), anagram=(fmt == "anagram"))
+        elif data == "start_vocab":
+            # Старая кнопка из «слова дня» — оставляем рабочей.
+            start_round(chat_id, "vocab")
         elif data == "word_of_day":
             send_word_of_day(chat_id)
         elif data == "alphabet_menu":
