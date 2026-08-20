@@ -2,7 +2,11 @@
 """Собирает статический conjugations.py по списку глаголов из words.py."""
 
 import sys
-sys.path.insert(0, "/tmp")
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+OUT = HERE.parent / "conjugations.py"
+sys.path.insert(0, str(HERE))
 
 from gen_conj import (
     paal, paal_lh, hollow, hollow_alef, piel, hifil, hitpael,
@@ -238,7 +242,14 @@ IRREGULAR = {
         "past": {
             "אני": "הָיִיתִי", "אתה": "הָיִיתָ", "את": "הָיִית",
             "הוא": "הָיָה", "היא": "הָיְתָה", "אנחנו": "הָיִינוּ",
-            "אתם": "הֱיִיתֶם", "אתן": "הֱיִיתֶן", "הם/הן": "הָיוּ",
+            # Классическая огласовка — הֱיִיתֶם, с хатаф-сеголем: «хейитем».
+            # Берём הָיִיתֶם, потому что в живом иврите вся парадигма
+            # выровнена по «ха-» и все говорят «хайитем». Карточка должна
+            # читаться так, как её произносят: ученик читает огласовки
+            # вслух, и расхождение между написанным и звучащим научит
+            # неправильно. Единственное такое место в банке — у остальных
+            # 24 форм «вы» стоит хатаф-патах, а он и читается «а».
+            "אתם": "הָיִיתֶם", "אתן": "הָיִיתֶן", "הם/הן": "הָיוּ",
         },
         # в современном иврите настоящего времени у "быть" нет
         "present": {},
@@ -395,9 +406,9 @@ for binyan in ["paal", "paal_lh", "paal_ayin_het", "piel", "hifil", "hitpael", "
 
 out.append("}\n")
 
-with open("/tmp/conjugations_new.py", "w", encoding="utf-8") as f:
-    f.write("".join(out))
+OUT.write_text("".join(out), encoding="utf-8")
 
 print(f"Глаголов: {count_verbs}, форм: {count_forms}")
+print(f"Записано: {OUT}")
 if missing_future:
     print(f"БЕЗ БУДУЩЕГО ВРЕМЕНИ ({len(missing_future)}): {missing_future}")

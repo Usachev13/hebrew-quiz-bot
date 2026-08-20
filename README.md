@@ -209,7 +209,8 @@ venv/bin/python3 tools/generate_audio.py --only שלום חולצה --force
 - `send_daily.py` — рассылка слова дня, запускается systemd-таймером
 - `words.py` — банк слов и инфинитивов глаголов
 - `conjugations.py` — спряжения (сгенерирован, руками не правится)
-- `tools/` — генератор спряжений; после правок запускать `build_conj.py`
+- `tools/` — генератор спряжений; после правок запускать
+  `python3 tools/build_conj.py` — он перезаписывает `conjugations.py` на месте
 - `requirements.txt` — зависимости
 - `set_webhook.py` — разовый скрипт, подключает бота к Telegram
 - `deploy/` — установка и обновление на VPS (см. `deploy/README.md`)
