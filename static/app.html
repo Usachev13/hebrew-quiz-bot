@@ -631,7 +631,65 @@ function show(name, push = true){
 }
 tg?.BackButton.onClick(() => show(state.stack.pop() || "home", false));
 const buzz = t => { try { tg?.HapticFeedback?.notificationOccurred?.(t); } catch(e){} };
+
 const tap  = () => { try { tg?.HapticFeedback?.impactOccurred?.("light"); } catch(e){} };
+
+/* Оттенок на тему — для плашек в списке «По темам». Пары подобраны так,
+   чтобы соседние плитки не сливались. */
+const TOPIC_HUE = {
+  greetings:210, family:340, food:25, home:150, city:265, transport:195,
+  time:45, weather:185, health:0, shopping:300, work_study:230,
+  clothes:320, emotions:12,
+};
+const hue = (key, s, l) => `hsl(${TOPIC_HUE[key] ?? 215} ${s}% ${l}%)`;
+
+/* Число не появляется, а набегает — полсекунды, зато экран оживает. */
+function countUp(el, to){
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches){ el.textContent = to; return; }
+  const t0 = performance.now(), dur = 520;
+  const step = t => {
+    const k = Math.min(1, (t - t0) / dur);
+    el.textContent = Math.round(to * (1 - Math.pow(1 - k, 3)));
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+/* Восход над холмами и оливковая ветвь — рисунок разметкой, а не
+   картинкой: весит ничего, чёткий на любом экране, красится темой. */
+function sunrise(){
+  return `<svg viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice"
+       role="img" aria-hidden="true">
+    <defs>
+      <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#F7F1E2"/>
+        <stop offset="1" stop-color="#E7DCC4"/></linearGradient>
+    </defs>
+    <rect width="200" height="150" fill="url(#sky)"/>
+    <circle cx="134" cy="54" r="26" fill="#C4A24A" opacity=".5"/>
+    <path d="M0 82 Q30 64 58 74 T112 68 T200 84 V150 H0Z" fill="#7FA6CC" opacity=".4"/>
+    <path d="M0 98 Q38 82 74 92 T142 88 T200 102 V150 H0Z" fill="#2C5A8C" opacity=".26"/>
+    <path d="M0 114 Q46 104 92 110 T200 118 V150 H0Z" fill="#2A2418" opacity=".12"/>
+    <g stroke="#8A6B1C" stroke-width="1.5" fill="none" opacity=".65">
+      <path d="M16 10 C33 22 41 40 43 60"/>
+      <path d="M23 21 q10-7 17-3 q-8 8-17 3Z" fill="#8A6B1C" opacity=".5" stroke="none"/>
+      <path d="M31 34 q10-7 17-2 q-8 8-17 2Z" fill="#8A6B1C" opacity=".5" stroke="none"/>
+      <path d="M38 48 q10-6 17-1 q-8 8-17 1Z" fill="#8A6B1C" opacity=".5" stroke="none"/>
+    </g>
+  </svg>`;
+}
+
+/* Кольцо серии: дуга золотом, тридцать дней — полный круг. */
+function streakRing(days){
+  const R = 34, C = 2 * Math.PI * R, p = Math.min(days, 30) / 30;
+  return `<svg viewBox="0 0 78 78" aria-hidden="true">
+    <circle cx="39" cy="39" r="${R}" fill="none" stroke="rgba(255,255,255,.2)"
+            stroke-width="5"/>
+    <circle cx="39" cy="39" r="${R}" fill="none" stroke="var(--gold-bright)"
+            stroke-width="5" stroke-linecap="round" stroke-dasharray="${C}"
+            stroke-dashoffset="${C * (1 - p)}" transform="rotate(-90 39 39)"/></svg>`;
+}
+
 
 async function api(path, body = {}){
   const r = await fetch(path, {
@@ -649,7 +707,7 @@ function tile({ ico, name, sub, badge, dim, onclick, compact, plate }){
   b.innerHTML =
     (plate ? `<span class="plate" style="background:linear-gradient(150deg,
         ${hue(plate,52,22)}, ${hue(plate,44,14)})"><span
-        style="color:${hue(plate,58,68)}">${glyph(plate, 74)}</span></span>` : "")
+        style="color:${hue(plate,58,68)}">${sketch(plate, 74)}</span></span>` : "")
     + `<span class="ico">${icon(ico, compact ? 18 : 22)}</span>
      <span class="txt"><span class="name">${name}</span>
        ${sub ? `<span class="sub">${sub}</span>` : ""}</span>
