@@ -42,7 +42,7 @@ def _bet(cx, cy, k, fill):
 NAME_HE = "אני לומד עברית"
 
 
-def _scene(inner, ground=0.74, arch_top=0.40, arch_bottom=0.80):
+def _scene(inner, ground=0.74, arch_top=0.40, arch_bottom=0.80, arch_r=0.265):
     """Ворота, солнце, кипарисы. ground сдвигает землю вверх, когда под
     рисунком нужно место для надписи."""
     g, gd = ground, ground + 0.115
@@ -54,8 +54,8 @@ def _scene(inner, ground=0.74, arch_top=0.40, arch_bottom=0.80):
                f"Q{S*0.86} {S*(gd+0.035)} {S} {S*(gd-0.005)} V{S} H0 Z", TAUPE))
     b.append(cypress(S*0.115, S*(g+0.09), S*0.32, S*0.055, OLIVE, DARK))
     b.append(cypress(S*0.895, S*(g+0.09), S*0.26, S*0.048, OLIVE, DARK))
-    b.append(P(f"M{S*0.235} {S*arch_bottom} V{S*arch_top} "
-               f"A{S*0.265} {S*0.265} 0 0 1 {S*0.765} {S*arch_top} "
+    b.append(P(f"M{S*(0.5-arch_r)} {S*arch_bottom} V{S*arch_top} "
+               f"A{S*arch_r} {S*arch_r} 0 0 1 {S*(0.5+arch_r)} {S*arch_top} "
                f"V{S*arch_bottom} Z", TERRA))
     b.append(inner)
     return "".join(b)
@@ -83,6 +83,39 @@ def logo_wordmark():
                   ground=0.585, arch_top=0.25, arch_bottom=0.635)
     body += rect(0, S*0.755, S, S*0.245, BG)
     body += hebtext.centered(NAME_HE, S*0.115, S*0.5, S*0.915, DARK)
+    return body
+
+
+def _lines(lines, size, cx, y_first, step, fill):
+    """Несколько строк по центру. Каждая считается отдельно: ширина у
+    ивритских слов разная, и общий сдвиг их бы перекосил."""
+    return "".join(hebtext.centered(t, size, cx, y_first + i * step, fill)
+                   for i, t in enumerate(lines))
+
+
+def logo_avatar_inside():
+    """Название в проёме ворот, в три строки — по слову на строку.
+
+    Лентой поперёк квадрата пробовал: она разрезает арку, и знак
+    разваливается на купол и две ноги. В проёме силуэт цел, а текст
+    оказывается ровно в середине.
+
+    Три строки, а не две, — по расчёту. «אני לומד» одной строкой при
+    любом читаемом кегле шире проёма и заезжает на терракотовые опоры,
+    где тёмно-коричневый даёт 1.9:1 и буквы тонут. По одному слову в
+    строке самое широкое — «עברית», 139 px при кегле 0.095 против
+    проёма в 195 px.
+
+    Размеры арки тоже посчитаны: Telegram обрезает аватарку в круг. При
+    подъёме 0.33 и радиусе 0.235 верхушка приходится на высоту 0.095,
+    где вписанная окружность шириной ±0.293 — арка в ±0.235 проходит.
+    При прежних 0.275 и 0.265 верх срезало.
+    """
+    inner = P(f"M{S*0.31} {S*0.815} V{S*0.44} "
+              f"A{S*0.19} {S*0.19} 0 0 1 {S*0.69} {S*0.44} V{S*0.815} Z", BG)
+    body = _scene(inner, arch_top=0.33, arch_bottom=0.815, arch_r=0.235)
+    body += _lines(["אני", "לומד", "עברית"], S*0.095, S*0.5,
+                   S*0.545, S*0.115, DARK)
     return body
 
 
