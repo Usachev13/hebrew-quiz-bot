@@ -50,17 +50,18 @@
 html[data-theme="dark"]{
   /* Тёмная — та же гамма, а не другая: тёплый уголь вместо синевы,
      чтобы песочный характер сохранялся и ночью. */
-  /* Светлее прежнего: подложка была почти чёрной и всё выглядело
-     мрачно. Яркость фона поднята вдвое, карточек — вдвое, при этом
-     контраст текста остаётся выше нормы (пересчитано). */
-  --bg:#1E212A; --surface:#2A2F3B; --surface-2:#333947;
-  --text:#F2EDE2; --muted:#B3AB99; --border:#3E4557;
-  --primary:#E9E1CE; --on-primary:#1E212A; --primary-soft:#343A48;
-  --tchelet:#6E93BC;
-  --gold:#E0C25C; --gold-bright:#EBD182;
-  --ok:#57C77F; --bad:#FF8177; --warn:#E0A94A;
-  --ok-soft:#14301F; --bad-soft:#341A18; --warn-soft:#332714;
-  --glass:rgba(42,47,59,.74);
+  /* Нейтрали тёплые, а не серо-синие. Дороговизна берётся отсюда:
+     синеватый уголь читается как «системная тема», тёплый — как
+     бумага и чернила. Замерено: у прежних цветов красного было на
+     12–25 меньше, чем синего, теперь на 5–17 больше. */
+  --bg:#171512; --surface:#232019; --surface-2:#2C2820;
+  --text:#F3EDE0; --muted:#B0A691; --border:#3B352A;
+  --primary:#EDE4CE; --on-primary:#171512; --primary-soft:#2C2820;
+  --tchelet:#7C9CBE;
+  --gold:#D9B75F; --gold-bright:#EBD79A;
+  --ok:#66C98A; --bad:#FF8B7E; --warn:#E0B45F;
+  --ok-soft:#1B2A1E; --bad-soft:#2E1E1A; --warn-soft:#2C2418;
+  --glass:rgba(35,32,25,.78);
   --shadow:inset 0 1px 0 rgba(255,255,255,.06),
            0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.36);
   --shadow-p:inset 0 1px 0 rgba(255,255,255,.15), 0 8px 22px rgba(0,0,0,.5);
@@ -72,7 +73,7 @@ html[data-theme="dark"]{
    поверхности глухими — вид скромнее, читаемость та же. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
   :root{--glass:#FFFFFF}
-  html[data-theme="dark"]{--glass:#2A2F3B}
+  html[data-theme="dark"]{--glass:#232019}
 }
 
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -99,9 +100,9 @@ body::after{
 }
 html[data-theme="dark"] body::before{
   background:
-    radial-gradient(1000px 560px at 8% -12%,  rgba(224,194,92,.13),  transparent 62%),
-    radial-gradient(900px 520px at 96% 4%,    rgba(110,147,188,.20), transparent 60%),
-    radial-gradient(880px 660px at 48% 108%,  rgba(168,146,104,.17), transparent 66%);
+    radial-gradient(1000px 560px at 8% -12%,  rgba(217,183,95,.13),  transparent 62%),
+    radial-gradient(900px 520px at 96% 4%,    rgba(124,156,190,.13), transparent 60%),
+    radial-gradient(880px 660px at 48% 108%,  rgba(196,168,118,.16), transparent 66%);
 }
 html[data-theme="dark"] body::after{opacity:.07}
 
@@ -152,6 +153,12 @@ button{font:inherit;color:inherit;cursor:pointer}
 .he.sm{font-size:21px}
 
 /* ── плитки ── */
+/* Золотой волосок по верхней кромке. Приём из печати: тонкая линия
+   благородного цвета даёт ощущение отделки там, где толстая рамка
+   выглядела бы дёшево. */
+.tile,.wod,.quick button,.prog .box,.resume-rich{
+  border-top-color:color-mix(in srgb, var(--gold) 28%, var(--border));
+}
 .tile{
   display:flex;align-items:center;gap:var(--s3);width:100%;min-height:var(--tap);
   text-align:left;padding:var(--s4);margin-bottom:var(--s2);border:1px solid var(--border);
@@ -175,9 +182,16 @@ button{font:inherit;color:inherit;cursor:pointer}
 .tile.dim{opacity:.55}
 
 .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s2)}
-.grid .tile{margin:0;flex-direction:column;align-items:flex-start;gap:var(--s2);
-            min-height:96px;justify-content:center}
-.grid .tile .ico{flex:0 0 32px;height:32px}
+.grid .tile{margin:0;flex-direction:column;align-items:stretch;gap:0;
+            min-height:132px;justify-content:flex-start;padding:0;overflow:hidden}
+/* Плашка с крупным подрезанным глифом вместо значка в углу: на карточке
+   она работает как изображение и держит взгляд. */
+.grid .tile .plate{height:66px;position:relative;overflow:hidden;
+                   display:flex;align-items:center;justify-content:flex-end}
+.grid .tile .plate svg{width:74px;height:74px;margin-right:-14px;margin-bottom:-10px;
+                       opacity:.5}
+.grid .tile .txt{padding:var(--s3) var(--s4) var(--s4)}
+.grid .tile .ico,.grid .tile .chev{display:none}
 
 .primary{
   width:100%;min-height:52px;padding:var(--s4);border:0;border-radius:var(--r);
@@ -267,8 +281,8 @@ input[type=text]:focus{outline:0;border-color:var(--primary)}
       padding:var(--s5) var(--s4);margin-bottom:var(--s4);
       box-shadow:0 12px 34px rgba(22,35,63,.22)}
 html[data-theme="dark"] .hero{
-      background:linear-gradient(155deg,#2C3348 0%,#232838 58%,#1C2130 100%);
-      box-shadow:0 12px 34px rgba(0,0,0,.4)}
+      background:linear-gradient(155deg,#332C21 0%,#2A251C 58%,#211D16 100%);
+      box-shadow:0 14px 36px rgba(0,0,0,.45)}
 .hero .greet{flex:1;min-width:0}
 .hero .hi{font-family:"Playfair Display",Georgia,serif;font-size:24px;
           line-height:1.15;font-weight:600}
@@ -440,36 +454,36 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
 .word .dot-state.new{background:transparent;border:1px solid var(--border)}
 
 /* ── богатая карточка «продолжить» ── */
+/* Карточка пересобрана. Было: рисунок висел прямоугольником поверх
+   текста и не доходил до краёв, а под ним теснились пять уровней
+   подписи. Стало: рисунок — полоса во всю ширину сверху, под ней текст
+   в один поток. Так карточка читается сверху вниз, а не по углам. */
 .resume-rich{display:block;width:100%;text-align:left;background:var(--surface);
              border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;
              box-shadow:var(--shadow);margin-bottom:var(--s5);padding:0;position:relative}
-/* Рисунок справа, как в макете: восход над холмами и оливковая ветвь.
-   Нарисован разметкой, а не картинкой — весит ничего и красится темой. */
-.resume-rich .art{position:absolute;right:0;top:0;width:40%;height:140px;
-                  border-bottom-left-radius:var(--r-lg);overflow:hidden;opacity:.9}
+.resume-rich .art{position:relative;width:100%;height:104px;overflow:hidden;display:block}
 .resume-rich .art svg{width:100%;height:100%;display:block}
+/* Слово лежит на полосе снизу — как подпись под фотографией. */
+.resume-rich .art .cap{position:absolute;left:var(--s4);top:var(--s3);
+  font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--gold);background:var(--surface);padding:3px 8px;border-radius:999px}
 /* Каждая строка должна быть блоком. Со строчными span подпись, слово и
    транскрипция склеивались в одну строку — ровно то, что было видно. */
-.resume-rich .body{padding:var(--s4) var(--s4) 0;position:relative;z-index:1}
+.resume-rich .body{padding:var(--s4);position:relative;z-index:1}
 .resume-rich .body > span{display:block}
-/* Текст и рисунок — две колонки, а не наложение. Раньше ивритское слово
-   было выключено вправо внутри узкого блока и упиралось ровно в край
-   рисунка; теперь оно прижато влево, а справа оставлен запас. */
-.resume-rich .cap,.resume-rich .big,.resume-rich .tr{
-  max-width:calc(58% - var(--s3));}
-.resume-rich .ru,.resume-rich .where{max-width:100%}
-.resume-rich .cap{font-size:10px;font-weight:700;letter-spacing:.14em;
-                  text-transform:uppercase;color:var(--gold)}
-.resume-rich .big{font-size:30px;line-height:1.7;font-weight:700;margin-top:var(--s2);
+.resume-rich .where{font-size:10px;font-weight:700;letter-spacing:.14em;
+                    text-transform:uppercase;color:var(--gold)}
+.resume-rich .big{font-size:34px;line-height:1.65;font-weight:700;margin-top:var(--s2);
                   display:block;direction:rtl;text-align:left}
-.resume-rich .tr{color:var(--muted);font-size:14px}
-.resume-rich .ru{font-size:17px;font-weight:600;margin-top:var(--s5);line-height:1.35}
-.resume-rich .where{color:var(--muted);font-size:13px;margin-top:3px}
+.resume-rich .tr{color:var(--muted);font-size:14px;margin-top:2px}
+.resume-rich .ru{font-size:18px;font-weight:600;margin-top:var(--s3);line-height:1.3}
+/* Уточнение формы — отдельной строкой и мельче: у глагольных карточек
+   подсказка длинная, и в одну строку с переводом она давила. */
+.resume-rich .form{color:var(--muted);font-size:13px;margin-top:3px}
 .resume-rich .cta{display:flex;align-items:center;justify-content:space-between;
-                  gap:var(--s2);margin:var(--s5) var(--s4) var(--s4);min-height:54px;
+                  gap:var(--s2);margin:var(--s4) 0 0;min-height:52px;
                   padding:0 var(--s4);border-radius:var(--r);background:var(--primary);
-                  color:var(--on-primary);font-weight:600;font-size:16px;
-                  box-shadow:0 8px 20px rgba(22,35,63,.2)}
+                  color:var(--on-primary);font-weight:600;font-size:16px}
 .resume-rich:active{transform:translateY(2px)}
 
 .settings .stat{cursor:pointer}
@@ -509,19 +523,19 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
 <g id="i-play"><path d="M7 4l12 8-12 8z"/></g>
 <g id="i-star"><path d="M12 3.5l2.7 5.6 6 .9-4.4 4.2 1.1 6-5.4-2.9-5.4 2.9 1.1-6L3.3 10l6-.9z"/></g>
 <g id="i-user"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></g>
-<g id="i-t-greetings"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11m0-1.5a1.5 1.5 0 0 1 3 0V11m0-1a1.5 1.5 0 0 1 3 0v4a6 6 0 0 1-6 6h-1a5 5 0 0 1-5-5v-3a1.5 1.5 0 0 1 3 0"/></g>
-<g id="i-t-family"><circle cx="8" cy="8" r="3"/><circle cx="16.5" cy="9.5" r="2.5"/><path d="M3 20c0-3 2.2-5 5-5s5 2 5 5M14 20c0-2.4 1.6-4 3.5-4S21 17.6 21 20"/></g>
-<g id="i-t-food"><path d="M6 3v8a3 3 0 0 0 6 0V3M9 11v10M17 3c-1.5 2-2 3.5-2 6 0 1.5.7 2 2 2s2-.5 2-2c0-2.5-.5-4-2-6zM17 11v10"/></g>
-<g id="i-t-home"><path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></g>
-<g id="i-t-city"><path d="M3 21V9l6-4v16M9 21V11l6-3v13M15 21V12l6-2v11M3 21h18M6 12h.01M6 16h.01M12 14h.01M12 17h.01M18 15h.01"/></g>
-<g id="i-t-transport"><path d="M4 16v-4l2-5h12l2 5v4M4 16h16M4 16v2h3v-2M17 16v2h3v-2"/><circle cx="8" cy="13" r="1"/><circle cx="16" cy="13" r="1"/></g>
-<g id="i-t-time"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></g>
-<g id="i-t-weather"><circle cx="12" cy="11" r="4"/><path d="M12 3v1.5M12 17.5V19M4 11h1.5M18.5 11H20M6.3 5.3l1 1M16.7 5.3l-1 1M6.3 16.7l1-1M16.7 16.7l-1-1"/></g>
-<g id="i-t-health"><path d="M12 20s-7-4.4-7-9.3A4 4 0 0 1 12 8a4 4 0 0 1 7 2.7C19 15.6 12 20 12 20z"/></g>
-<g id="i-t-shopping"><path d="M5 8h14l-1 12H6zM9 8V6a3 3 0 0 1 6 0v2"/></g>
-<g id="i-t-work_study"><path d="M3 8h18v11H3zM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/></g>
-<g id="i-t-clothes"><path d="M9 4l3 2 3-2 5 3-2 4h-2v9H8v-9H6L4 7z"/></g>
-<g id="i-t-emotions"><circle cx="12" cy="12" r="8"/><path d="M9 10h.01M15 10h.01M8.5 14.5a4.5 4.5 0 0 0 7 0"/></g>
+<g id="g-greetings" fill="currentColor" stroke="none"><path d="M7 12.5V6a1.6 1.6 0 0 1 3.2 0v4.6h.6V4.6a1.6 1.6 0 0 1 3.2 0v6h.6V5.6a1.6 1.6 0 0 1 3.2 0V13c0 4.4-2.5 7-6.2 7C8.3 20 6 17.6 6 14.2v-1.7a1.5 1.5 0 0 1 1-1z"/></g>
+<g id="g-family" fill="currentColor" stroke="none"><circle cx="8.5" cy="7.5" r="3.2"/><circle cx="16.5" cy="9" r="2.6"/><path d="M2.5 20.5c0-3.6 2.7-6 6-6s6 2.4 6 6z"/><path d="M14.5 20.5c.2-2.8 1.8-4.6 4-4.6 1.9 0 3 1.6 3 4.6z"/></g>
+<g id="g-food" fill="currentColor" stroke="none"><path d="M5 3.2c.6 0 1 .5 1 1.1v4.4a1.7 1.7 0 0 0 3.4 0V4.3a1 1 0 1 1 2 0v4.4a3.7 3.7 0 0 1-2.7 3.6v8.4a1.7 1.7 0 0 1-3.4 0v-8.4A3.7 3.7 0 0 1 2.6 8.7V4.3a1 1 0 0 1 1-1.1z" transform="translate(2)"/><path d="M18 3c2 2.4 2.7 4.6 2.7 7.2 0 2-1.1 3.1-2.7 3.1s-2.7-1.1-2.7-3.1c0-2.6.7-4.8 2.7-7.2z"/><rect x="17" y="12.6" width="2" height="8.6" rx="1"/></g>
+<g id="g-home" fill="currentColor" stroke="none"><path d="M12 2.6 21.5 11h-2.8v9.4h-4.4v-5.6H9.7v5.6H5.3V11H2.5z"/></g>
+<g id="g-city" fill="currentColor" stroke="none"><path d="M3 21V9.6l5.6-3.4V21z"/><path d="M9.8 21V7.4L16 4v17z"/><path d="M17.2 21V9.8L22 8v13z"/></g>
+<g id="g-transport" fill="currentColor" stroke="none"><path d="M4.4 15.8 6.2 9A2.4 2.4 0 0 1 8.5 7.2h7A2.4 2.4 0 0 1 17.8 9l1.8 6.8z"/><rect x="3" y="15.4" width="18" height="3.4" rx="1.4"/><circle cx="7.4" cy="19.6" r="1.7"/><circle cx="16.6" cy="19.6" r="1.7"/></g>
+<g id="g-time" fill="currentColor" stroke="none"><path d="M12 2.6A9.4 9.4 0 1 0 12 21.4 9.4 9.4 0 0 0 12 2.6zm.9 9.1 3 2.1-1 1.5-3.8-2.6V6.4h1.8z"/></g>
+<g id="g-weather" fill="currentColor" stroke="none"><circle cx="12" cy="12" r="4.6"/><path d="M12 1.6v3M12 19.4v3M22.4 12h-3M4.6 12h-3M19.4 4.6l-2.1 2.1M6.7 17.3l-2.1 2.1M19.4 19.4l-2.1-2.1M6.7 6.7 4.6 4.6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></g>
+<g id="g-health" fill="currentColor" stroke="none"><path d="M12 21S3.4 15.7 3.4 9.9A4.9 4.9 0 0 1 12 6.8a4.9 4.9 0 0 1 8.6 3.1C20.6 15.7 12 21 12 21z"/></g>
+<g id="g-shopping" fill="currentColor" stroke="none"><path d="M4.4 7.6h15.2L18.4 21H5.6z"/><path d="M8.6 8V5.9a3.4 3.4 0 0 1 6.8 0V8" fill="none" stroke="currentColor" stroke-width="2"/></g>
+<g id="g-work_study" fill="currentColor" stroke="none"><rect x="2.6" y="7.4" width="18.8" height="12.6" rx="2"/><path d="M9 7.2V5.8a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1.4" fill="none" stroke="currentColor" stroke-width="2"/><rect x="2.6" y="12" width="18.8" height="1.8"/></g>
+<g id="g-clothes" fill="currentColor" stroke="none"><path d="M9.2 3.4 12 5.4l2.8-2 5.4 3.1-2.1 4.2-2.3-.8V21H8.2V9.9l-2.3.8L3.8 6.5z"/></g>
+<g id="g-emotions" fill="currentColor" stroke="none"><path d="M12 2.6A9.4 9.4 0 1 0 12 21.4 9.4 9.4 0 0 0 12 2.6zM8.8 9.4a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8zm6.4 0a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8zM12 18a5 5 0 0 1-4.3-2.5l1.5-.9A3.3 3.3 0 0 0 12 16.2c1.2 0 2.3-.6 2.8-1.6l1.5.9A5 5 0 0 1 12 18z"/></g>
 <g id="i-list"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></g>
 </defs></svg>
 
@@ -595,6 +609,13 @@ const icon = (name, size = 22) =>
         stroke="currentColor" stroke-width="2" stroke-linecap="round"
         stroke-linejoin="round" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 
+/* Глиф темы — заливной, а не линейный. Тонкая обводка на круге в 72 px
+   теряется и читается как значок; плотная форма ведёт себя как
+   изображение. Настоящие иллюстрации потребуют генератора. */
+const glyph = (key, size = 26) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24"
+        aria-hidden="true"><use href="#g-${key}"/></svg>`;
+
 /* Тема своя, но следует за клиентом: в тёмном Telegram светлое полотно
    ночью бьёт по глазам. Шапку и фон красим в тон, чтобы приложение не
    выглядело чужой вставкой. */
@@ -643,11 +664,14 @@ async function api(path, body = {}){
 }
 function fail(text){ $("error-text").textContent = text; show("error", false); }
 
-function tile({ ico, name, sub, badge, dim, onclick, compact }){
+function tile({ ico, name, sub, badge, dim, onclick, compact, plate }){
   const b = document.createElement("button");
   b.className = "tile" + (dim ? " dim" : "");
   b.innerHTML =
-    `<span class="ico">${icon(ico, compact ? 18 : 22)}</span>
+    (plate ? `<span class="plate" style="background:linear-gradient(150deg,
+        ${hue(plate,52,22)}, ${hue(plate,44,14)})"><span
+        style="color:${hue(plate,58,68)}">${glyph(plate, 74)}</span></span>` : "")
+    + `<span class="ico">${icon(ico, compact ? 18 : 22)}</span>
      <span class="txt"><span class="name">${name}</span>
        ${sub ? `<span class="sub">${sub}</span>` : ""}</span>
      ${badge ? `<span class="badge">${badge}</span>` : ""}
@@ -809,17 +833,22 @@ async function renderHome(){
 
   // Карточка показывает то самое слово, которое выпадет первым.
   // Ярлык темы не говорит, ради чего нажимать.
+  // Подсказка глагольной карточки длинная: «приближаться (להתקרב) —
+  // жен. род, мн. число». Режем по тире: слева перевод, справа форма.
+  const cut = (h.resume?.ru || "").split(" — ");
+  const mainRu = cut[0], formRu = cut.slice(1).join(" — ");
+
   if (h.resume) html += h.resume.he ? `
     <button class="resume-rich" id="resume">
-      <span class="art">${sunrise()}</span>
+      <span class="art">${sunrise()}<span class="cap">Продолжить</span></span>
       <span class="body">
-        <span class="cap">Продолжить</span>
-        <span class="big he">${h.resume.he}</span>
-        ${h.resume.reading ? `<span class="tr">(${h.resume.reading})</span>` : ""}
-        <span class="ru">${h.resume.ru}</span>
         <span class="where">${h.resume.label}</span>
+        <span class="big he">${h.resume.he}</span>
+        ${h.resume.reading ? `<span class="tr">${h.resume.reading}</span>` : ""}
+        <span class="ru">${mainRu}</span>
+        ${formRu ? `<span class="form">${formRu}</span>` : ""}
+        <span class="cta"><span>Продолжить</span>${icon("chev",18)}</span>
       </span>
-      <span class="cta"><span>Продолжить</span>${icon("chev",18)}</span>
     </button>` : `
     <button class="resume" id="resume">
       <span class="txt"><span class="cap">Продолжить</span>
@@ -895,7 +924,7 @@ function renderTopics(topics){
         aria-label="${t.name}: показано ${t.seen} из ${t.total}, выучено ${t.learned}">
         <span class="ring" style="${ringStyle(t.key, t.seen, t.learned, t.total)}">
           <span class="face">
-            ${icon("t-" + t.key, 20)}
+            ${glyph(t.key, 24)}
             <span class="n">${t.seen}</span>
           </span>
         </span>
@@ -920,6 +949,7 @@ function openList(kind){
   items.forEach(it => box.appendChild(tile({
     ico: kind === "verbs" ? "verb" : kind === "alphabet" ? "alef"
         : kind === "grammar" ? "grammar" : "book",
+    plate: kind === "topics" ? it.key : null,
     name: it.name, sub: it.count + " карточек", compact: wide,
     onclick:() => {
       // У глаголов и алфавита ключ — это режим, у слов — категория.
