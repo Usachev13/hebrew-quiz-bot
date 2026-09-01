@@ -24,6 +24,9 @@
   --primary:#2C5A8C; --on-primary:#FFFFFF; --primary-soft:#DCE6F0;
   --tchelet:#7FA6CC;
   --gold:#8A6B1C; --gold-bright:#C4A24A;
+  /* Тушь рисунков. Одна на всё приложение: в образцах дорого
+     выглядит именно сдержанность, а не разноцветье. */
+  --terra:#A0632F;
   --ok:#186B3A; --bad:#A32A20; --warn:#8A5A00;
   --ok-soft:#E6F2EA; --bad-soft:#F9E9E7; --warn-soft:#F8F1DF;
 
@@ -157,12 +160,13 @@ button{font:inherit;color:inherit;cursor:pointer}
 .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s2)}
 .grid .tile{margin:0;flex-direction:column;align-items:stretch;gap:0;
             min-height:132px;justify-content:flex-start;padding:0;overflow:hidden}
-/* Плашка с крупным подрезанным глифом вместо значка в углу: на карточке
-   она работает как изображение и держит взгляд. */
-.grid .tile .plate{height:66px;position:relative;overflow:hidden;
-                   display:flex;align-items:center;justify-content:flex-end}
-.grid .tile .plate svg{width:74px;height:74px;margin-right:-14px;margin-bottom:-10px;
-                       opacity:.5}
+/* Плашка с рисунком вместо значка в углу: на карточке она работает как
+   изображение и держит взгляд. Рисунок по центру и целиком — арку нельзя
+   подрезать, она и есть рамка композиции. */
+.grid .tile .plate{height:70px;position:relative;overflow:hidden;
+                   background:var(--surface-2);color:var(--terra);
+                   display:flex;align-items:center;justify-content:center}
+.grid .tile .plate svg{width:60px;height:60px}
 .grid .tile .txt{padding:var(--s3) var(--s4) var(--s4)}
 .grid .tile .ico,.grid .tile .chev{display:none}
 
@@ -348,7 +352,7 @@ input[type=text]:focus{outline:0;border-color:var(--primary)}
        transition:transform .18s var(--bounce), box-shadow .18s}
 .topic:active{transform:translateY(2px) scale(.99)}
 .topic .draw{display:block;height:104px;position:relative;
-             background:var(--surface-2);color:var(--text);opacity:.9}
+             background:var(--surface-2);color:var(--terra)}
 .topic .draw svg{position:absolute;inset:0;margin:auto;width:88px;height:88px}
 .topic .draw .n{position:absolute;right:10px;top:8px;font-family:"Playfair Display",Georgia,serif;
                 font-size:17px;font-weight:600;color:var(--primary);
@@ -485,35 +489,36 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
 <!-- Иконки — один встроенный SVG-спрайт. Эмодзи для навигации не годятся:
      они разные на разных телефонах и не красятся под тему. -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
-<g id="i-book"><path d="M2 7 L12 9.5 L12 20 L2 17.5 Z M12 9.5 L22 7 L22 17.5 L12 20 Z"/><path d="M2 7 L12 20 M22 7 L12 20 M4 11 L10 12 M20 11 L14 12" stroke-width="1.1" opacity=".55"/></g>
-<g id="i-grammar"><path d="M5 3 L19 3 L19 21 L5 21 Z"/><path d="M8 8 L16 8 M8 12 L16 12 M8 16 L13 16 M5 3 L19 21" stroke-width="1.1" opacity=".55"/></g>
-<g id="i-verb"><path d="M12 2 L20 11 L15 11 L15 22 L9 22 L9 11 L4 11 Z"/><path d="M12 2 L12 22 M4 11 L20 11" stroke-width="1.1" opacity=".55"/></g>
-<g id="i-alef"><path d="M18 4 L6 20 M6 6.5 L11 11.5 M13 12.5 L18 19"/></g>
-<g id="i-spark"><path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z"/><path d="M12 2 L12 22 M2 12 L22 12" stroke-width="1.1" opacity=".55"/></g>
-<g id="i-chart"><path d="M3 21 L3 12 L8 10 L8 21 Z M9.5 21 L9.5 6 L14.5 4 L14.5 21 Z M16 21 L16 14 L21 12 L21 21 Z"/><path d="M3 12 L8 21 M9.5 6 L14.5 21 M16 14 L21 21" stroke-width="1.1" opacity=".55"/></g>
-<g id="i-sound"><path d="M3 9 L8 9 L13 4 L13 20 L8 15 L3 15 Z M16 8 L19 12 L16 16"/><path d="M3 9 L13 20 M13 4 L3 15 M8 9 L8 15" stroke-width="1.1" opacity=".55"/></g>
-<g id="i-check"><path d="M3 12 L9 19 L21 5"/><path d="M3 12 L21 5" stroke-width="1.1" opacity=".55"/></g>
-<g id="i-cross"><path d="M5 5 L19 19 M19 5 L5 19"/><path d="M5 5 L19 5 L19 19 L5 19 Z" stroke-width="1.1" opacity=".55"/></g>
-<g id="i-chev"><path d="M9 3 L18 12 L9 21"/></g>
-<g id="i-home"><path d="M2 11 L12 3 L22 11 L22 21 L2 21 Z M9.5 21 L9.5 15 L14.5 15 L14.5 21"/><path d="M2 11 L22 11 M12 3 L12 11 M2 21 L12 11 M22 21 L12 11" stroke-width="1.1" opacity=".55"/></g>
-<g id="i-flame"><path d="M12 2 L9 8 L11 11 L7 15 L8 19 L12 22 L16 19 L17 15 L13 11 L15 8 Z"/><path d="M12 2 L12 22" stroke-width="1.1" opacity=".55"/></g>
-<g id="i-play"><path d="M6 3 L21 12 L6 21 Z"/><path d="M6 12 L21 12" stroke-width="1.1" opacity=".55"/></g>
-<g id="i-star"><path d="M12 2 L14.6 9 L22 9.4 L16.2 14 L18.2 21 L12 17 L5.8 21 L7.8 14 L2 9.4 L9.4 9 Z"/><path d="M9.4 9 L14.6 9 L16.2 14 L12 17 L7.8 14 Z" stroke-width="1.1" opacity=".55"/></g>
-<g id="i-user"><path d="M12 2 L16 4.5 L16 9.5 L12 12 L8 9.5 L8 4.5 Z M3 22 L7 14.5 L17 14.5 L21 22 Z"/><path d="M8 4.5 L16 9.5 M16 4.5 L8 9.5 M7 14.5 L12 22 M17 14.5 L12 22" stroke-width="1.1" opacity=".55"/></g>
-<g id="sk-greetings" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M28 92 L20 64 L21 46 L31 40 L37 50 L36 22 L46 18 L48 46 L53 15 L63 17 L61 48 L69 25 L78 30 L72 52 L75 66 L64 86 L46 94 Z"/><path d="M31 40 L48 46 M36 22 L48 46 M53 15 L61 48 M61 48 L72 52 M21 46 L46 94 M48 46 L64 86 M61 48 L75 66 M20 64 L46 94 M37 50 L61 48" stroke-width="1.5" opacity=".65"/></g>
-<g id="sk-family" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M34 14 L45 21 L45 34 L34 41 L23 34 L23 21 ZM14 90 L19 58 L34 43 L48 58 L53 90 ZM70 34 L79 39 L79 50 L70 55 L61 50 L61 39 ZM57 90 L60 64 L70 54 L81 64 L84 90 Z"/><path d="M34 14 L34 41 M23 21 L45 34 M45 21 L23 34 M34 43 L34 90 M19 58 L53 90 M48 58 L14 90 M70 34 L70 55 M61 39 L79 50 M79 39 L61 50 M70 54 L70 90 M60 64 L84 90" stroke-width="1.5" opacity=".65"/></g>
-<g id="sk-food" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M50 34 L64 26 L80 36 L84 56 L74 80 L58 90 L42 90 L26 80 L16 56 L20 36 L36 26 Z M50 34 L53 19 L67 12 L70 24 L55 27"/><path d="M50 34 L50 90 M20 36 L84 56 M80 36 L16 56 M36 26 L58 90 M64 26 L42 90 M53 19 L70 24 M67 12 L55 27" stroke-width="1.5" opacity=".65"/></g>
-<g id="sk-home" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 50 L50 16 L92 50 L92 90 L8 90 Z M40 90 L40 66 L60 66 L60 90"/><path d="M8 50 L92 50 M50 16 L50 66 M8 90 L50 50 M92 90 L50 50 M20 60 L20 90 M80 60 L80 90 M40 66 L60 90 M60 66 L40 90" stroke-width="1.5" opacity=".65"/></g>
-<g id="sk-city" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 90 L10 56 L30 46 L30 90 ZM32 90 L32 32 L54 22 L54 90 ZM56 90 L56 48 L74 56 L74 90 ZM76 90 L76 40 L90 48 L90 90 Z"/><path d="M10 56 L30 90 M30 46 L10 90 M32 32 L54 90 M54 22 L32 90 M32 62 L54 62 M56 48 L74 90 M74 56 L56 90 M76 40 L90 90 M90 48 L76 90" stroke-width="1.5" opacity=".65"/></g>
-<g id="sk-transport" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 72 L14 46 L30 30 L70 30 L86 46 L90 72 ZM20 72 L26 67 L32 72 L32 80 L26 85 L20 80 ZM68 72 L74 67 L80 72 L80 80 L74 85 L68 80 Z"/><path d="M14 46 L86 46 M30 30 L30 72 M70 30 L70 72 M14 46 L50 72 M86 46 L50 72 M50 30 L50 46 M20 72 L32 80 M32 72 L20 80 M68 72 L80 80 M80 72 L68 80" stroke-width="1.5" opacity=".65"/></g>
-<g id="sk-time" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M84 50 L79 33 L67 21 L50 16 L33 21 L21 33 L16 50 L21 67 L33 79 L50 84 L67 79 L79 67 Z M50 50 L50 25 M50 50 L71 61"/><path d="M67 21 L79 67 L33 79 L21 33 Z M79 33 L33 79 M67 21 L21 33" stroke-width="1.5" opacity=".65"/></g>
-<g id="sk-weather" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M56 30 L51 43 L38 48 L25 43 L20 30 L25 17 L38 12 L51 17 ZM18 86 L12 73 L21 62 L30 65 L36 50 L50 43 L60 52 L71 46 L81 57 L89 69 L85 86 Z"/><path d="M56 30 L20 30 M38 12 L38 48 M51 17 L25 43 M25 17 L51 43 M21 62 L85 86 M36 50 L18 86 M60 52 L85 86 M30 65 L89 69 M50 43 L81 57" stroke-width="1.5" opacity=".65"/></g>
-<g id="sk-health" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M50 90 L16 56 L12 38 L24 24 L40 26 L50 38 L60 26 L76 24 L88 38 L84 56 Z"/><path d="M50 38 L50 90 M12 38 L88 38 M24 24 L16 56 M76 24 L84 56 M40 26 L50 62 M60 26 L50 62 M16 56 L50 62 L84 56" stroke-width="1.5" opacity=".65"/></g>
-<g id="sk-shopping" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 36 L82 36 L75 90 L25 90 Z M39 36 L39 21 L50 13 L61 21 L61 36"/><path d="M18 36 L75 90 M82 36 L25 90 M50 36 L50 90 M21 63 L79 63 M39 21 L61 36 M61 21 L39 36" stroke-width="1.5" opacity=".65"/></g>
-<g id="sk-work_study" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 28 L50 37 L50 84 L8 76 Z M50 37 L92 28 L92 76 L50 84 Z"/><path d="M8 28 L50 84 M50 37 L8 76 M92 28 L50 84 M50 37 L92 76 M12 45 L46 51 M12 60 L46 66 M88 45 L54 51 M88 60 L54 66" stroke-width="1.5" opacity=".65"/></g>
-<g id="sk-clothes" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M34 18 L50 28 L66 18 L88 32 L77 52 L66 46 L66 86 L34 86 L34 46 L23 52 L12 32 Z"/><path d="M34 18 L34 46 M66 18 L66 46 M12 32 L34 46 M88 32 L66 46 M34 46 L66 86 M66 46 L34 86 M50 28 L50 86 M23 52 L34 18 M77 52 L66 18" stroke-width="1.5" opacity=".65"/></g>
-<g id="sk-emotions" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M84 48 L77 28 L60 16 L40 16 L23 28 L16 48 L23 68 L40 80 L60 80 L77 68 Z"/><path d="M40 16 L28 66 M60 16 L72 66 M16 48 L40 80 M84 48 L60 80 M50 16 L50 34 M34 40 L42 40 L38 48 Z M58 40 L66 40 L62 48 Z M32 58 L40 66 L60 66 L68 58" stroke-width="1.5" opacity=".65"/></g>
-<g id="i-list"><path d="M3 4 L21 4 L21 20 L3 20 Z"/><path d="M3 4 L21 20 M3 9.3 L21 9.3 M3 14.6 L21 14.6" stroke-width="1.1" opacity=".55"/></g>
+<g id="i-book"><path d="M3 17.5 q4.5-2 9 0 V7.5 q-4.5-2-9 0 Z M12 17.5 q4.5-2 9 0 V7.5 q-4.5-2-9 0 Z M12 7.5 v10"/></g>
+<g id="i-grammar"><path d="M6 3 h12 a1 1 0 0 1 1 1 v16 a1 1 0 0 1-1 1 H6 a1 1 0 0 1-1-1 V4 a1 1 0 0 1 1-1 Z M8.5 8 h7 M8.5 12 h7 M8.5 16 h4.5"/></g>
+<g id="i-verb"><path d="M12 21 V4 M6.5 9.5 L12 4 l5.5 5.5"/></g>
+<g id="i-alef"><path d="M18.6 4.6 C14.6 9.3 10 14.6 5.6 19.4 M5.8 9.4 C5.6 7.2 6.9 6.4 8.2 7.4 C9.6 8.5 10.9 10 12 11.2 M12.4 12.6 C13.7 14 15.1 15.5 16.4 16.6 C17.7 17.7 17.4 19 15.4 18.9"/></g>
+<g id="i-spark"><path d="M12 2.5 Q12 10.5 20 12 Q12 13.5 12 21.5 Q12 13.5 4 12 Q12 10.5 12 2.5 Z M19.5 3.5 Q19.5 6 22 6 Q19.5 6 19.5 8.5 Q19.5 6 17 6 Q19.5 6 19.5 3.5 Z"/></g>
+<g id="i-chart"><path d="M3.5 20.5 h17 M6 20.5 V13.5 a1.3 1.3 0 0 1 2.6 0 v7 M10.7 20.5 V6.5 a1.3 1.3 0 0 1 2.6 0 v14 M15.4 20.5 V10 a1.3 1.3 0 0 1 2.6 0 v10.5"/></g>
+<g id="i-sound"><path d="M4 9.5 h3.5 L12.5 5 v14 l-5-4.5 H4 a1 1 0 0 1-1-1 v-3 a1 1 0 0 1 1-1 Z M16 9 a4.5 4.5 0 0 1 0 6 M18.5 6.5 a8 8 0 0 1 0 11"/></g>
+<g id="i-check"><path d="M4 12.5 l5 5 L20 6"/></g>
+<g id="i-cross"><path d="M6.5 6.5 l11 11 M17.5 6.5 l-11 11"/></g>
+<g id="i-chev"><path d="M9.5 4.5 L17 12 l-7.5 7.5"/></g>
+<g id="i-home"><path d="M3.5 10.5 L12 3.5 l8.5 7 M5.5 9 v11 h13 V9 M9.5 20.5 V14 h5 v6.5"/></g>
+<g id="i-flame"><path d="M12 2.5 C12 7 17 8 17 13 a5 5 0 0 1-10 0 C7 8 12 7 12 2.5 Z M12 12 c0 2 2.5 2.5 2.5 4.5 a2.5 2.5 0 0 1-5 0 c0-2 2.5-2.5 2.5-4.5 Z"/></g>
+<g id="i-play"><path d="M7.5 4.5 L19 12 L7.5 19.5 Z"/></g>
+<g id="i-star"><path d="M12 3 l2.7 5.9 6.3.7 -4.7 4.3 1.3 6.2 -5.6-3.2 -5.6 3.2 1.3-6.2 -4.7-4.3 6.3-.7 Z"/></g>
+<g id="i-user"><path d="M12 3.5 a4.2 4.2 0 1 0 0.1 0 M4.5 20.5 a7.5 7.5 0 0 1 15 0"/></g>
+<clipPath id="arch-clip"><path d="M20 88 V50 A30 30 0 0 1 80 50 V88 Z"/></clipPath>
+<g id="sk-greetings" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 88 V50 A30 30 0 0 1 80 50 V88 Z"/><g clip-path="url(#arch-clip)"><path d="M50 88 C36 88 31 78 31 66 V54 a4 4 0 0 1 8 0 v8 V44 a4 4 0 0 1 8 0 v18V40 a4 4 0 0 1 8 0 v22 V46 a4 4 0 0 1 8 0 v20 c0 12-5 22-19 22 ZM31 60 q-8-5-11 3 q-1 8 8 10 M69 60 q8-5 11 3 q1 8-8 10M41 70 q9-7 18 0 q-9 7-18 0 M50 70 a2.2 2.2 0 1 0 0.1 0M50 26 V20 M38 30 l-3-5 M62 30 l3-5"/></g><path d="M14 93 H86"/></g>
+<g id="sk-family" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 88 V50 A30 30 0 0 1 80 50 V88 Z"/><g clip-path="url(#arch-clip)"><path d="M34 39 a7 7 0 1 0 0.1 0 M22 86 V64 a12 12 0 0 1 24 0 v22M60 49 a5.5 5.5 0 1 0 0.1 0 M51 86 V69 a9 9 0 0 1 18 0 v17M77 57 a4.5 4.5 0 1 0 0.1 0 M70 86 V74 a7 7 0 0 1 14 0 v12M50 25 a5 5 0 1 0 4.6 4.6 a6 6 0 0 1-4.6-4.6"/></g><path d="M14 93 H86"/></g>
+<g id="sk-food" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 88 V50 A30 30 0 0 1 80 50 V88 Z"/><g clip-path="url(#arch-clip)"><path d="M28 62 h44 a22 22 0 0 1-44 0 Z M24 62 h52M44 52 q-5-7 0-14 q5-7 0-12 M56 52 q-5-7 0-14 q5-7 0-12M50 88 h0 M30 82 h40"/></g><path d="M14 93 H86"/></g>
+<g id="sk-home" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 88 V50 A30 30 0 0 1 80 50 V88 Z"/><g clip-path="url(#arch-clip)"><path d="M28 82 V60 L50 44 L72 60 V82 Z M44 82 V68 h12 v14M34 63 h8 v8 h-8 Z M58 63 h8 v8 h-8 ZM50 33 a5 5 0 1 0 0.1 0 M50 25 V22 M55.7 27.3 l2.1-2.1 M58 33 h3M44.3 27.3 l-2.1-2.1 M42 33 h-3 M24 82 h52"/></g><path d="M14 93 H86"/></g>
+<g id="sk-city" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 88 V50 A30 30 0 0 1 80 50 V88 Z"/><g clip-path="url(#arch-clip)"><path d="M28 84 V60 a5 5 0 0 1 10 0 v24 M42 84 V48 a6 6 0 0 1 12 0 v36M58 84 V64 a5 5 0 0 1 10 0 v20 M72 84 V70 a4 4 0 0 1 8 0 v14M48 42 V36 M48 36 a3 3 0 0 1 0 0M32 68 h2 M32 76 h2 M46 58 h4 M46 68 h4 M62 72 h2 M24 84 h56"/></g><path d="M14 93 H86"/></g>
+<g id="sk-transport" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 88 V50 A30 30 0 0 1 80 50 V88 Z"/><g clip-path="url(#arch-clip)"><path d="M50 26 V70 M50 30 L70 66 H50 M50 34 L32 66 h16M30 70 h40 l-6 10 H36 ZM20 86 q7-5 14 0 t14 0 t14 0 t14 0M20 92 q7-5 14 0 t14 0 t14 0 t14 0"/></g><path d="M14 93 H86"/></g>
+<g id="sk-time" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 88 V50 A30 30 0 0 1 80 50 V88 Z"/><g clip-path="url(#arch-clip)"><path d="M32 44 a8 8 0 1 0 0.1 0M50 44 a8 8 0 0 1 0 16 a5 8 0 0 0 0-16 ZM68 44 a8 8 0 1 0 6 13 a9.5 9.5 0 0 1-6-13 ZM32 70 a0.8 0.8 0 1 0 0.1 0 M50 70 a0.8 0.8 0 1 0 0.1 0M68 70 a0.8 0.8 0 1 0 0.1 0 M26 80 h48"/></g><path d="M14 93 H86"/></g>
+<g id="sk-weather" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 88 V50 A30 30 0 0 1 80 50 V88 Z"/><g clip-path="url(#arch-clip)"><path d="M38 38 a9 9 0 1 0 0.1 0 M38 25 V21 M38 55 v-4 M25 38 h-4 M55 38 h-4M29 29 l-3-3 M47 29 l3-3 M29 47 l-3 3M36 73 a8 8 0 0 1 2-15 a11 11 0 0 1 21-2 a7 7 0 0 1 1 17 ZM40 78 v6 M50 78 v8 M60 78 v6"/></g><path d="M14 93 H86"/></g>
+<g id="sk-health" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 88 V50 A30 30 0 0 1 80 50 V88 Z"/><g clip-path="url(#arch-clip)"><path d="M50 82 C30 66 22 56 22 46 a13 13 0 0 1 28-7 a13 13 0 0 1 28 7 c0 10-8 20-28 36 ZM50 66 V44 M50 54 q-9 0-9-9 q9 0 9 9 M50 50 q9 0 9-9 q-9 0-9 9"/></g><path d="M14 93 H86"/></g>
+<g id="sk-shopping" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 88 V50 A30 30 0 0 1 80 50 V88 Z"/><g clip-path="url(#arch-clip)"><path d="M30 44 h40 l4 42 H26 Z M40 44 V34 a10 10 0 0 1 20 0 v10M50 74 V56 M50 64 q-8 0-8-8 q8 0 8 8 M50 60 q8 0 8-8 q-8 0-8 8"/></g><path d="M14 93 H86"/></g>
+<g id="sk-work_study" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 88 V50 A30 30 0 0 1 80 50 V88 Z"/><g clip-path="url(#arch-clip)"><path d="M22 74 q14-6 28 0 v-30 q-14-6-28 0 Z M50 74 q14-6 28 0 v-30 q-14-6-28 0 ZM50 44 V74 M50 30 a5 5 0 1 0 0.1 0 M50 20 V16 M40 25 l-3-3 M60 25 l3-3M30 52 h12 M30 60 h10 M58 52 h12 M58 60 h10"/></g><path d="M14 93 H86"/></g>
+<g id="sk-clothes" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 88 V50 A30 30 0 0 1 80 50 V88 Z"/><g clip-path="url(#arch-clip)"><path d="M50 30 a4 4 0 1 1 0 8 M50 38 V44 M30 48 L50 44 L70 48M42 46 q-14 6-16 12 l8 6 M58 46 q14 6 16 12 l-8 6M42 46 q-6 22-6 40 h28 q0-18-6-40M28 90 h44"/></g><path d="M14 93 H86"/></g>
+<g id="sk-emotions" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 88 V50 A30 30 0 0 1 80 50 V88 Z"/><g clip-path="url(#arch-clip)"><path d="M50 52 a15 15 0 1 0 0.1 0M44 47 a1 1 0 1 0 0.1 0 M56 47 a1 1 0 1 0 0.1 0 M43 56 q7 7 14 0M32 34 Q32 39 37 39 Q32 39 32 44 Q32 39 27 39 Q32 39 32 34 ZM70 36 Q70 40 74 40 Q70 40 70 44 Q70 40 66 40 Q70 40 70 36 ZM68 74 Q68 77.5 71.5 77.5 Q68 77.5 68 81 Q68 77.5 64.5 77.5 Q68 77.5 68 74 Z"/></g><path d="M14 93 H86"/></g>
+<g id="i-list"><path d="M8.5 6 h11 M8.5 12 h11 M8.5 18 h11 M4.5 6 a0.9 0.9 0 1 0 0.1 0 M4.5 12 a0.9 0.9 0 1 0 0.1 0 M4.5 18 a0.9 0.9 0 1 0 0.1 0"/></g>
 </defs></svg>
 
 <div id="s-home" class="screen on"><div id="home"></div></div>
@@ -583,16 +588,16 @@ tg?.ready(); tg?.expand();
 const $ = id => document.getElementById(id);
 const icon = (name, size = 22) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+        stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
         stroke-linejoin="round" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 
 /* Глиф темы — заливной, а не линейный. Тонкая обводка на круге в 72 px
    теряется и читается как значок; плотная форма ведёт себя как
    изображение. Настоящие иллюстрации потребуют генератора. */
-/* Набросок темы — гранёный каркас: замкнутый силуэт из прямых отрезков
-   и триангуляция внутри. Кривых нет ни одной, иначе рисунок выпадает из
-   стиля. Силуэт весом 2.4, грани — 1.5 вполсилы: так читается объём, а
-   не сетка. */
+/* Набросок темы — линия одной толщины в арке-окне. Язык взят с образцов:
+   дуги вместо углов, веер лучей, ритм повторов, много воздуха. Сцена
+   обрезается аркой (clipPath), поэтому волны и лучи можно вести за край,
+   не считая пересечений. */
 const sketch = (key, size = 96) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 100 100"
         aria-hidden="true"><use href="#sk-${key}"/></svg>`;
@@ -639,14 +644,8 @@ const buzz = t => { try { tg?.HapticFeedback?.notificationOccurred?.(t); } catch
 
 const tap  = () => { try { tg?.HapticFeedback?.impactOccurred?.("light"); } catch(e){} };
 
-/* Оттенок на тему — для плашек в списке «По темам». Пары подобраны так,
-   чтобы соседние плитки не сливались. */
-const TOPIC_HUE = {
-  greetings:210, family:340, food:25, home:150, city:265, transport:195,
-  time:45, weather:185, health:0, shopping:300, work_study:230,
-  clothes:320, emotions:12,
-};
-const hue = (key, s, l) => `hsl(${TOPIC_HUE[key] ?? 215} ${s}% ${l}%)`;
+/* Оттенок на тему убран вместе с разноцветными плашками: тринадцать
+   цветов спорили и друг с другом, и с общей тушью рисунков. */
 
 /* Число не появляется, а набегает — полсекунды, зато экран оживает. */
 function countUp(el, to){
@@ -710,9 +709,7 @@ function tile({ ico, name, sub, badge, dim, onclick, compact, plate }){
   const b = document.createElement("button");
   b.className = "tile" + (dim ? " dim" : "");
   b.innerHTML =
-    (plate ? `<span class="plate" style="background:linear-gradient(150deg,
-        ${hue(plate,52,22)}, ${hue(plate,44,14)})"><span
-        style="color:${hue(plate,58,68)}">${sketch(plate, 74)}</span></span>` : "")
+    (plate ? `<span class="plate">${sketch(plate, 60)}</span>` : "")
     + `<span class="ico">${icon(ico, compact ? 18 : 22)}</span>
      <span class="txt"><span class="name">${name}</span>
        ${sub ? `<span class="sub">${sub}</span>` : ""}</span>
