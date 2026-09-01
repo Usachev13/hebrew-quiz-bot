@@ -342,16 +342,19 @@ input[type=text]:focus{outline:0;border-color:var(--primary)}
 .hero .hi{font-family:"Noto Sans Hebrew","Playfair Display",Georgia,serif;
           font-size:25px;line-height:1.25;font-weight:700;direction:rtl;
           text-align:left}
-.hero .hi-ru{font-family:"Playfair Display",Georgia,serif;font-size:15px;
-             opacity:.86;margin-top:2px}
 .hero .ask{font-size:14px;opacity:.86;margin-top:4px}
 /* Серия — кольцо, как в макете: дуга золотом, число крупно внутри. */
 .streak{flex:0 0 auto;width:78px;height:78px;position:relative;display:grid;
         place-items:center;text-align:center}
 .streak svg{position:absolute;inset:0}
-.streak .n{font-family:"Playfair Display",Georgia,serif;font-size:24px;
-           font-weight:600;line-height:1}
-.streak .l{font-size:9px;opacity:.7;letter-spacing:.06em;text-transform:uppercase}
+.streak > span{width:100%;display:block;line-height:1}
+.streak .n{font-family:"Playfair Display",Georgia,serif;font-size:23px;
+           font-weight:600;line-height:1;display:block}
+/* Подпись переносится по словам внутри кольца. Раньше блок брал ширину
+   по содержимому и «ДЕНЬ ПОДРЯД» уезжало за круг одной строкой. */
+.streak .l{display:block;font-size:8px;opacity:.75;letter-spacing:.04em;
+           text-transform:uppercase;line-height:1.2;margin-top:3px;
+           padding:0 6px}
 /* Мягкие блики вместо сплошного круга — та же слоистость, что у фона. */
 .hero::after{content:"";position:absolute;inset:0;pointer-events:none;
   background:
@@ -756,6 +759,9 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
 
 <script>
 const tg = window.Telegram?.WebApp;
+/* Данные пользователя нужны и главному экрану, и профилю. Раньше они
+   объявлялись внутри renderHome, и профиль падал на обращении к ним. */
+const user = tg?.initDataUnsafe?.user;
 tg?.ready(); tg?.expand();
 
 const $ = id => document.getElementById(id);
@@ -958,7 +964,6 @@ async function renderHome(){
   if (h.error) return fail("Профиль недоступен.");
   state.home = h;
 
-  const user = tg?.initDataUnsafe?.user;
   const name = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || "Шалом";
   const pct = h.need ? Math.round(100 * h.at_level / h.need) : 0;
 
@@ -982,8 +987,7 @@ async function renderHome(){
         ${avatar}
         <div class="greet">
           <div class="hi">${day.he}${heb ? ", " + heb : ""}</div>
-          <div class="hi-ru">${day.ru}${first ? ", " + first : ""}</div>
-          <div class="ask">${day.tr}</div>
+          <div class="ask">${day.tr}${heb ? "" : first ? ", " + first : ""}</div>
         </div>
         <div class="streak">${streakRing(h.streak)}
           <span><span class="n">${h.streak}</span><br>
