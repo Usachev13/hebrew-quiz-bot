@@ -131,6 +131,25 @@ def page():
     return send_file(PAGE)
 
 
+@api.route("/preview")
+def preview():
+    """Та же страница, но с подставными данными вместо Telegram и API.
+
+    Нужен, чтобы вёрстку можно было посмотреть в обычном браузере, не
+    заходя с телефона и ничего не выкатывая на прод. Реальных данных
+    здесь нет по построению: подменяется сам fetch, и до API дело не
+    доходит — значит и подпись не нужна, и утечь нечему.
+    """
+    stub = HERE / "tools" / "preview_stub.js"
+    if not PAGE.exists() or not stub.exists():
+        return "Предпросмотр недоступен", 404
+    html = PAGE.read_text(encoding="utf-8").replace(
+        '<script src="https://telegram.org/js/telegram-web-app.js"></script>',
+        "<script>\n" + stub.read_text(encoding="utf-8") + "\n</script>")
+    return html, 200, {"Content-Type": "text/html; charset=utf-8",
+                       "Cache-Control": "no-store"}
+
+
 # ---------- данные для меню ----------
 
 @api.route("/api/menu", methods=["POST"])
