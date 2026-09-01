@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ani Lomed Ivrit</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+/* Цвета берём у Telegram, а не свои: приложение должно совпадать с темой
+   клиента, включая тёмную, и не выглядеть чужой вставкой. Значения после
+   запятой — запасные, если открыть страницу вне Telegram. */
+:root{
+  --bg: var(--tg-theme-bg-color, #17212b);
+  --card: var(--tg-theme-secondary-bg-color, #232e3c);
+  --text: var(--tg-theme-text-color, #f5f5f5);
+  --hint: var(--tg-theme-hint-color, #8b9aa8);
+  --link: var(--tg-theme-link-color, #6ab3f3);
+  --btn: var(--tg-theme-button-color, #5288c1);
+  --btn-text: var(--tg-theme-button-text-color, #fff);
+  --ok:#3fae5a; --bad:#d9534f; --warn:#d9a441;
+  --radius:14px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{
+  margin:0;padding:12px 12px 28px;background:var(--bg);color:var(--text);
+  font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+}
+h1{font-size:20px;margin:4px 0 14px}
+h2{font-size:16px;margin:20px 0 8px;color:var(--hint);font-weight:600;
+   text-transform:uppercase;letter-spacing:.04em}
+.screen{display:none} .screen.on{display:block}
+.row{display:flex;gap:8px} .row>*{flex:1}
+button{font:inherit;color:inherit}
+
+.tile{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  width:100%;text-align:left;padding:15px 16px;margin-bottom:8px;border:0;
+  border-radius:var(--radius);background:var(--card);cursor:pointer;
+}
+.tile:active{opacity:.7}
+.tile .sub{color:var(--hint);font-size:13px;margin-top:2px}
+.tile .badge{
+  background:var(--btn);color:var(--btn-text);border-radius:20px;
+  padding:2px 9px;font-size:13px;flex:0 0 auto;
+}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid .tile{margin:0;display:block}
+
+.primary{
+  width:100%;padding:15px;border:0;border-radius:var(--radius);
+  background:var(--btn);color:var(--btn-text);font-weight:600;cursor:pointer;
+}
+.ghost{background:transparent;color:var(--link);border:0;padding:12px;
+       width:100%;cursor:pointer;font-size:15px}
+
+/* Иврит всегда справа налево и крупнее: это то, что читают. */
+.he{direction:rtl;unicode-bidi:isolate;font-size:26px;line-height:1.6}
+.he.small{font-size:19px}
+
+.progress{height:3px;background:var(--card);border-radius:3px;margin-bottom:14px}
+.progress i{display:block;height:100%;background:var(--btn);border-radius:3px;
+            transition:width .25s}
+.prompt{background:var(--card);border-radius:var(--radius);padding:18px;
+        margin-bottom:14px;text-align:center}
+.prompt .ask{color:var(--hint);font-size:13px;margin-bottom:6px}
+.prompt .word{font-size:22px;font-weight:600}
+
+.opt{
+  width:100%;padding:16px;margin-bottom:8px;border:2px solid transparent;
+  border-radius:var(--radius);background:var(--card);cursor:pointer;
+  direction:rtl;font-size:22px;
+}
+.opt:disabled{cursor:default}
+.opt.ok{border-color:var(--ok)} .opt.bad{border-color:var(--bad)}
+
+input[type=text]{
+  width:100%;padding:15px;border-radius:var(--radius);border:2px solid transparent;
+  background:var(--card);color:var(--text);font-size:22px;direction:rtl;
+}
+input[type=text]:focus{outline:0;border-color:var(--btn)}
+
+.verdict{border-radius:var(--radius);padding:14px 16px;margin-top:12px;background:var(--card)}
+.verdict.ok{border-left:3px solid var(--ok)}
+.verdict.bad{border-left:3px solid var(--bad)}
+.verdict.typo{border-left:3px solid var(--warn)}
+.verdict .memory{color:var(--hint);font-size:14px;margin-top:8px;font-style:italic}
+.reading{color:var(--hint);font-size:14px;margin-top:4px}
+.play{background:transparent;border:1px solid var(--hint);border-radius:20px;
+      padding:6px 14px;margin-top:10px;cursor:pointer;font-size:14px}
+
+.stat{display:flex;justify-content:space-between;padding:11px 0;
+      border-bottom:1px solid var(--card)}
+.stat:last-child{border:0}
+.big{font-size:34px;font-weight:700;text-align:center;margin:18px 0 4px}
+.center{text-align:center;color:var(--hint)}
+.err{color:var(--bad);text-align:center;padding:30px 16px}
+.letters{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:12px}
+.letters span{background:var(--card);border-radius:8px;padding:8px 12px;font-size:22px}
+</style>
+</head>
+<body>
+
+<div id="s-home" class="screen on">
+  <h1>Что тренируем?</h1>
+  <button class="tile" data-go="topics">
+    <span><b>По темам</b><div class="sub">еда, семья, дом, город…</div></span></button>
+  <button class="tile" data-go="grammar">
+    <span><b>Грамматика</b><div class="sub">прилагательные, местоимения, числа</div></span></button>
+  <button class="tile" data-go="verbs">
+    <span><b>Глаголы</b><div class="sub">инфинитивы и три времени</div></span></button>
+  <button class="tile" data-go="alphabet">
+    <span><b>Алфавит</b><div class="sub">буквы, огласовки, чтение слогов</div></span></button>
+  <button class="tile" id="weak-tile" data-go="weak">
+    <span><b>Мои слабые места</b><div class="sub" id="weak-sub">карточки с ошибками</div></span>
+    <span class="badge" id="weak-badge" hidden></span></button>
+  <button class="tile" data-go="stats">
+    <span><b>Прогресс</b><div class="sub">точность, серия дней, что повторить</div></span>
+    <span class="badge" id="due-badge" hidden></span></button>
+</div>
+
+<div id="s-list" class="screen"><h1 id="list-title"></h1><div id="list"></div></div>
+
+<div id="s-format" class="screen">
+  <h1 id="format-title"></h1>
+  <button class="tile" data-fmt="choice"><span><b>Выбрать из вариантов</b>
+    <div class="sub">узнавание — быстрее всего</div></span></button>
+  <button class="tile" data-fmt="type"><span><b>Написать самому</b>
+    <div class="sub">вспомнить, а не узнать. Огласовки не нужны</div></span></button>
+  <button class="tile" data-fmt="anagram" id="fmt-anagram"><span><b>Собрать из букв</b>
+    <div class="sub">тренирует написание</div></span></button>
+</div>
+
+<div id="s-round" class="screen">
+  <div class="progress"><i id="bar"></i></div>
+  <div class="prompt">
+    <div class="ask" id="ask"></div>
+    <div class="word" id="word"></div>
+  </div>
+  <div class="letters" id="letters" hidden></div>
+  <div id="options"></div>
+  <div id="typed" hidden>
+    <input type="text" id="answer" autocomplete="off" autocapitalize="off"
+           autocorrect="off" spellcheck="false" placeholder="ответ на иврите">
+    <div class="row" style="margin-top:8px">
+      <button class="primary" id="send">Ответить</button>
+      <button class="ghost" id="skip" style="flex:0 0 40%">Не знаю</button>
+    </div>
+  </div>
+  <div id="verdict"></div>
+  <button class="primary" id="next" hidden style="margin-top:12px">Дальше</button>
+</div>
+
+<div id="s-done" class="screen">
+  <div class="big" id="score"></div>
+  <div class="center" id="score-sub"></div>
+  <div style="margin-top:26px">
+    <button class="primary" id="again">Ещё раунд</button>
+    <button class="ghost" data-go="home">В меню</button>
+  </div>
+</div>
+
+<div id="s-stats" class="screen"><h1>Прогресс</h1><div id="stats"></div></div>
+
+<div id="s-error" class="screen"><div class="err" id="error-text"></div></div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+tg?.ready(); tg?.expand();
+
+const $ = id => document.getElementById(id);
+const state = { screen:"home", stack:[], round:null, idx:0, score:0, fmt:"choice",
+                mode:"vocab", cat:null, menu:null, answered:false };
+
+function show(name, push=true){
+  if (push && state.screen !== name) state.stack.push(state.screen);
+  state.screen = name;
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("on"));
+  $("s-" + name).classList.add("on");
+  window.scrollTo(0,0);
+  // Родная кнопка «назад» в шапке Telegram вместо своей в вёрстке.
+  if (name === "home") tg?.BackButton.hide(); else tg?.BackButton.show();
+}
+tg?.BackButton.onClick(() => {
+  const prev = state.stack.pop() || "home";
+  show(prev, false);
+});
+
+const buzz = t => tg?.HapticFeedback?.notificationOccurred?.(t);
+
+async function api(path, body={}){
+  const r = await fetch(path, {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ ...body, init_data: tg?.initData || "" })
+  });
+  if (r.status === 401) throw new Error("unauthorized");
+  return r.json();
+}
+
+function fail(text){ $("error-text").textContent = text; show("error", false); }
+
+// ---------- меню ----------
+
+async function boot(){
+  if (!tg?.initData) {
+    return fail("Откройте приложение через бота в Telegram — иначе его некому подписать.");
+  }
+  try {
+    state.menu = await api("/api/menu");
+  } catch (e) {
+    return fail("Не удалось связаться с сервером. Попробуйте позже.");
+  }
+  const due = state.menu.due, weak = state.menu.weak;
+  if (due)  { $("due-badge").hidden = false;  $("due-badge").textContent = due; }
+  if (weak) { $("weak-badge").hidden = false; $("weak-badge").textContent = weak;
+              $("weak-sub").textContent = "карточек, где ошибался"; }
+  else { $("weak-tile").style.opacity = .5; }
+}
+
+const TITLES = { topics:"По темам", grammar:"Грамматика", verbs:"Глаголы", alphabet:"Алфавит" };
+
+function openList(kind){
+  const items = state.menu[kind];
+  $("list-title").textContent = TITLES[kind];
+  $("list").innerHTML = "";
+  const grid = document.createElement("div");
+  grid.className = kind === "topics" || kind === "grammar" ? "grid" : "";
+  items.forEach(it => {
+    const b = document.createElement("button");
+    b.className = "tile";
+    b.innerHTML = `<span><b>${it.name}</b><div class="sub">${it.count} карточек</div></span>`;
+    b.onclick = () => {
+      // У глаголов и алфавита ключ — это режим, у слов — категория.
+      if (kind === "verbs" || kind === "alphabet") { state.mode = it.key; state.cat = null; }
+      else { state.mode = "vocab"; state.cat = it.key; }
+      openFormat(it.name);
+    };
+    grid.appendChild(b);
+  });
+  $("list").appendChild(grid);
+  if (kind === "topics" || kind === "grammar") {
+    const all = document.createElement("button");
+    all.className = "tile"; all.style.marginTop = "8px";
+    all.innerHTML = "<span><b>Всё вперемешку</b></span>";
+    all.onclick = () => { state.mode = "vocab"; state.cat = null; openFormat("все слова"); };
+    $("list").appendChild(all);
+  }
+  show("list");
+}
+
+function openFormat(title){
+  $("format-title").textContent = title;
+  $("fmt-anagram").hidden = !state.menu.anagram_modes.includes(state.mode);
+  show("format");
+}
+
+document.querySelectorAll("[data-go]").forEach(b => b.onclick = () => {
+  const go = b.dataset.go;
+  if (go === "home")  return show("home", false);
+  if (go === "stats") return openStats();
+  if (go === "weak")  { state.mode = "weak"; state.cat = null; return openFormat("Слабые места"); }
+  openList(go);
+});
+document.querySelectorAll("[data-fmt]").forEach(b =>
+  b.onclick = () => startRound(b.dataset.fmt));
+
+// ---------- раунд ----------
+
+async function startRound(fmt){
+  state.fmt = fmt;
+  const r = await api("/api/round", { mode: state.mode, cat: state.cat, format: fmt });
+  if (r.error === "too_small") return fail("Тут пока слишком мало карточек для раунда.");
+  if (r.error) return fail("Не получилось собрать раунд.");
+  state.round = r; state.idx = 0; state.score = 0;
+  show("round");
+  renderQuestion();
+}
+
+function renderQuestion(){
+  const q = state.round.questions[state.idx];
+  state.answered = false;
+  $("bar").style.width = (state.idx / state.round.questions.length * 100) + "%";
+  $("verdict").innerHTML = ""; $("next").hidden = true;
+
+  const isForm = ["past","present","future"].includes(q.mode);
+  const isAlef = q.mode.startsWith("alef_");
+  $("ask").textContent = isAlef ? "" : (isForm ? "какая это форма" : "как будет");
+  $("word").textContent = q.ru;
+
+  $("options").innerHTML = ""; $("typed").hidden = true; $("letters").hidden = true;
+
+  if (state.fmt === "choice") {
+    q.options.forEach(opt => {
+      const b = document.createElement("button");
+      b.className = "opt"; b.textContent = opt;
+      b.onclick = () => sendAnswer(opt, b);
+      $("options").appendChild(b);
+    });
+  } else {
+    if (state.fmt === "anagram") {
+      $("letters").hidden = false;
+      $("letters").innerHTML = q.letters.map(l => `<span>${l}</span>`).join("");
+    }
+    $("typed").hidden = false;
+    $("answer").value = ""; $("answer").focus();
+  }
+}
+
+async function sendAnswer(given, btn, skip=false){
+  if (state.answered) return;
+  state.answered = true;
+  const q = state.round.questions[state.idx];
+  const res = await api("/api/answer", {
+    mode: q.mode, ru: q.ru, answer: given, format: state.fmt, skip
+  });
+  if (res.correct) state.score++;
+  buzz(res.correct ? "success" : "error");
+
+  if (state.fmt === "choice") {
+    document.querySelectorAll(".opt").forEach(b => {
+      b.disabled = true;
+      if (b.textContent === res.expected) b.classList.add("ok");
+      else if (b === btn) b.classList.add("bad");
+    });
+  }
+
+  const kind = res.verdict === "typo" ? "typo" : (res.correct ? "ok" : "bad");
+  const head = { exact:"Верно", typo:"Почти — вот как пишется", wrong:"Не то",
+                 skip:"Правильный ответ" }[res.verdict] || "";
+  $("verdict").innerHTML =
+    `<div class="verdict ${kind}">
+       <div>${head}</div>
+       <div class="he small">${res.expected}</div>
+       ${res.reading ? `<div class="reading">${res.reading}</div>` : ""}
+       ${res.memory ? `<div class="memory">${res.memory}</div>` : ""}
+       ${res.audio ? `<button class="play" id="play">🔊 Послушать</button>` : ""}
+     </div>`;
+  if (res.audio) $("play").onclick = () => new Audio("/api/audio/" + res.audio).play();
+  $("next").hidden = false;
+}
+
+$("send").onclick = () => sendAnswer($("answer").value.trim());
+$("answer").addEventListener("keydown", e => { if (e.key === "Enter") $("send").click(); });
+$("skip").onclick = () => sendAnswer("", null, true);
+
+$("next").onclick = () => {
+  state.idx++;
+  if (state.idx >= state.round.questions.length) return finish();
+  renderQuestion();
+};
+
+function finish(){
+  const total = state.round.questions.length;
+  $("score").textContent = `${state.score} / ${total}`;
+  $("score-sub").textContent =
+    state.score === total ? "Идеально — весь раунд без единой ошибки." :
+    state.score >= total*0.8 ? "Хорошо. Ошибки вернутся в следующем раунде." :
+    state.score >= total*0.5 ? "Половина взята, есть куда расти." :
+    "Тема ещё сырая — прогоним ещё раз.";
+  buzz(state.score === total ? "success" : "warning");
+  show("done");
+}
+$("again").onclick = () => startRound(state.fmt);
+
+// ---------- прогресс ----------
+
+async function openStats(){
+  show("stats");
+  $("stats").innerHTML = "<div class='center'>Считаю…</div>";
+  const s = await api("/api/stats");
+  if (s.error) return fail("Статистика недоступна.");
+  const pct = s.total ? Math.round(100 * s.correct / s.total) : 0;
+  const rows = [
+    ["Всего ответов", s.total],
+    ["Правильных", `${s.correct} (${pct}%)`],
+    ["Занимаешься подряд", s.streak ? s.streak + " дн." : "—"],
+    ["Ждут повторения", s.due || "—"],
+  ].map(([k,v]) => `<div class="stat"><span>${k}</span><b>${v}</b></div>`).join("");
+
+  const modes = s.by_mode.map(m =>
+    `<div class="stat"><span>${m.name}</span><b>${m.correct}/${m.total}</b></div>`).join("");
+
+  const weak = s.weak.map(w =>
+    `<div class="stat"><span><span class="he small">${w.he || w.ru}</span>
+       <div class="sub" style="color:var(--hint);font-size:13px">
+         ${w.reading ? w.reading + " — " : ""}${w.ru}</div></span>
+     <b>${w.wrong}</b></div>`).join("");
+
+  $("stats").innerHTML = rows
+    + (modes ? "<h2>По режимам</h2>" + modes : "")
+    + (weak ? "<h2>Чаще всего ошибаешься</h2>" + weak
+              + `<button class="primary" style="margin-top:14px" id="train-weak">
+                   Потренировать эти</button>` : "");
+  const t = $("train-weak");
+  if (t) t.onclick = () => { state.mode = "weak"; state.cat = null; openFormat("Слабые места"); };
+}
+
+boot();
+</script>
+</body>
+</html>

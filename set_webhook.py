@@ -31,10 +31,21 @@ if not BOT_DOMAIN:
 
 webhook_url = f"https://{BOT_DOMAIN}/webhook/{TELEGRAM_TOKEN}"
 
+API = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+
+resp = requests.post(API + "/setWebhook", json={"url": webhook_url}, timeout=10)
+print("Webhook URL:", webhook_url)
+print("Ответ Telegram:", resp.json())
+
+# Кнопка Mini App рядом с полем ввода. Ставится один раз на бота, а не на
+# чат, поэтому живёт здесь, а не в самом боте: дёргать этот вызов на
+# каждый /start было бы лишним запросом к Telegram в каждом разговоре.
+app_url = f"https://{BOT_DOMAIN}/app"
 resp = requests.post(
-    f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook",
-    json={"url": webhook_url},
+    API + "/setChatMenuButton",
+    json={"menu_button": {"type": "web_app", "text": "Открыть",
+                          "web_app": {"url": app_url}}},
     timeout=10,
 )
-print("Webhook URL:", webhook_url)
+print("Mini App:", app_url)
 print("Ответ Telegram:", resp.json())

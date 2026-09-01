@@ -22,7 +22,13 @@ from flask import Flask, request, jsonify
 import alphabet
 import audio
 import db
+import quiz
 import reactions
+from quiz import (
+    POOLS, LABELS, TOPIC_LABELS, GRAMMAR_LABELS, ALPHABET_MODES,
+    ANSWERS, KNOWN_FORMS, ANAGRAM_MODES, ROUND_LEN, VOCAB_FLAT,
+    build_question, round_pool,
+)
 from matching import check_answer, accepted_forms, hint_for, scramble
 from translit import translit
 from words import VOCAB, VERBS
@@ -47,12 +53,15 @@ if TELEGRAM_TOKEN == "PASTE_YOUR_TOKEN_HERE":
     print("ВНИМАНИЕ: TELEGRAM_TOKEN не найден. Проверь файл .env рядом с bot.py.")
 API_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
-ROUND_LEN = 10
-
 # Кому доступен /admin. Пусто — команда не работает ни у кого, кроме
 # подсказки «вот твой chat_id, впиши его в .env»: иначе на свежей
 # установке сводку увидел бы первый, кто наберёт команду.
 ADMIN_CHAT_ID = os.environ.get("ADMIN_CHAT_ID", "").strip()
+
+# Адрес Mini App. Пока домен не задан, кнопки приложения просто нет —
+# бот от этого не ломается и работает как раньше.
+BOT_DOMAIN = os.environ.get("BOT_DOMAIN", "").strip()
+WEBAPP_URL = f"https://{BOT_DOMAIN}/app" if BOT_DOMAIN else ""
 
 # Одна HTTP-сессия на процесс. Голый requests.post открывает новое
 # соединение на каждый вызов и заново жмёт руки по TLS, а на один вопрос
@@ -83,6 +92,12 @@ def timed(step):
 
 app = Flask(__name__)
 
+# Mini App: страница и API живут на том же домене и том же процессе.
+# Отдельный сервис под статику не нужен — Caddy уже держит HTTPS на нашем
+# домене, а Telegram другого и не примет.
+from webapp import api as webapp_api      # noqa: E402  (после создания app)
+app.register_blueprint(webapp_api)
+
 # Прогресс (ответы, статистика, расписание повторений) лежит в SQLite и
 # переживает перезапуск. В памяти остаётся только состояние текущего
 # раунда — его потерять не страшно.
@@ -105,39 +120,6 @@ sessions = {}
 # от другого слова).
 SEEN_UPDATE_IDS = set()
 MAX_SEEN_UPDATE_IDS = 2000
-
-
-def flatten(bank):
-    """Превращает {категория: [(ru, he), ...]} в плоский список (ru, he, категория)."""
-    items = []
-    for category, words in bank.items():
-        for ru, he in words:
-            items.append((ru, he, category))
-    return items
-
-
-def flatten_tense(conj, tense, slots, labels):
-    """Одно время из CONJUGATIONS -> плоский список (подсказка, форма, группа).
-
-    Группа = глагол+время: дистракторы берутся из форм ТОГО ЖЕ глагола в
-    том же времени, поэтому тренируется именно лицо/род/число, а не
-    угадывание по внешнему виду разных корней."""
-    items = []
-    for root, data in conj.items():
-        for slot in slots:
-            he = data[tense].get(slot)
-            if not he:
-                continue
-            prompt = f"{data['ru']} ({data['inf']}) — {labels[slot]}"
-            items.append((prompt, he, f"{root}_{tense}"))
-    return items
-
-
-VOCAB_FLAT = flatten(VOCAB)
-VERBS_FLAT = flatten(VERBS)
-PAST_FLAT = flatten_tense(CONJUGATIONS, "past", PAST_PERSONS, PAST_LABELS)
-PRESENT_FLAT = flatten_tense(CONJUGATIONS, "present", PRESENT_SLOTS, PRESENT_LABELS)
-FUTURE_FLAT = flatten_tense(CONJUGATIONS, "future", FUTURE_SLOTS, FUTURE_LABELS)
 
 
 # ---------- Telegram API helpers ----------
@@ -194,8 +176,12 @@ def answer_callback(callback_id, text=None):
 # раньше он был отдельной веткой меню и дублировал весь список тем.
 
 def main_menu_keyboard():
+    rows = []
+    if WEBAPP_URL:
+        rows.append([{"text": "📱 Открыть приложение",
+                      "web_app": {"url": WEBAPP_URL}}])
     return {
-        "inline_keyboard": [
+        "inline_keyboard": rows + [
             [{"text": "📚 Слова и грамматика", "callback_data": "menu|words"}],
             [{"text": "🔤 Алфавит (с нуля)", "callback_data": "alphabet_menu"}],
             [{"text": "🗓 Слово дня", "callback_data": "word_of_day"},
@@ -236,12 +222,6 @@ def verbs_menu_keyboard():
             [{"text": "‹ Назад", "callback_data": "menu|words"}],
         ]
     }
-
-
-# Анаграмму предлагаем только там, где собирать слово из букв осмысленно:
-# длинная глагольная форма разбирается на пятнадцать букв и учит терпению,
-# а не языку.
-ANAGRAM_MODES = {"vocab", "weak"}
 
 
 def format_keyboard(mode, cat):
@@ -300,51 +280,6 @@ def keyboard_rows(buttons, per_row=2):
     """Разбивает кнопки на ряды по per_row штук — сетка 2x2 вместо одного
     узкого столбца, площадь тапа на кнопку больше."""
     return [buttons[i:i + per_row] for i in range(0, len(buttons), per_row)]
-
-
-def pick_card(remaining, priorities):
-    """Выбирает следующую карточку с учётом интервальных повторений.
-
-    Берём случайную из самой приоритетной группы (см. db.PRIORITY_*):
-    сперва то, что пора повторить, затем новое, затем проблемное. Внутри
-    группы порядок случайный — чтобы не заучивать последовательность.
-    """
-    if not priorities:
-        return random.choice(remaining)
-    rank = lambda w: priorities.get(w[0], db.PRIORITY_NEW)
-    best = max(rank(w) for w in remaining)
-    return random.choice([w for w in remaining if rank(w) == best])
-
-
-def build_question(pool, used, priorities=None):
-    """Выбирает карточку (ещё не заданную в этом раунде) и 3 дистрактора
-    из той же категории/группы биньяна — так угадать наугад сложнее."""
-    remaining = [w for w in pool if w[0] not in used]
-    if not remaining:
-        remaining = pool
-    correct = pick_card(remaining, priorities or {})
-    ru, he, cat = correct
-
-    # Дистракторы обязаны отличаться не только от верного ответа, но и
-    # друг от друга: в некоторых пулах разные карточки дают одинаковый
-    # ответ (патах и камац оба читаются как «а»), и без этой проверки в
-    # вопросе появлялись два одинаковых варианта.
-    seen = {he}
-
-    def take(candidates, need):
-        random.shuffle(candidates)
-        for w in candidates:
-            if len(seen) > need:
-                break
-            if w[1] not in seen:
-                seen.add(w[1])
-
-    take([w for w in pool if w[2] == cat], 3)      # сначала из той же темы
-    take([w for w in pool if w[2] != cat], 3)      # если не хватило — из любой
-
-    options = list(seen)
-    random.shuffle(options)
-    return {"ru": ru, "correct": he, "options": options}
 
 
 def send_question(chat_id):
@@ -407,114 +342,6 @@ def send_question(chat_id):
     else:
         text = f"Вопрос {idx}/{s['total']}\nКак будет «<b>{q['ru']}</b>»?"
     send_message(chat_id, text, keyboard)
-
-
-POOLS = {
-    "vocab": VOCAB_FLAT,
-    "verbs": VERBS_FLAT,
-    "past": PAST_FLAT,
-    "present": PRESENT_FLAT,
-    "future": FUTURE_FLAT,
-    # Курс алфавита (уровень 0)
-    "alef_names": alphabet.pool_names(),
-    "alef_sounds": alphabet.pool_sounds(),
-    "alef_by_name": alphabet.pool_by_name(),
-    "alef_finals": alphabet.pool_finals(),
-    "alef_niqqud": alphabet.pool_niqqud(),
-    "alef_syllables": alphabet.pool_syllables(),
-    "alef_dotted": alphabet.pool_dotted(),
-}
-LABELS = {
-    "vocab": "слова",
-    "verbs": "глаголы",
-    "past": "прошедшее время",
-    "present": "настоящее время",
-    "future": "будущее время",
-    "alef_names": "названия букв",
-    "alef_sounds": "звуки букв",
-    "alef_by_name": "узнать букву по названию",
-    "alef_finals": "конечные формы",
-    "alef_niqqud": "огласовки",
-    "alef_syllables": "чтение слогов",
-    "alef_dotted": "точка меняет звук",
-}
-
-# Словарь разложен по двум разрезам. Бытовые темы — как в ульпане:
-# человек учит слова кусками жизни, а не списком существительных.
-# Грамматические группы вынесены отдельно, потому что тренируются иначе:
-# там важна не тема, а форма.
-TOPIC_LABELS = {
-    "greetings": "Приветствия", "family": "Семья", "food": "Еда",
-    "home": "Дом", "city": "Город", "transport": "Транспорт",
-    "time": "Время", "weather": "Погода", "health": "Здоровье",
-    "shopping": "Покупки", "work_study": "Работа и учёба",
-    "clothes": "Одежда", "emotions": "Эмоции",
-}
-GRAMMAR_LABELS = {
-    "adjectives": "Прилагательные", "adverbs": "Наречия",
-    "personal_pronouns": "Местоимения (я, ты…)",
-    "object_pronouns": "Местоимения (меня, его…)",
-    "cardinals": "Числительные", "ordinals": "Порядковые",
-    "question_words": "Вопросительные слова", "particles": "Частицы",
-    "place_prepositions": "Предлоги места",
-}
-
-# Режимы курса алфавита: вопрос формулируется иначе, чем «как будет…»
-ALPHABET_MODES = {m for m in LABELS if m.startswith("alef_")}
-
-# Обратный поиск: по card_id (подсказке, с которой карточка легла в базу)
-# найти сам ответ. Нужен статистике: список слабых мест без ивритского
-# слова только перечисляет промахи, а с ним — повторяет материал.
-ANSWERS = {mode: {ru: (he, cat) for ru, he, cat in pool}
-           for mode, pool in POOLS.items()}
-
-# Все допустимые написания каждого пула. Нужны, чтобы отличить описку от
-# случая «набрал другое существующее слово» (см. matching.check_answer).
-KNOWN_FORMS = {
-    mode: set().union(*(accepted_forms(he) for _, he, _ in pool)) if pool else set()
-    for mode, pool in POOLS.items()
-}
-# Раунд «слабые места» смешанный, поэтому описку в нём сверяем по всему
-# банку сразу: иначе набранное слово из другого режима сойдёт за опечатку.
-KNOWN_FORMS["weak"] = set().union(*KNOWN_FORMS.values())
-
-
-def weak_pool(chat_id, limit=30):
-    """Карточки, где больше всего ошибок — со всех режимов сразу.
-
-    Возвращает (пул, {(подсказка, ответ): режим}). Режим на карточку
-    нужен потому, что раунд смешанный: ответ должен лечь в статистику
-    того режима, откуда карточка пришла, иначе повторения разъедутся.
-    """
-    try:
-        weak = db.weak_cards(chat_id, limit=limit)
-    except Exception as e:
-        print(f"[weak_pool] {e}")
-        return [], {}
-
-    pool, modes = [], {}
-    for w in weak:
-        found = ANSWERS.get(w["mode"], {}).get(w["card_id"])
-        if not found:
-            continue          # карточка из старой версии словаря
-        he, cat = found
-        pool.append((w["card_id"], he, cat))
-        modes[(w["card_id"], he)] = w["mode"]
-    return pool, modes
-
-
-def round_pool(chat_id, mode, cat):
-    """Пул раунда, подпись к нему и карта режимов по карточкам."""
-    if mode == "weak":
-        pool, modes = weak_pool(chat_id)
-        return pool, "мои слабые места", modes
-
-    pool = POOLS[mode]
-    if cat:
-        pool = [w for w in pool if w[2] == cat]
-        label = TOPIC_LABELS.get(cat) or GRAMMAR_LABELS.get(cat) or LABELS[mode]
-        return pool, label.lower(), {}
-    return pool, LABELS[mode], {}
 
 
 def start_round(chat_id, mode, cat=None, typing=False, anagram=False):
