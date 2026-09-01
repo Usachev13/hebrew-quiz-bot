@@ -90,6 +90,16 @@ CREATE TABLE IF NOT EXISTS daily_sent (
     PRIMARY KEY (chat_id, card_id)
 );
 
+-- Избранные слова. Своя таблица, а не флаг в card_state: избранное —
+-- это пометка человека, а card_state описывает, как идёт заучивание.
+-- Смешивать их значит терять пометку при любой правке расписания.
+CREATE TABLE IF NOT EXISTS favourites (
+    chat_id     TEXT NOT NULL,
+    card_id     TEXT NOT NULL,
+    added_at    TEXT NOT NULL,
+    PRIMARY KEY (chat_id, card_id)
+);
+
 -- Начисления XP. Отдельной таблицей, а не пересчётом из ответов: надбавки
 -- за идеальный раунд и за дни подряд задним числом не восстановить —
 -- в answers нет ни границ раунда, ни того, какой была серия в тот день.
@@ -433,6 +443,53 @@ def reactions_enabled(chat_id):
 
 
 # ---------- слово дня ----------
+
+# ---------- словарь: избранное и «уже знаю» ----------
+
+def set_favourite(chat_id, card_id, on):
+    conn = get_conn()
+    if on:
+        conn.execute(
+            "INSERT OR IGNORE INTO favourites (chat_id, card_id, added_at) "
+            "VALUES (?, ?, ?)",
+            (str(chat_id), card_id, datetime.utcnow().isoformat()))
+    else:
+        conn.execute("DELETE FROM favourites WHERE chat_id = ? AND card_id = ?",
+                     (str(chat_id), card_id))
+    conn.commit()
+
+
+def favourites(chat_id):
+    rows = get_conn().execute(
+        "SELECT card_id FROM favourites WHERE chat_id = ?", (str(chat_id),)).fetchall()
+    return {r["card_id"] for r in rows}
+
+
+def mark_known(chat_id, card_id, mode):
+    """«Я уже знаю это» — карточка уходит в последнюю коробку.
+
+    Взрослый оле часто знает половину базовой лексики, и прогонять её по
+    десять раз унизительно. Ставим максимальную коробку, а не удаляем:
+    через 21 день слово всё равно всплывёт на проверку, и если человек
+    себя переоценил, оно вернётся в оборот само.
+    """
+    conn = get_conn()
+    due = (date.today() + timedelta(days=BOX_INTERVALS[MAX_BOX])).isoformat()
+    conn.execute(
+        "INSERT INTO card_state (chat_id, card_id, mode, box, due_date, "
+        "                        n_correct, n_wrong) VALUES (?, ?, ?, ?, ?, 1, 0) "
+        "ON CONFLICT(chat_id, card_id, mode) DO UPDATE SET "
+        "  box = ?, due_date = excluded.due_date",
+        (str(chat_id), card_id, mode, MAX_BOX, due, MAX_BOX))
+    conn.commit()
+
+
+def word_boxes(chat_id, mode="vocab"):
+    rows = get_conn().execute(
+        "SELECT card_id, box FROM card_state WHERE chat_id = ? AND mode = ?",
+        (str(chat_id), mode)).fetchall()
+    return {r["card_id"]: r["box"] for r in rows}
+
 
 # ---------- очки и уровни ----------
 #

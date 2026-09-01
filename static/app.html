@@ -282,6 +282,64 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
 .tabs button.on .dot{opacity:1}
 .dot{width:4px;height:4px;border-radius:999px;background:currentColor;opacity:0}
 
+/* ── словарь ── */
+.search{width:100%;min-height:48px;padding:0 var(--s4);border-radius:999px;
+        border:2px solid var(--border);background:var(--surface);color:var(--text);
+        font-size:16px;margin-bottom:var(--s3);box-shadow:var(--shadow)}
+.search:focus{outline:0;border-color:var(--primary)}
+.chips{display:flex;gap:var(--s2);overflow-x:auto;padding-bottom:var(--s3);
+       scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;min-height:36px;padding:0 var(--s4);border-radius:999px;
+      border:2px solid var(--border);background:var(--surface);color:var(--muted);
+      font-size:14px;font-weight:600;white-space:nowrap;
+      transition:transform .18s var(--bounce)}
+.chip:active{transform:scale(.96)}
+.chip.on{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
+
+.word{display:flex;align-items:center;gap:var(--s3);width:100%;min-height:64px;
+      padding:var(--s3) var(--s4);margin-bottom:var(--s2);text-align:left;
+      background:var(--surface);border:2px solid var(--border);border-radius:var(--r);
+      box-shadow:var(--shadow)}
+.word .snd{flex:0 0 40px;height:40px;border-radius:999px;display:grid;place-items:center;
+           background:var(--primary-soft);color:var(--primary);border:0}
+.word .snd:disabled{opacity:.35}
+.word .txt{flex:1;min-width:0}
+.word .sub{color:var(--muted);font-size:13px}
+.word .fav{flex:0 0 var(--tap);height:var(--tap);display:grid;place-items:center;
+           background:none;border:0;color:var(--border)}
+.word .fav.on{color:var(--warn)}
+.word .fav.on svg{fill:currentColor}
+.word .dot-state{width:8px;height:8px;border-radius:999px;flex:0 0 auto}
+.word .dot-state.learning{background:var(--tchelet)}
+.word .dot-state.learned{background:var(--ok)}
+.word .dot-state.new{background:transparent;border:1px solid var(--border)}
+
+/* ── богатая карточка «продолжить» ── */
+.resume-rich{display:block;width:100%;text-align:left;background:var(--surface);
+             border:2px solid var(--border);border-radius:var(--r-lg);overflow:hidden;
+             box-shadow:var(--shadow);margin-bottom:var(--s4);padding:0}
+.resume-rich .body{padding:var(--s4) var(--s4) 0}
+.resume-rich .cap{font-size:11px;font-weight:700;letter-spacing:.08em;
+                  text-transform:uppercase;color:var(--primary)}
+.resume-rich .big{font-size:34px;line-height:1.5;font-weight:700;margin-top:var(--s1)}
+.resume-rich .tr{color:var(--muted);font-size:14px}
+.resume-rich .ru{font-size:17px;font-weight:600;margin-top:var(--s2)}
+.resume-rich .where{color:var(--muted);font-size:13px;margin-top:2px}
+.resume-rich .cta{display:flex;align-items:center;justify-content:space-between;
+                  gap:var(--s2);margin:var(--s4);min-height:52px;padding:0 var(--s4);
+                  border-radius:var(--r);background:var(--primary);color:var(--on-primary);
+                  font-weight:650;box-shadow:var(--shadow-p)}
+.resume-rich:active{transform:translateY(2px)}
+
+.settings .stat{cursor:pointer}
+.switch{width:46px;height:28px;border-radius:999px;background:var(--border);
+        position:relative;transition:background .2s;flex:0 0 auto;border:0}
+.switch.on{background:var(--primary)}
+.switch i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
+          background:#fff;transition:transform .2s var(--bounce)}
+.switch.on i{transform:translateX(18px)}
+
 .empty{text-align:center;padding:var(--s5) var(--s4) 0}
 .empty img{width:180px;max-width:60%}
 .empty p{color:var(--muted);margin:var(--s3) 0 var(--s5)}
@@ -309,6 +367,9 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
 <g id="i-home"><path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></g>
 <g id="i-flame"><path d="M12 3s5 4 5 9a5 5 0 0 1-10 0c0-2 1-3 1-3s0 2 2 2 2-4 2-8z"/></g>
 <g id="i-play"><path d="M7 4l12 8-12 8z"/></g>
+<g id="i-star"><path d="M12 3.5l2.7 5.6 6 .9-4.4 4.2 1.1 6-5.4-2.9-5.4 2.9 1.1-6L3.3 10l6-.9z"/></g>
+<g id="i-user"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></g>
+<g id="i-list"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></g>
 </defs></svg>
 
 <div id="s-home" class="screen on"><div id="home"></div></div>
@@ -339,6 +400,7 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
     </div>
   </div>
   <div id="verdict" aria-live="polite"></div>
+  <button class="ghost" id="know" style="margin-top:var(--s2)">Я уже знаю это</button>
   <button class="primary" id="next" hidden style="margin-top:var(--s4)">Дальше</button>
 </div>
 
@@ -351,13 +413,22 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
   </div>
 </div>
 
-<div id="s-stats" class="screen"><h1>Прогресс</h1><div id="stats"></div></div>
+<div id="s-words" class="screen">
+  <h1>Слова</h1>
+  <input type="search" id="wsearch" class="search" placeholder="Найти слово"
+         autocomplete="off" aria-label="Поиск по словарю">
+  <div class="chips" id="wchips"></div>
+  <div id="wlist"></div>
+</div>
+
+<div id="s-stats" class="screen"><h1>Профиль</h1><div id="stats"></div></div>
 <div id="s-error" class="screen"><div class="err" id="error-text"></div></div>
 
 <nav class="tabs" id="tabs" hidden>
   <button data-tab="home"><span></span><span>Главная</span><span class="dot"></span></button>
   <button data-tab="learn"><span></span><span>Учиться</span><span class="dot"></span></button>
-  <button data-tab="stats"><span></span><span>Прогресс</span><span class="dot"></span></button>
+  <button data-tab="words"><span></span><span>Слова</span><span class="dot"></span></button>
+  <button data-tab="stats"><span></span><span>Профиль</span><span class="dot"></span></button>
 </nav>
 
 <script>
@@ -392,7 +463,7 @@ function show(name, push = true){
   $("s-" + name).classList.add("on");
   window.scrollTo(0, 0);
   if (name === "home") tg?.BackButton.hide(); else tg?.BackButton.show();
-  const tab = { home:"home", learn:"learn", stats:"stats" }[name];
+  const tab = { home:"home", learn:"learn", words:"words", stats:"stats" }[name];
   if (tab) document.querySelectorAll("[data-tab]").forEach(b =>
     b.classList.toggle("on", b.dataset.tab === tab));
 }
@@ -542,7 +613,19 @@ async function renderHome(){
         <span>${h.learned} слов выучено</span></div>
     </section>`;
 
-  if (h.resume) html += `
+  // Карточка показывает то самое слово, которое выпадет первым.
+  // Ярлык темы не говорит, ради чего нажимать.
+  if (h.resume) html += h.resume.he ? `
+    <button class="resume-rich" id="resume">
+      <span class="body">
+        <span class="cap">Продолжить</span>
+        <span class="big he">${h.resume.he}</span>
+        ${h.resume.reading ? `<span class="tr">(${h.resume.reading})</span>` : ""}
+        <span class="ru">${h.resume.ru}</span>
+        <span class="where">${h.resume.label}</span>
+      </span>
+      <span class="cta"><span>Продолжить</span>${icon("chev",18)}</span>
+    </button>` : `
     <button class="resume" id="resume">
       <span class="txt"><span class="cap">Продолжить</span>
         <span class="name">${h.resume.label}</span></span>
@@ -638,7 +721,7 @@ function openFormat(title){
   });
   show("format");
 }
-const TAB_ICONS = { home:"home", learn:"book", stats:"chart" };
+const TAB_ICONS = { home:"home", learn:"book", words:"list", stats:"user" };
 document.querySelectorAll("[data-tab]").forEach(b => {
   b.querySelector("span").innerHTML = icon(TAB_ICONS[b.dataset.tab], 22);
   b.onclick = () => { tap(); goTab(b.dataset.tab); };
@@ -647,7 +730,8 @@ function goTab(name){
   state.stack = [];
   document.querySelectorAll("[data-tab]").forEach(b =>
     b.classList.toggle("on", b.dataset.tab === name));
-  if (name === "stats") return openStats();
+  if (name === "stats") return openProfile();
+  if (name === "words") return openWords();
   if (name === "home") renderHome();
   show(name, false);
 }
@@ -670,7 +754,7 @@ function renderQuestion(){
   const total = state.round.questions.length;
   state.busy = false;
   $("bar").style.width = (state.idx / total * 100) + "%";
-  $("verdict").innerHTML = ""; $("next").hidden = true;
+  $("verdict").innerHTML = ""; $("next").hidden = true; $("know").hidden = false;
 
   const isForm = ["past","present","future"].includes(q.mode);
   const isAlef = q.mode.startsWith("alef_");
@@ -726,12 +810,32 @@ async function sendAnswer(given, btn, skip = false){
        ${res.audio ? `<button class="play" id="play">${icon("sound",18)}Послушать</button>` : ""}
      </div>`;
   if (res.audio) $("play").onclick = () => new Audio("/api/audio/" + res.audio).play();
+  $("know").hidden = true;
   $("next").hidden = false;
 }
 
 $("send").onclick = () => sendAnswer($("answer").value.trim());
 $("answer").addEventListener("keydown", e => { if (e.key === "Enter") $("send").click(); });
 $("skip").onclick = () => sendAnswer("", null, true);
+/* Взрослый оле часто знает половину базовой лексики. Без этой кнопки
+   он гоняет знакомое слово по десять раз, и это выглядит издевательством.
+   Карточка уходит в последнюю коробку, но через 21 день всплывёт на
+   проверку — если человек себя переоценил, слово вернётся само. */
+$("know").onclick = async () => {
+  if (state.busy) return;
+  state.busy = true;
+  const q = state.round.questions[state.idx];
+  const r = await api("/api/know", { mode: q.mode, ru: q.ru });
+  buzz("success");
+  $("verdict").innerHTML =
+    `<div class="verdict ok"><div class="head">${icon("check",18)}
+       <span>Отложено — вернётся через три недели на проверку</span></div>
+     <div class="he sm">${r.expected}</div>
+     ${r.reading ? `<div class="reading">${r.reading}</div>` : ""}</div>`;
+  $("know").hidden = true;
+  $("next").hidden = false;
+};
+
 $("next").onclick = () => {
   tap(); state.idx++;
   if (state.idx >= state.round.questions.length) return finish();
@@ -768,10 +872,127 @@ async function finish(){
 }
 $("again").onclick = () => startRound(state.fmt);
 
+// ---------- словарь ----------
+
+const WORD_FILTERS = [
+  { key:"all",      name:"Все" },
+  { key:"learning", name:"Изучаю" },
+  { key:"learned",  name:"Изучено" },
+  { key:"fav",      name:"Избранное" },
+];
+const words = { all: [], filter: "all", query: "" };
+
+async function openWords(){
+  show("words", false);
+  if (!words.all.length){
+    $("wlist").innerHTML = "<div class='skeleton'></div>".repeat(5);
+    const r = await api("/api/words");
+    if (r.error) return fail("Словарь недоступен.");
+    words.all = r.words;
+    $("wchips").innerHTML = "";
+    WORD_FILTERS.forEach(f => {
+      const b = document.createElement("button");
+      b.className = "chip" + (f.key === words.filter ? " on" : "");
+      b.textContent = f.name;
+      b.onclick = () => { tap(); words.filter = f.key;
+        document.querySelectorAll(".chip").forEach(x => x.classList.remove("on"));
+        b.classList.add("on"); drawWords(); };
+      $("wchips").appendChild(b);
+    });
+  }
+  drawWords();
+}
+
+function drawWords(){
+  const q = words.query.trim().toLowerCase();
+  const list = words.all.filter(w => {
+    if (words.filter === "fav" && !w.fav) return false;
+    if (words.filter === "learning" && w.state !== "learning") return false;
+    if (words.filter === "learned" && w.state !== "learned") return false;
+    if (!q) return true;
+    // Ищем и по русскому, и по огласованному ивриту, и по произношению:
+    // человек может помнить слово любым из трёх способов.
+    return w.ru.toLowerCase().includes(q) || w.reading.toLowerCase().includes(q)
+        || w.he.includes(q) || (w.topic || "").toLowerCase().includes(q);
+  });
+
+  if (!list.length){
+    $("wlist").innerHTML = `<p class="center" style="padding:var(--s5) 0">
+      ${q ? "Ничего не нашлось." : "Здесь пока пусто."}</p>`;
+    return;
+  }
+  $("wlist").innerHTML = list.map(w => `
+    <div class="word">
+      <button class="snd" ${w.audio ? "" : "disabled"} data-audio="${w.audio || ""}"
+              aria-label="Послушать ${w.ru}">${icon("sound",18)}</button>
+      <span class="dot-state ${w.state}" title="${
+        w.state === "learned" ? "выучено" : w.state === "learning" ? "изучаю" : "новое"}"></span>
+      <span class="txt"><span class="he sm">${w.he}</span>
+        <span class="sub">${w.reading} — ${w.ru}</span></span>
+      <button class="fav ${w.fav ? "on" : ""}" data-fav="${w.ru}"
+              aria-label="В избранное">${icon("star",20)}</button>
+    </div>`).join("");
+
+  $("wlist").querySelectorAll("[data-audio]").forEach(b => {
+    if (b.dataset.audio) b.onclick = () => new Audio("/api/audio/" + b.dataset.audio).play();
+  });
+  $("wlist").querySelectorAll("[data-fav]").forEach(b => b.onclick = async () => {
+    const w = words.all.find(x => x.ru === b.dataset.fav);
+    w.fav = !w.fav;
+    b.classList.toggle("on", w.fav);
+    tap();
+    await api("/api/favourite", { ru: w.ru, on: w.fav });
+    if (words.filter === "fav") drawWords();
+  });
+}
+
+$("wsearch").addEventListener("input", e => { words.query = e.target.value; drawWords(); });
+
+// ---------- профиль ----------
+
+async function openProfile(){
+  show("stats", false);
+  $("stats").innerHTML = "<div class='skeleton'></div>".repeat(3);
+  const p = await api("/api/profile");
+  if (p.error) return fail("Профиль недоступен.");
+  const pct = p.answers ? Math.round(100 * p.correct / p.answers) : 0;
+  const line = (k, v) => `<div class="stat"><span>${k}</span><b>${v}</b></div>`;
+  const toggle = (key, label, on) => `<div class="stat"><span>${label}</span>
+      <button class="switch ${on ? "on" : ""}" data-set="${key}"
+              role="switch" aria-checked="${on}" aria-label="${label}"><i></i></button></div>`;
+
+  $("stats").innerHTML = `
+    <div class="card">
+      ${line("Уровень", `${p.level} · ${p.xp} XP`)}
+      ${line("Занимаешься подряд", p.streak ? p.streak + " дн." : "—")}
+      ${line("Выучено слов", p.learned)}
+      ${line("В избранном", p.favourites)}
+      ${line("Ответов", `${p.answers} (${pct}% верных)`)}
+    </div>
+    <h2>Настройки</h2>
+    <div class="card settings">
+      ${toggle("voice", "Произношение голосом", p.voice)}
+      ${toggle("slow", "Медленная озвучка", p.slow)}
+      ${toggle("daily", "Слово дня по утрам", p.daily)}
+      ${toggle("reactions", "Живые реплики", p.reactions)}
+    </div>
+    <button class="ghost" id="to-progress">Подробная статистика</button>`;
+
+  $("stats").querySelectorAll("[data-set]").forEach(b => b.onclick = async () => {
+    const on = !b.classList.contains("on");
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-checked", on);
+    tap();
+    await api("/api/profile", { set: b.dataset.set, value: on });
+  });
+  $("to-progress").onclick = openStats;
+}
+
 // ---------- прогресс ----------
 
 async function openStats(){
   show("stats");
+  $("stats").scrollTop = 0;
   $("stats").innerHTML = "<div class='skeleton'></div>".repeat(3);
   const s = await api("/api/stats");
   if (s.error) return fail("Статистика недоступна.");

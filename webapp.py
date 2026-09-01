@@ -289,6 +289,20 @@ def home(chat_id, payload):
                  or quiz.LABELS.get(mode))
         if label:
             resume = {"mode": mode, "cat": cat, "label": label}
+            # Показываем то самое слово, которое выпадет первым: ярлык
+            # темы не говорит, ради чего нажимать.
+            try:
+                pool, _, _ = quiz.round_pool(chat_id, mode, cat)
+                prio = db.card_priorities(chat_id, mode)
+                if pool:
+                    ru, he, _c = quiz.pick_card(pool, prio)
+                    resume.update({
+                        "ru": ru, "he": he,
+                        "reading": "" if mode in quiz.ALPHABET_MODES else translit(he),
+                        "audio": audio.audio_key(he) if audio.has_audio(he) else None,
+                    })
+            except Exception as e:
+                print(f"[home] превью не собралось: {e}")
 
     return jsonify({
         "xp": xp, "level": level, "at_level": at_level, "need": need,
@@ -314,6 +328,114 @@ def round_done(chat_id, payload):
     xp = db.total_xp(chat_id)
     level, at_level, need = db.level_for(xp)
     return jsonify({"xp": xp, "level": level, "at_level": at_level, "need": need})
+
+
+# ---------- словарь ----------
+
+# «Изучаю» — коробки 1–3, «изучено» — 4 и выше. Порог тот же, что у
+# колец на главной: одно определение выученного на всё приложение.
+LEARNED_BOX = 4
+
+
+@api.route("/api/words", methods=["POST"])
+@guarded
+def words(chat_id, payload):
+    """Весь словарь со состоянием каждого слова.
+
+    Отдаём разом, а не страницами: 273 слова весят пару десятков
+    килобайт, зато поиск и фильтры работают мгновенно на клиенте, без
+    запроса на каждую букву.
+    """
+    try:
+        boxes = db.word_boxes(chat_id)
+        favs = db.favourites(chat_id)
+    except Exception as e:
+        print(f"[words] {e}")
+        boxes, favs = {}, set()
+
+    items = []
+    for ru, he, cat in quiz.POOLS["vocab"]:
+        box = boxes.get(ru, 0)
+        items.append({
+            "ru": ru, "he": he, "reading": translit(he), "cat": cat,
+            "topic": quiz.TOPIC_LABELS.get(cat) or quiz.GRAMMAR_LABELS.get(cat, ""),
+            # Саму коробку клиенту не отдаём: ему нужно состояние, а не
+            # внутренняя механика Лейтнера. На 273 словах экономия
+            # заметна, а показывать «коробка 3» человеку незачем.
+            "state": "learned" if box >= LEARNED_BOX else "learning" if box else "new",
+            "fav": ru in favs,
+            "audio": audio.audio_key(he) if audio.has_audio(he) else None,
+        })
+    return jsonify({"words": items, "learned_box": LEARNED_BOX})
+
+
+@api.route("/api/favourite", methods=["POST"])
+@guarded
+def favourite(chat_id, payload):
+    ru = payload.get("ru", "")
+    if ru not in quiz.ANSWERS.get("vocab", {}):
+        return jsonify({"error": "unknown card"}), 400
+    on = bool(payload.get("on"))
+    try:
+        db.set_favourite(chat_id, ru, on)
+    except Exception as e:
+        print(f"[favourite] {e}")
+        return jsonify({"error": "db"}), 503
+    return jsonify({"ru": ru, "fav": on})
+
+
+@api.route("/api/know", methods=["POST"])
+@guarded
+def know(chat_id, payload):
+    """«Я уже знаю это»: карточка уходит в последнюю коробку."""
+    mode = payload.get("mode", "vocab")
+    ru = payload.get("ru", "")
+    found = quiz.ANSWERS.get(mode, {}).get(ru)
+    if not found:
+        return jsonify({"error": "unknown card"}), 400
+    try:
+        db.mark_known(chat_id, ru, mode)
+    except Exception as e:
+        print(f"[know] {e}")
+        return jsonify({"error": "db"}), 503
+    return jsonify({"ru": ru, "expected": found[0],
+                    "reading": translit(found[0]) if mode not in quiz.ALPHABET_MODES else ""})
+
+
+# ---------- профиль ----------
+
+@api.route("/api/profile", methods=["POST"])
+@guarded
+def profile(chat_id, payload):
+    """Настройки и итоги. Настройки те же, что командами в чате, — иначе
+    человек будет искать, где переключается озвучка, в двух местах."""
+    if "set" in payload:
+        what, value = payload["set"], bool(payload.get("value"))
+        try:
+            {"voice": db.set_voice, "slow": db.set_slow_voice,
+             "daily": db.set_daily_word, "reactions": db.set_reactions}[what](chat_id, value)
+        except KeyError:
+            return jsonify({"error": "unknown setting"}), 400
+        except Exception as e:
+            print(f"[profile] {e}")
+            return jsonify({"error": "db"}), 503
+
+    try:
+        overall = db.overall_stats(chat_id)
+        xp = db.total_xp(chat_id)
+        level, at_level, need = db.level_for(xp)
+        return jsonify({
+            "xp": xp, "level": level, "at_level": at_level, "need": need,
+            "streak": db.streak_days(chat_id),
+            "answers": overall["total"], "correct": overall["correct"],
+            "learned": sum(1 for b in db.word_boxes(chat_id).values() if b >= LEARNED_BOX),
+            "favourites": len(db.favourites(chat_id)),
+            "voice": db.voice_enabled(chat_id), "slow": db.slow_voice(chat_id),
+            "daily": db.is_subscribed(chat_id), "reactions": db.reactions_enabled(chat_id),
+        })
+    except Exception as e:
+        print(f"[profile] {e}")
+        return jsonify({"error": "db"}), 503
 
 
 # ---------- прогресс ----------
