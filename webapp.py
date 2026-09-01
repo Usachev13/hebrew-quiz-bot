@@ -16,6 +16,7 @@ API и страница Mini App.
 import hashlib
 import hmac
 import json
+import mimetypes
 import os
 import random
 import time
@@ -31,6 +32,12 @@ from matching import check_answer, scramble
 from translit import translit
 
 api = Blueprint("webapp", __name__)
+
+# В некоторых сборках Python webp не значится в таблице типов, и Flask
+# отдаёт картинки как application/octet-stream. Браузеры их всё равно
+# показывают, угадывая по содержимому, но полагаться на угадывание не
+# стоит: часть окружений при таком заголовке предложит скачать файл.
+mimetypes.add_type("image/webp", ".webp")
 
 HERE = Path(__file__).resolve().parent
 PAGE = HERE / "static" / "app.html"

@@ -156,7 +156,8 @@ input[type=text]:focus{outline:0;border-color:var(--primary)}
               box-shadow:var(--shadow)}
 
 /* ── итог и прогресс ── */
-.ring{display:block;margin:var(--s5) auto var(--s3)}
+.done-art{display:block;width:150px;margin:var(--s5) auto 0}
+.ring{display:block;margin:var(--s3) auto}
 .ring text{font:700 26px system-ui;fill:var(--text)}
 .center{text-align:center;color:var(--muted);padding:0 var(--s4)}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
@@ -166,11 +167,27 @@ input[type=text]:focus{outline:0;border-color:var(--primary)}
 .stat:last-child{border:0}
 .stat b{font-variant-numeric:tabular-nums}
 .err{color:var(--bad);text-align:center;padding:var(--s6) var(--s4)}
-/* ── шапка профиля ── */
-.hero{background:var(--primary);color:var(--on-primary);border-radius:var(--r-lg);
+/* ── шапка профиля ──
+   Заливка не плоская: небо флага уходит от насыщенного синего к тхелету.
+   Плоский прямоугольник — главная причина, по которой интерфейс читается
+   как страница, а не как приложение. Маскот тут же: у продукта есть лицо,
+   и прятать его в стикерпаке незачем. */
+.hero{position:relative;overflow:hidden;color:#fff;border-radius:var(--r-lg);
+      background:linear-gradient(135deg,#0038B8 0%,#1E5FD6 55%,#4E9BE0 100%);
       padding:var(--s5) var(--s4);margin-bottom:var(--s4);box-shadow:var(--shadow-p)}
-.hero .top{display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s4)}
-.hero .who{flex:1;min-width:0}
+html[data-theme="dark"] .hero{
+      background:linear-gradient(135deg,#12325E 0%,#1B4A86 55%,#2B6BA8 100%)}
+.hero::after{content:"";position:absolute;right:-40px;top:-60px;width:190px;height:190px;
+             border-radius:50%;background:rgba(255,255,255,.10)}
+.hero .bird{position:absolute;right:-6px;bottom:-10px;width:104px;opacity:.95;
+            pointer-events:none}
+.hero .top{display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s4);
+           position:relative;z-index:1}
+.hero .xpbar,.hero .xptext{position:relative;z-index:1}
+.avatar{flex:0 0 46px;width:46px;height:46px;border-radius:50%;object-fit:cover;
+        border:2px solid rgba(255,255,255,.55);background:rgba(255,255,255,.2);
+        display:grid;place-items:center;font-weight:700;font-size:17px}
+.hero .who{flex:1;min-width:0;max-width:60%}
 .hero .name{font-weight:650;font-size:18px;line-height:1.2}
 .hero .lvl{font-size:13px;opacity:.85;margin-top:2px}
 .hero .flame{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.16);
@@ -197,7 +214,9 @@ html[data-theme="dark"] .xpbar i{background:var(--on-primary)}
 .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2);margin-bottom:var(--s5)}
 .metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
         padding:var(--s3);text-align:center;box-shadow:var(--shadow)}
-.metric .n{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
+.metric .n{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
+.metric.accent{background:linear-gradient(160deg,var(--primary-soft),var(--surface))}
+.metric.accent .n{color:var(--primary)}
 .metric .l{font-size:11px;color:var(--muted);margin-top:2px}
 
 /* ── прогресс по темам ── */
@@ -207,7 +226,11 @@ html[data-theme="dark"] .xpbar i{background:var(--on-primary)}
        min-height:var(--tap);box-shadow:var(--shadow);text-align:left;
        transition:transform .16s ease-out}
 .topic:active{transform:scale(.985)}
+/* Каждой теме свой оттенок. Одноцветная сетка — то, от чего рябит и
+   становится «сухо»: тринадцать одинаковых плиток глаз не различает. */
 .topic .txt{flex:1;min-width:0}
+.topic .ring{flex:0 0 auto;position:relative;display:grid;place-items:center;
+             width:44px;height:44px;border-radius:var(--r-sm)}
 .topic .nm{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;
            white-space:nowrap}
 .topic .sub{font-size:12px;color:var(--muted)}
@@ -224,6 +247,10 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
 .tabs button.on{color:var(--primary)}
 .tabs button.on .dot{opacity:1}
 .dot{width:4px;height:4px;border-radius:999px;background:currentColor;opacity:0}
+
+.empty{text-align:center;padding:var(--s5) var(--s4) 0}
+.empty img{width:180px;max-width:60%}
+.empty p{color:var(--muted);margin:var(--s3) 0 var(--s5)}
 
 .skeleton{height:64px;border-radius:var(--r);background:var(--surface-2);
           margin-bottom:var(--s2);animation:pulse 1.2s ease-in-out infinite}
@@ -407,21 +434,43 @@ function buildLearn(){
    Одной дугой не обойтись: показывать «пройдено» по одному верному
    ответу приятно и неправда, а показывать только выученное — честно, но
    первые дни там ноль. */
-function donut(seen, learned, total, size = 38){
+function donut(seen, learned, total, size = 38,
+               strong = "var(--primary)", soft = "var(--tchelet)"){
   const R = size/2 - 3, C = 2*Math.PI*R;
   const arc = v => C * (1 - (total ? v/total : 0));
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"
     role="img" aria-label="показано ${seen} из ${total}, выучено ${learned}">
     <circle cx="${size/2}" cy="${size/2}" r="${R}" fill="none"
             stroke="var(--border)" stroke-width="4"/>
-    <circle cx="${size/2}" cy="${size/2}" r="${R}" fill="none" stroke="var(--tchelet)"
+    <circle cx="${size/2}" cy="${size/2}" r="${R}" fill="none" stroke="${soft}"
             stroke-width="4" stroke-linecap="round" stroke-dasharray="${C}"
             stroke-dashoffset="${arc(seen)}" transform="rotate(-90 ${size/2} ${size/2})"/>
-    <circle cx="${size/2}" cy="${size/2}" r="${R}" fill="none" stroke="var(--primary)"
+    <circle cx="${size/2}" cy="${size/2}" r="${R}" fill="none" stroke="${strong}"
             stroke-width="4" stroke-linecap="round" stroke-dasharray="${C}"
             stroke-dashoffset="${arc(learned)}" transform="rotate(-90 ${size/2} ${size/2})"/>
     <text x="${size/2}" y="${size/2+4}" text-anchor="middle"
-          font-size="11" font-weight="700" fill="var(--muted)">${seen}</text></svg>`;
+          font-size="11" font-weight="700" fill="${strong}">${seen}</text></svg>`;
+}
+
+/* Оттенок на тему. Пары подобраны так, чтобы соседние плитки не сливались,
+   а текст на светлой подложке оставался читаемым в обеих темах. */
+const TOPIC_HUE = {
+  greetings:210, family:340, food:25, home:150, city:265, transport:195,
+  time:45, weather:185, health:0, shopping:300, work_study:230,
+  clothes:320, emotions:12,
+};
+const hue = (key, s, l) => `hsl(${TOPIC_HUE[key] ?? 215} ${s}% ${l}%)`;
+
+/* Число не появляется, а набегает — полсекунды, зато экран оживает. */
+function countUp(el, to){
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches){ el.textContent = to; return; }
+  const t0 = performance.now(), dur = 520;
+  const step = t => {
+    const k = Math.min(1, (t - t0) / dur);
+    el.textContent = Math.round(to * (1 - Math.pow(1 - k, 3)));
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 
 async function renderHome(){
@@ -435,9 +484,19 @@ async function renderHome(){
   const name = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || "Шалом";
   const pct = h.need ? Math.round(100 * h.at_level / h.need) : 0;
 
+  // Фото из Telegram, если человек не закрыл его настройками приватности.
+  // Иначе — кружок с инициалами, а не пустая серая заглушка.
+  const initials = [user?.first_name, user?.last_name]
+    .filter(Boolean).map(w => w[0]).join("").toUpperCase() || "?";
+  const avatar = user?.photo_url
+    ? `<img class="avatar" src="${user.photo_url}" alt="">`
+    : `<div class="avatar">${initials}</div>`;
+
   let html = `
     <section class="hero">
+      <img class="bird" src="/static/mascot/hello.webp" alt="" aria-hidden="true">
       <div class="top">
+        ${avatar}
         <div class="who">
           <div class="name">${name}</div>
           <div class="lvl">Уровень ${h.level} · ${h.xp} XP</div>
@@ -457,20 +516,40 @@ async function renderHome(){
     </button>`;
 
   html += `<div class="metrics">
-      <div class="metric"><div class="n">${h.due}</div><div class="l">повторить</div></div>
-      <div class="metric"><div class="n">${h.weak}</div><div class="l">с ошибками</div></div>
-      <div class="metric"><div class="n">${h.answers}</div><div class="l">ответов</div></div>
+      <div class="metric${h.due ? " accent" : ""}"><div class="n" data-count="${h.due}">0</div>
+        <div class="l">повторить</div></div>
+      <div class="metric"><div class="n" data-count="${h.weak}">0</div>
+        <div class="l">с ошибками</div></div>
+      <div class="metric"><div class="n" data-count="${h.answers}">0</div>
+        <div class="l">ответов</div></div>
     </div>`;
+
+  if (!h.answers){
+    // Первый заход: сетка тем с одними нулями выглядит как сломанная.
+    // Показываем приглашение и удода, который заждался.
+    $("home").innerHTML = html + `
+      <div class="empty">
+        <img src="/static/mascot/waiting.webp" alt="" aria-hidden="true">
+        <p>Пока пусто. Первый раунд — десять слов, минуты три.</p>
+        <button class="primary" id="first-round">Начать</button>
+      </div>`;
+    $("first-round").onclick = () => { tap(); goTab("learn"); };
+    return;
+  }
 
   html += `<h2>Темы</h2><div class="topics">`
     + h.topics.map(t => `<button class="topic" data-topic="${t.key}">
-        ${donut(t.seen, t.learned, t.total)}
+        <span class="ring" style="background:${hue(t.key,70,94)}">
+          ${donut(t.seen, t.learned, t.total, 36, hue(t.key,62,45), hue(t.key,55,78))}
+        </span>
         <span class="txt"><span class="nm">${t.name}</span>
           <span class="sub">${t.learned ? "выучено " + t.learned
                                         : t.seen + " из " + t.total}</span></span></button>`).join("")
     + `</div>`;
 
   $("home").innerHTML = html;
+  document.querySelectorAll("[data-count]").forEach(el =>
+    countUp(el, +el.dataset.count));
 
   const r = $("resume");
   if (r) r.onclick = () => { tap();
@@ -637,7 +716,10 @@ function ring(score, total){
 async function finish(){
   const total = state.round.questions.length;
   try { await api("/api/round_done", { score: state.score, total }); } catch(e){}
-  $("ring-wrap").innerHTML = ring(state.score, total);
+  const art = state.score === total ? "trophy" : state.score >= total * .5 ? "fire" : "oops";
+  $("ring-wrap").innerHTML =
+    `<img class="done-art" src="/static/mascot/${art}.webp" alt="" aria-hidden="true">`
+    + ring(state.score, total);
   $("score-sub").textContent =
     state.score === total ? "Идеально — весь раунд без единой ошибки." :
     state.score >= total * .8 ? "Хорошо. Ошибки вернутся в следующем раунде." :
