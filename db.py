@@ -603,6 +603,16 @@ def learned_by_card(chat_id):
     return {r["card_id"]: r["box"] for r in rows}
 
 
+def active_days(chat_id, days=7):
+    """Даты последних дней, когда человек отвечал. Для полоски недели."""
+    rows = get_conn().execute(
+        "SELECT DISTINCT date(answered_at) AS d FROM answers "
+        "WHERE chat_id = ? AND date(answered_at) >= date('now', ?)",
+        (str(chat_id), f"-{days - 1} day"),
+    ).fetchall()
+    return {r["d"] for r in rows}
+
+
 def last_activity(chat_id):
     """Последний режим и карточка — для кнопки «Продолжить».
 

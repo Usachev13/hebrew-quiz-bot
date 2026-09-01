@@ -304,9 +304,30 @@ def home(chat_id, payload):
             except Exception as e:
                 print(f"[home] превью не собралось: {e}")
 
+    # Полоска недели: видно, в какие дни занимался. Данные уже есть в
+    # ответах, отдельно ничего не пишем.
+    from datetime import date, timedelta
+    active = db.active_days(chat_id, 7)
+    today = date.today()
+    LETTERS = "ПВСЧПСВ"
+    week = [{"l": LETTERS[(today - timedelta(days=6 - i)).weekday()],
+             "on": (today - timedelta(days=6 - i)).isoformat() in active,
+             "today": i == 6}
+            for i in range(7)]
+
+    # Слово дня — то же, что присылает бот по утрам, теми же правилами.
+    try:
+        wru, whe, _wc = quiz.pick_daily_word(chat_id)
+        word = {"ru": wru, "he": whe, "reading": translit(whe),
+                "audio": audio.audio_key(whe) if audio.has_audio(whe) else None}
+    except Exception as e:
+        print(f"[home] слово дня не собралось: {e}")
+        word = None
+
     return jsonify({
         "xp": xp, "level": level, "at_level": at_level, "need": need,
         "streak": streak, "due": due, "weak": weak,
+        "week": week, "word": word,
         "answers": overall["total"], "correct": overall["correct"],
         "learned": sum(1 for b in boxes.values() if b >= 4),
         "topics": topics, "resume": resume,

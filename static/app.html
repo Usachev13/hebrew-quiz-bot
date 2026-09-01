@@ -50,14 +50,17 @@
 html[data-theme="dark"]{
   /* Тёмная — та же гамма, а не другая: тёплый уголь вместо синевы,
      чтобы песочный характер сохранялся и ночью. */
-  --bg:#12151C; --surface:#1B202B; --surface-2:#232936;
-  --text:#EDE7DA; --muted:#A39B8A; --border:#2E3543;
-  --primary:#E3D9C4; --on-primary:#12151C; --primary-soft:#252B37;
-  --tchelet:#5A7EA6;
-  --gold:#D9B84A; --gold-bright:#E3C766;
+  /* Светлее прежнего: подложка была почти чёрной и всё выглядело
+     мрачно. Яркость фона поднята вдвое, карточек — вдвое, при этом
+     контраст текста остаётся выше нормы (пересчитано). */
+  --bg:#1E212A; --surface:#2A2F3B; --surface-2:#333947;
+  --text:#F2EDE2; --muted:#B3AB99; --border:#3E4557;
+  --primary:#E9E1CE; --on-primary:#1E212A; --primary-soft:#343A48;
+  --tchelet:#6E93BC;
+  --gold:#E0C25C; --gold-bright:#EBD182;
   --ok:#57C77F; --bad:#FF8177; --warn:#E0A94A;
   --ok-soft:#14301F; --bad-soft:#341A18; --warn-soft:#332714;
-  --glass:rgba(27,32,43,.7);
+  --glass:rgba(42,47,59,.74);
   --shadow:inset 0 1px 0 rgba(255,255,255,.06),
            0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.36);
   --shadow-p:inset 0 1px 0 rgba(255,255,255,.15), 0 8px 22px rgba(0,0,0,.5);
@@ -69,7 +72,7 @@ html[data-theme="dark"]{
    поверхности глухими — вид скромнее, читаемость та же. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
   :root{--glass:#FFFFFF}
-  html[data-theme="dark"]{--glass:#1B202B}
+  html[data-theme="dark"]{--glass:#2A2F3B}
 }
 
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -96,11 +99,11 @@ body::after{
 }
 html[data-theme="dark"] body::before{
   background:
-    radial-gradient(1000px 560px at 8% -12%,  rgba(217,184,74,.10), transparent 62%),
-    radial-gradient(900px 520px at 96% 4%,    rgba(90,126,166,.16), transparent 60%),
-    radial-gradient(880px 660px at 48% 108%,  rgba(140,120,84,.14), transparent 66%);
+    radial-gradient(1000px 560px at 8% -12%,  rgba(224,194,92,.13),  transparent 62%),
+    radial-gradient(900px 520px at 96% 4%,    rgba(110,147,188,.20), transparent 60%),
+    radial-gradient(880px 660px at 48% 108%,  rgba(168,146,104,.17), transparent 66%);
 }
-html[data-theme="dark"] body::after{opacity:.09}
+html[data-theme="dark"] body::after{opacity:.07}
 
 body{
   margin:0;color:var(--text);background:transparent;
@@ -161,8 +164,11 @@ button{font:inherit;color:inherit;cursor:pointer}
 .tile .ico{flex:0 0 40px;height:40px;border-radius:var(--r-sm);display:grid;
            place-items:center;background:var(--primary-soft);color:var(--primary)}
 .tile .txt{flex:1;min-width:0}
-.tile .name{font-weight:600}
-.tile .sub{color:var(--muted);font-size:13px;margin-top:1px}
+/* Строчные span не переносятся: без display:block название и описание
+   слипались в одну строку — «По темам еда, семья, дом…». */
+.tile .name{font-weight:600;display:block}
+.tile .sub{color:var(--muted);font-size:13px;margin-top:2px;display:block;
+           line-height:1.35}
 .tile .badge{flex:0 0 auto;background:var(--primary);color:var(--on-primary);
              border-radius:999px;padding:3px 10px;font-size:13px;font-weight:600}
 .tile .chev{flex:0 0 auto;color:var(--muted)}
@@ -261,8 +267,8 @@ input[type=text]:focus{outline:0;border-color:var(--primary)}
       padding:var(--s5) var(--s4);margin-bottom:var(--s4);
       box-shadow:0 12px 34px rgba(22,35,63,.22)}
 html[data-theme="dark"] .hero{
-      background:linear-gradient(155deg,#171C26 0%,#0E1522 60%,#0B111C 100%);
-      box-shadow:0 12px 34px rgba(0,0,0,.45)}
+      background:linear-gradient(155deg,#2C3348 0%,#232838 58%,#1C2130 100%);
+      box-shadow:0 12px 34px rgba(0,0,0,.4)}
 .hero .greet{flex:1;min-width:0}
 .hero .hi{font-family:"Playfair Display",Georgia,serif;font-size:24px;
           line-height:1.15;font-weight:600}
@@ -281,23 +287,13 @@ html[data-theme="dark"] .hero{
     radial-gradient(280px 240px at 6% 118%, rgba(127,195,232,.22), transparent 64%)}
 .hero .top{display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s4);
            position:relative;z-index:1}
-.hero .xpbar,.hero .xptext{position:relative;z-index:1}
 .avatar{flex:0 0 46px;width:46px;height:46px;border-radius:50%;object-fit:cover;
         border:2px solid rgba(255,255,255,.55);background:rgba(255,255,255,.2);
         display:grid;place-items:center;font-weight:700;font-size:17px}
-.hero .who{flex:1;min-width:0}
 .hero .name{font-weight:600;font-size:19px;line-height:1.2;letter-spacing:-.02em}
 .hero .lvl{font-size:11px;opacity:.75;margin-top:4px;letter-spacing:.1em;
            text-transform:uppercase}
-.hero .flame{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.16);
-             border-radius:999px;padding:6px 12px;font-weight:650;font-size:14px}
-.xpbar{height:8px;background:rgba(255,255,255,.22);border-radius:999px;overflow:hidden}
-.xpbar i{display:block;height:100%;background:#fff;border-radius:999px;
-         transition:width .5s cubic-bezier(.4,0,.2,1)}
-.hero .xptext{display:flex;justify-content:space-between;font-size:12px;
-              opacity:.8;margin-top:8px}
-html[data-theme="dark"] .xpbar i{background:var(--on-primary)}
-
+html[data-theme="dark"] 
 /* ── карточка «продолжить» ── */
 .resume{display:flex;align-items:center;gap:var(--s3);width:100%;text-align:left;
         background:var(--surface);border:2px solid var(--primary);border-radius:var(--r-lg);
@@ -310,6 +306,42 @@ html[data-theme="dark"] .xpbar i{background:var(--on-primary)}
             color:var(--on-primary);display:grid;place-items:center}
 
 /* ── плитки-числа ── */
+/* Полоска недели прямо в шапке: видно, в какие дни занимался.
+   Данные берутся из ответов, отдельно ничего не пишем. */
+.week{display:flex;gap:6px;margin-top:var(--s4);position:relative;z-index:1}
+.week span{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;
+           font-size:10px;opacity:.6;letter-spacing:.04em}
+.week i{width:100%;height:5px;border-radius:999px;background:rgba(255,255,255,.16)}
+.week span.on{opacity:1}
+.week span.on i{background:var(--gold-bright)}
+.week span.today i{box-shadow:0 0 0 2px rgba(255,255,255,.28)}
+
+/* Два быстрых действия — то, ради чего чаще всего заходят. */
+.quick{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2);margin-bottom:var(--s5)}
+.quick button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;
+              padding:var(--s4);border-radius:var(--r);border:1px solid var(--border);
+              background:var(--surface);box-shadow:var(--shadow);min-height:84px;
+              justify-content:center;text-align:left;
+              transition:transform .18s var(--bounce)}
+.quick button:active{transform:translateY(2px) scale(.99)}
+.quick .n{font-family:"Playfair Display",Georgia,serif;font-size:26px;font-weight:600;
+          line-height:1;font-variant-numeric:tabular-nums}
+.quick .l{font-size:12px;color:var(--muted)}
+.quick .due .n{color:var(--primary)}
+.quick .weak .n{color:var(--gold)}
+.quick button:disabled{opacity:.5}
+
+/* Слово дня — то же, что бот шлёт по утрам, теми же правилами отбора. */
+.wod{display:flex;align-items:center;gap:var(--s3);width:100%;padding:var(--s4);
+     border-radius:var(--r);border:1px solid var(--border);background:var(--surface);
+     box-shadow:var(--shadow);text-align:left;margin-bottom:var(--s5)}
+.wod .txt{flex:1;min-width:0}
+.wod .cap{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+          color:var(--gold);display:block;margin-bottom:3px}
+.wod .sub{color:var(--muted);font-size:13px;display:block}
+.wod .snd{flex:0 0 44px;height:44px;border-radius:999px;display:grid;place-items:center;
+          background:var(--primary-soft);color:var(--primary);border:0}
+
 /* Две плитки, как в макете: уровень с полосой и переход к статистике. */
 .prog{display:grid;grid-template-columns:1.35fr 1fr;gap:var(--s2);margin-bottom:var(--s5)}
 .prog .box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
@@ -324,13 +356,6 @@ html[data-theme="dark"] .xpbar i{background:var(--on-primary)}
 .prog .stat-box{align-items:flex-start}
 .prog .stat-box .icon{color:var(--gold)}
 
-.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2);margin-bottom:var(--s5)}
-.metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
-        padding:var(--s3);text-align:center;box-shadow:var(--shadow)}
-.metric .n{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
-.metric.accent{background:linear-gradient(160deg,var(--primary-soft),var(--surface))}
-.metric.accent .n{color:var(--primary)}
-.metric .l{font-size:11px;color:var(--muted);margin-top:2px}
 
 /* ── прогресс по темам ── */
 /* Темы — круги, а не прямоугольники. Прогресс рисуется самим ободком
@@ -357,19 +382,17 @@ html[data-theme="dark"] .xpbar i{background:var(--on-primary)}
 /* Две строки с фиксированной высотой, а не обрезка многоточием:
    «Работа и учёба» в колонку не влезает, а «Работа и уч…» читается
    как сбой. Высота задана жёстко, иначе круги в ряду разъезжаются. */
-.topic .nm{font-size:13px;font-weight:600;text-align:center;line-height:1.25;
-           max-width:100%;min-height:2.5em;display:-webkit-box;-webkit-line-clamp:2;
+/* Высоту резервируем на весь блок подписи, а не на одно название:
+   иначе у коротких имён между названием и счётчиком зияла дыра. */
+.topic .cap{display:flex;flex-direction:column;align-items:center;gap:1px;
+            min-height:2.9em;justify-content:flex-start}
+.topic .nm{font-size:13px;font-weight:600;text-align:center;line-height:1.2;
+           max-width:100%;display:-webkit-box;-webkit-line-clamp:2;
            -webkit-box-orient:vertical;overflow:hidden}
-.topic .sub{font-size:11px;color:var(--muted);line-height:1;margin-top:-2px}
-/* Каждой теме свой оттенок. Одноцветная сетка — то, от чего рябит и
-   становится «сухо»: тринадцать одинаковых плиток глаз не различает. */
-.topic .txt{flex:1;min-width:0}
-.topic .ring{flex:0 0 auto;position:relative;display:grid;place-items:center;
-             width:44px;height:44px;border-radius:var(--r-sm)}
-.topic .nm{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;
-           white-space:nowrap}
-.topic .sub{font-size:12px;color:var(--muted)}
-.topic svg{flex:0 0 auto}
+.topic .sub{font-size:11px;color:var(--muted);line-height:1.1}
+/* Здесь раньше лежали правила от прямоугольных плиток. Они стояли ПОСЛЕ
+   круглых и перебивали им размер и скругление — круги выходили мелкими
+   квадратами со срезанными углами. Удалено. */
 
 /* ── нижняя навигация ── */
 body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
@@ -422,22 +445,25 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
              box-shadow:var(--shadow);margin-bottom:var(--s5);padding:0;position:relative}
 /* Рисунок справа, как в макете: восход над холмами и оливковая ветвь.
    Нарисован разметкой, а не картинкой — весит ничего и красится темой. */
-.resume-rich .art{position:absolute;right:0;top:0;width:44%;height:132px;
-                  border-bottom-left-radius:var(--r-lg);overflow:hidden;opacity:.95}
+.resume-rich .art{position:absolute;right:0;top:0;width:40%;height:140px;
+                  border-bottom-left-radius:var(--r-lg);overflow:hidden;opacity:.9}
 .resume-rich .art svg{width:100%;height:100%;display:block}
 /* Каждая строка должна быть блоком. Со строчными span подпись, слово и
    транскрипция склеивались в одну строку — ровно то, что было видно. */
 .resume-rich .body{padding:var(--s4) var(--s4) 0;position:relative;z-index:1}
 .resume-rich .body > span{display:block}
-/* Ширину текста ограничиваем, чтобы строки не заезжали под рисунок. */
-.resume-rich .cap,.resume-rich .big,.resume-rich .tr{max-width:56%}
+/* Текст и рисунок — две колонки, а не наложение. Раньше ивритское слово
+   было выключено вправо внутри узкого блока и упиралось ровно в край
+   рисунка; теперь оно прижато влево, а справа оставлен запас. */
+.resume-rich .cap,.resume-rich .big,.resume-rich .tr{
+  max-width:calc(58% - var(--s3));}
 .resume-rich .ru,.resume-rich .where{max-width:100%}
 .resume-rich .cap{font-size:10px;font-weight:700;letter-spacing:.14em;
                   text-transform:uppercase;color:var(--gold)}
-.resume-rich .big{font-size:32px;line-height:1.65;font-weight:700;margin-top:var(--s2);
-                  display:block;text-align:right;direction:rtl}
-.resume-rich .tr{color:var(--muted);font-size:14px;text-align:right}
-.resume-rich .ru{font-size:18px;font-weight:600;margin-top:var(--s4)}
+.resume-rich .big{font-size:30px;line-height:1.7;font-weight:700;margin-top:var(--s2);
+                  display:block;direction:rtl;text-align:left}
+.resume-rich .tr{color:var(--muted);font-size:14px}
+.resume-rich .ru{font-size:17px;font-weight:600;margin-top:var(--s5);line-height:1.35}
 .resume-rich .where{color:var(--muted);font-size:13px;margin-top:3px}
 .resume-rich .cta{display:flex;align-items:center;justify-content:space-between;
                   gap:var(--s2);margin:var(--s5) var(--s4) var(--s4);min-height:54px;
@@ -580,6 +606,14 @@ function applyTheme(){
 }
 applyTheme();
 tg?.onEvent?.("themeChanged", applyTheme);
+
+/* «1 дней подряд» читается как вывод программы, а не как речь. */
+function plural(n, one, few, many){
+  n = Math.abs(n);
+  if (n % 10 === 1 && n % 100 !== 11) return one;
+  if (n % 10 >= 2 && n % 10 <= 4 && !(n % 100 >= 12 && n % 100 <= 14)) return few;
+  return many;
+}
 
 const state = { screen:"home", stack:[], round:null, idx:0, score:0,
                 fmt:"choice", mode:"vocab", cat:null, menu:null, home:null, busy:false };
@@ -764,9 +798,13 @@ async function renderHome(){
         </div>
         <div class="streak">${streakRing(h.streak)}
           <span><span class="n">${h.streak}</span><br>
-            <span class="l">${h.streak ? "дней подряд" : "начни серию"}</span></span>
+            <span class="l">${h.streak ? plural(h.streak, "день", "дня", "дней")
+                                       + " подряд" : "начни серию"}</span></span>
         </div>
       </div>
+      <div class="week">${(h.week || []).map(d =>
+        `<span class="${d.on ? "on " : ""}${d.today ? "today" : ""}">
+           <i></i>${d.l}</span>`).join("")}</div>
     </section>`;
 
   // Карточка показывает то самое слово, которое выпадет первым.
@@ -787,6 +825,20 @@ async function renderHome(){
       <span class="txt"><span class="cap">Продолжить</span>
         <span class="name">${h.resume.label}</span></span>
       <span class="go">${icon("play",18)}</span>
+    </button>`;
+
+  html += `<div class="quick">
+      <button class="due" id="q-due" ${h.due ? "" : "disabled"}>
+        <span class="n">${h.due}</span><span class="l">к повторению</span></button>
+      <button class="weak" id="q-weak" ${h.weak ? "" : "disabled"}>
+        <span class="n">${h.weak}</span><span class="l">с ошибками</span></button>
+    </div>`;
+
+  if (h.word) html += `<button class="wod" id="wod">
+      <span class="txt"><span class="cap">Слово дня</span>
+        <span class="he sm">${h.word.he}</span>
+        <span class="sub">${h.word.reading} — ${h.word.ru}</span></span>
+      ${h.word.audio ? `<span class="snd">${icon("sound",20)}</span>` : ""}
     </button>`;
 
   html += `<h2>Твой прогресс</h2>
@@ -819,6 +871,13 @@ async function renderHome(){
 
   $("home").innerHTML = html;
   $("to-stats").onclick = () => { tap(); goTab("stats"); };
+  const due = $("q-due"), weak = $("q-weak"), wod = $("wod");
+  if (due && h.due) due.onclick = () => { tap();
+    state.mode = "vocab"; state.cat = null; openFormat("Повторение"); };
+  if (weak && h.weak) weak.onclick = () => { tap();
+    state.mode = "weak"; state.cat = null; openFormat("Слабые места"); };
+  if (wod && h.word?.audio) wod.onclick = () =>
+    new Audio("/api/audio/" + h.word.audio).play();
   const r = $("resume");
   if (r) r.onclick = () => { tap();
     state.mode = h.resume.mode; state.cat = h.resume.cat;
@@ -840,8 +899,8 @@ function renderTopics(topics){
             <span class="n">${t.seen}</span>
           </span>
         </span>
-        <span class="nm">${t.name}</span>
-        <span class="sub">из ${t.total}</span>
+        <span class="cap"><span class="nm">${t.name}</span>
+          <span class="sub">из ${t.total}</span></span>
       </button>`).join("")
     + `</div>`;
 

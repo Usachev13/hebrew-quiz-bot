@@ -716,40 +716,9 @@ def handle_typed_answer(chat_id, typed, message_id=None):
 
 # ---------- Слово дня ----------
 
-def pick_daily_word(chat_id):
-    """Слово дня. По очереди, от самого желанного к запасному варианту:
-
-    1. не приходило как слово дня и ещё не встречалось в раундах — новое;
-    2. не приходило как слово дня, хоть и встречалось — напоминание;
-    3. приходило дольше всех остальных — круг пошёл заново.
-
-    Важен именно первый фильтр. Раньше бот отбирал только по «не
-    встречалось в раундах», а этот запас тает по мере учёбы: на 272
-    отвеченных словах из 273 выбор сужается до одного, и оно приходит
-    каждый день. Что и случилось.
-    """
-    try:
-        seen = db.seen_cards(chat_id, "vocab")
-        sent = db.daily_sent_words(chat_id)
-    except Exception as e:
-        print(f"[pick_daily_word] БД недоступна: {e}")
-        return random.choice(VOCAB_FLAT)
-
-    never_sent = [w for w in VOCAB_FLAT if w[0] not in sent]
-    unseen = [w for w in never_sent if w[0] not in seen]
-    if unseen:
-        return random.choice(unseen)
-    if never_sent:
-        return random.choice(never_sent)
-
-    # Всё уже присылали — берём то, что было дальше всего по времени.
-    oldest = min(sent.values())
-    return random.choice([w for w in VOCAB_FLAT if sent.get(w[0]) == oldest])
-
-
 def send_word_of_day(chat_id, subscribe_hint=True):
     """Слово дня: перевод, написание и кнопка потренироваться."""
-    ru, he, _ = pick_daily_word(chat_id)
+    ru, he, _ = quiz.pick_daily_word(chat_id)
     try:
         # Отмечаем сразу, а не после отправки: даже если сообщение не
         # уйдёт, повторить это же слово завтра хуже, чем пропустить его.
