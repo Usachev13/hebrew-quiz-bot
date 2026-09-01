@@ -90,6 +90,18 @@ CREATE TABLE IF NOT EXISTS daily_sent (
     PRIMARY KEY (chat_id, card_id)
 );
 
+-- Начисления XP. Отдельной таблицей, а не пересчётом из ответов: надбавки
+-- за идеальный раунд и за дни подряд задним числом не восстановить —
+-- в answers нет ни границ раунда, ни того, какой была серия в тот день.
+CREATE TABLE IF NOT EXISTS xp_log (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id     TEXT NOT NULL,
+    amount      INTEGER NOT NULL,
+    reason      TEXT NOT NULL,      -- answer / round / streak
+    earned_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_xp_chat ON xp_log(chat_id);
+
 -- Настройки пользователя. Пока одна: присылать ли произношение голосом.
 CREATE TABLE IF NOT EXISTS prefs (
     chat_id     TEXT PRIMARY KEY,
@@ -182,6 +194,7 @@ def init_db():
         if column not in cols:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
     _migrate_card_state_key(conn)
+    backfill_xp(conn)
     conn.commit()
 
 
@@ -420,6 +433,130 @@ def reactions_enabled(chat_id):
 
 
 # ---------- слово дня ----------
+
+# ---------- очки и уровни ----------
+#
+# Считаем скупо: XP должен означать «сколько выучил», а не «сколько
+# натыкал». Поэтому очко даётся за верный ответ, а надбавки — только за
+# то, что требует усилия: раунд без ошибок и возвращение назавтра.
+XP_PER_CORRECT = 1
+XP_PERFECT_ROUND = 5
+XP_STREAK_DAY = 2          # за каждый день серии, максимум XP_STREAK_CAP
+XP_STREAK_CAP = 20
+
+# Пороги уровней. Растут плавно, чтобы первые уровни брались за вечер, а
+# дальше замедлялись — иначе к сотому уровню цифра теряет смысл.
+def level_for(xp):
+    """(уровень, XP на этом уровне, сколько нужно до следующего)."""
+    lvl, need, left = 1, 20, max(0, int(xp))
+    while left >= need:
+        left -= need
+        lvl += 1
+        need = int(need * 1.35)
+    return lvl, left, need
+
+
+def award_xp(chat_id, amount, reason):
+    if amount <= 0:
+        return
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO xp_log (chat_id, amount, reason, earned_at) VALUES (?, ?, ?, ?)",
+        (str(chat_id), int(amount), reason, datetime.utcnow().isoformat()),
+    )
+    conn.commit()
+
+
+def backfill_xp(conn):
+    """Разовое начисление за то, что наработано до появления очков.
+
+    Иначе человек, отвечавший месяц, увидит на главном экране ноль и
+    решит, что прогресс потерян. Даём по базовой ставке за верные
+    ответы; надбавки задним числом не восстановить, и мы их не выдумываем.
+    """
+    if conn.execute("SELECT 1 FROM xp_log LIMIT 1").fetchone():
+        return
+    rows = conn.execute(
+        "SELECT chat_id, COUNT(*) AS n FROM answers WHERE correct = 1 "
+        "GROUP BY chat_id").fetchall()
+    if not rows:
+        return
+    now = datetime.utcnow().isoformat()
+    conn.executemany(
+        "INSERT INTO xp_log (chat_id, amount, reason, earned_at) VALUES (?, ?, ?, ?)",
+        [(r["chat_id"], r["n"] * XP_PER_CORRECT, "backfill", now) for r in rows])
+    print(f"[db] начислен XP за прошлые ответы: {len(rows)} чел.")
+
+
+def award_for_answer(chat_id, correct):
+    """Очки за ответ плюс надбавка за серию — раз в день, не за ответ."""
+    try:
+        if correct:
+            award_xp(chat_id, XP_PER_CORRECT, "answer")
+        if not xp_earned_today(chat_id, "streak"):
+            days = streak_days(chat_id)
+            if days:
+                award_xp(chat_id, min(days * XP_STREAK_DAY, XP_STREAK_CAP), "streak")
+    except Exception as e:
+        print(f"[award_for_answer] {e}")
+
+
+def award_for_round(chat_id, score, total):
+    """Надбавка за раунд без единой ошибки."""
+    try:
+        if total and score == total:
+            award_xp(chat_id, XP_PERFECT_ROUND, "round")
+    except Exception as e:
+        print(f"[award_for_round] {e}")
+
+
+def total_xp(chat_id):
+    row = get_conn().execute(
+        "SELECT COALESCE(SUM(amount), 0) FROM xp_log WHERE chat_id = ?",
+        (str(chat_id),),
+    ).fetchone()
+    return row[0]
+
+
+def xp_earned_today(chat_id, reason):
+    """Сколько уже начислено сегодня по этой причине.
+
+    Нужно для надбавки за серию: она даётся раз в день, а не на каждый
+    ответ, иначе за один вечер можно накрутить сколько угодно.
+    """
+    row = get_conn().execute(
+        "SELECT COALESCE(SUM(amount), 0) FROM xp_log "
+        "WHERE chat_id = ? AND reason = ? AND date(earned_at) = date('now')",
+        (str(chat_id), reason),
+    ).fetchone()
+    return row[0]
+
+
+def learned_by_card(chat_id):
+    """{карточка: коробка Лейтнера}. Отсюда считается прогресс по темам.
+
+    «Выучено» — коробка 4 и выше: слово пережило три верных ответа с
+    растущими промежутками. Показывать «пройдено» по одному верному
+    ответу было бы приятнее и враньём.
+    """
+    rows = get_conn().execute(
+        "SELECT card_id, box FROM card_state WHERE chat_id = ? AND mode = 'vocab'",
+        (str(chat_id),),
+    ).fetchall()
+    return {r["card_id"]: r["box"] for r in rows}
+
+
+def last_activity(chat_id):
+    """Последний режим и карточка — для кнопки «Продолжить».
+
+    Ничего специально не храним: последний ответ и так лежит в answers.
+    """
+    row = get_conn().execute(
+        "SELECT mode, card_id FROM answers WHERE chat_id = ? "
+        "ORDER BY id DESC LIMIT 1", (str(chat_id),),
+    ).fetchone()
+    return dict(row) if row else None
+
 
 # ---------- сводка для владельца бота ----------
 #

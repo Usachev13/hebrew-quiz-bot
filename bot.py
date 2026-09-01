@@ -506,6 +506,7 @@ def handle_answer(chat_id, question_idx, chosen_idx, message_id=None):
     # повторений. Сбой БД не должен ломать игру, поэтому не роняем раунд.
     try:
         db.record_answer(chat_id, mode, q["ru"], is_correct)
+        db.award_for_answer(chat_id, is_correct)
     except Exception as e:
         print(f"[handle_answer] не удалось записать ответ: {e}")
 
@@ -644,6 +645,7 @@ def finish_question(chat_id):
     s = sessions[chat_id]
     s["index"] += 1
     if s["index"] >= s["total"]:
+        db.award_for_round(chat_id, s["score"], s["total"])
         pct = round(100 * s["score"] / s["total"])
         if lively(chat_id):
             head, emoji = reactions.round_summary(
@@ -694,6 +696,7 @@ def handle_typed_answer(chat_id, typed, message_id=None):
     before = card_history(chat_id, q["ru"], mode)
     try:
         db.record_answer(chat_id, mode, q["ru"], is_correct)
+        db.award_for_answer(chat_id, is_correct)
     except Exception as e:
         print(f"[handle_typed_answer] не удалось записать ответ: {e}")
 

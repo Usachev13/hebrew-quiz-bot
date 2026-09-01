@@ -220,6 +220,7 @@ def answer(chat_id, payload):
     try:
         before = db.card_history(chat_id, card_id, mode)
         db.record_answer(chat_id, mode, card_id, correct)
+        db.award_for_answer(chat_id, correct)
     except Exception as e:
         print(f"[answer] {e}")
         before = None
@@ -238,6 +239,74 @@ def answer(chat_id, payload):
 def _memory_line(before, correct):
     import reactions
     return reactions.memory_line(before, correct)
+
+
+# ---------- главный экран ----------
+
+@api.route("/api/home", methods=["POST"])
+@guarded
+def home(chat_id, payload):
+    """Всё для главного экрана одним запросом: профиль, «продолжить»,
+    прогресс по темам."""
+    try:
+        db.touch_user(chat_id)
+        xp = db.total_xp(chat_id)
+        level, at_level, need = db.level_for(xp)
+        streak = db.streak_days(chat_id)
+        due = db.due_count(chat_id)
+        weak = len(db.weak_cards(chat_id, limit=100))
+        boxes = db.learned_by_card(chat_id)
+        last = db.last_activity(chat_id)
+        overall = db.overall_stats(chat_id)
+    except Exception as e:
+        print(f"[home] {e}")
+        return jsonify({"error": "db"}), 503
+
+    # Прогресс по темам. «Выучено» — коробка 4 и выше: слово пережило
+    # три верных ответа с растущими промежутками. Считать пройденным по
+    # одному верному ответу было бы приятнее и неправдой.
+    topics = []
+    for key, name in quiz.TOPIC_LABELS.items():
+        cards = [ru for ru, _, cat in quiz.POOLS["vocab"] if cat == key]
+        learned = sum(1 for ru in cards if boxes.get(ru, 0) >= 4)
+        seen = sum(1 for ru in cards if ru in boxes)
+        topics.append({"key": key, "name": name, "total": len(cards),
+                       "learned": learned, "seen": seen})
+
+    resume = None
+    if last:
+        mode = last["mode"]
+        found = quiz.ANSWERS.get(mode, {}).get(last["card_id"])
+        cat = found[1] if found and mode == "vocab" else None
+        label = (quiz.TOPIC_LABELS.get(cat) or quiz.GRAMMAR_LABELS.get(cat)
+                 or quiz.LABELS.get(mode))
+        if label:
+            resume = {"mode": mode, "cat": cat, "label": label}
+
+    return jsonify({
+        "xp": xp, "level": level, "at_level": at_level, "need": need,
+        "streak": streak, "due": due, "weak": weak,
+        "answers": overall["total"], "correct": overall["correct"],
+        "learned": sum(1 for b in boxes.values() if b >= 4),
+        "topics": topics, "resume": resume,
+    })
+
+
+@api.route("/api/round_done", methods=["POST"])
+@guarded
+def round_done(chat_id, payload):
+    """Клиент сообщает, что раунд закончен — только ради надбавки за
+    идеальный результат. Счёт сервер знает и сам, но границы раунда —
+    нет: он их не хранит."""
+    try:
+        score = int(payload.get("score", 0))
+        total = int(payload.get("total", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "bad"}), 400
+    db.award_for_round(chat_id, min(score, total), total)
+    xp = db.total_xp(chat_id)
+    level, at_level, need = db.level_for(xp)
+    return jsonify({"xp": xp, "level": level, "at_level": at_level, "need": need})
 
 
 # ---------- прогресс ----------

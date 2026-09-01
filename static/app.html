@@ -166,6 +166,65 @@ input[type=text]:focus{outline:0;border-color:var(--primary)}
 .stat:last-child{border:0}
 .stat b{font-variant-numeric:tabular-nums}
 .err{color:var(--bad);text-align:center;padding:var(--s6) var(--s4)}
+/* ── шапка профиля ── */
+.hero{background:var(--primary);color:var(--on-primary);border-radius:var(--r-lg);
+      padding:var(--s5) var(--s4);margin-bottom:var(--s4);box-shadow:var(--shadow-p)}
+.hero .top{display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s4)}
+.hero .who{flex:1;min-width:0}
+.hero .name{font-weight:650;font-size:18px;line-height:1.2}
+.hero .lvl{font-size:13px;opacity:.85;margin-top:2px}
+.hero .flame{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.16);
+             border-radius:999px;padding:6px 12px;font-weight:650;font-size:14px}
+.xpbar{height:8px;background:rgba(255,255,255,.22);border-radius:999px;overflow:hidden}
+.xpbar i{display:block;height:100%;background:#fff;border-radius:999px;
+         transition:width .5s cubic-bezier(.4,0,.2,1)}
+.hero .xptext{display:flex;justify-content:space-between;font-size:12px;
+              opacity:.85;margin-top:6px}
+html[data-theme="dark"] .xpbar i{background:var(--on-primary)}
+
+/* ── карточка «продолжить» ── */
+.resume{display:flex;align-items:center;gap:var(--s3);width:100%;text-align:left;
+        background:var(--surface);border:2px solid var(--primary);border-radius:var(--r-lg);
+        padding:var(--s4);margin-bottom:var(--s4);box-shadow:var(--shadow);min-height:var(--tap)}
+.resume .txt{flex:1;min-width:0}
+.resume .cap{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+             color:var(--primary)}
+.resume .name{font-weight:650;font-size:17px;margin-top:2px}
+.resume .go{flex:0 0 auto;width:40px;height:40px;border-radius:999px;background:var(--primary);
+            color:var(--on-primary);display:grid;place-items:center}
+
+/* ── плитки-числа ── */
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2);margin-bottom:var(--s5)}
+.metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+        padding:var(--s3);text-align:center;box-shadow:var(--shadow)}
+.metric .n{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
+.metric .l{font-size:11px;color:var(--muted);margin-top:2px}
+
+/* ── прогресс по темам ── */
+.topics{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s2)}
+.topic{display:flex;align-items:center;gap:var(--s3);background:var(--surface);
+       border:1px solid var(--border);border-radius:var(--r);padding:var(--s3);
+       min-height:var(--tap);box-shadow:var(--shadow);text-align:left;
+       transition:transform .16s ease-out}
+.topic:active{transform:scale(.985)}
+.topic .txt{flex:1;min-width:0}
+.topic .nm{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;
+           white-space:nowrap}
+.topic .sub{font-size:12px;color:var(--muted)}
+.topic svg{flex:0 0 auto}
+
+/* ── нижняя навигация ── */
+body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
+.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;
+      background:var(--surface);border-top:1px solid var(--border);
+      padding-bottom:env(safe-area-inset-bottom);z-index:10}
+.tabs button{flex:1;min-height:56px;background:none;border:0;display:flex;
+             flex-direction:column;align-items:center;justify-content:center;gap:2px;
+             color:var(--muted);font-size:11px;font-weight:600;padding:var(--s2) 0}
+.tabs button.on{color:var(--primary)}
+.tabs button.on .dot{opacity:1}
+.dot{width:4px;height:4px;border-radius:999px;background:currentColor;opacity:0}
+
 .skeleton{height:64px;border-radius:var(--r);background:var(--surface-2);
           margin-bottom:var(--s2);animation:pulse 1.2s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
@@ -186,12 +245,13 @@ input[type=text]:focus{outline:0;border-color:var(--primary)}
 <g id="i-check"><path d="M4 12.5l5 5L20 7"/></g>
 <g id="i-cross"><path d="M6 6l12 12M18 6L6 18"/></g>
 <g id="i-chev"><path d="M9 5l7 7-7 7"/></g>
+<g id="i-home"><path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></g>
+<g id="i-flame"><path d="M12 3s5 4 5 9a5 5 0 0 1-10 0c0-2 1-3 1-3s0 2 2 2 2-4 2-8z"/></g>
+<g id="i-play"><path d="M7 4l12 8-12 8z"/></g>
 </defs></svg>
 
-<div id="s-home" class="screen on">
-  <h1>Что тренируем?</h1>
-  <div id="home-tiles"></div>
-</div>
+<div id="s-home" class="screen on"><div id="home"></div></div>
+<div id="s-learn" class="screen"><h1>Что тренируем?</h1><div id="learn-tiles"></div></div>
 
 <div id="s-list" class="screen"><h1 id="list-title"></h1><div id="list"></div></div>
 
@@ -233,6 +293,12 @@ input[type=text]:focus{outline:0;border-color:var(--primary)}
 <div id="s-stats" class="screen"><h1>Прогресс</h1><div id="stats"></div></div>
 <div id="s-error" class="screen"><div class="err" id="error-text"></div></div>
 
+<nav class="tabs" id="tabs" hidden>
+  <button data-tab="home"><span></span><span>Главная</span><span class="dot"></span></button>
+  <button data-tab="learn"><span></span><span>Учиться</span><span class="dot"></span></button>
+  <button data-tab="stats"><span></span><span>Прогресс</span><span class="dot"></span></button>
+</nav>
+
 <script>
 const tg = window.Telegram?.WebApp;
 tg?.ready(); tg?.expand();
@@ -256,7 +322,7 @@ applyTheme();
 tg?.onEvent?.("themeChanged", applyTheme);
 
 const state = { screen:"home", stack:[], round:null, idx:0, score:0,
-                fmt:"choice", mode:"vocab", cat:null, menu:null, busy:false };
+                fmt:"choice", mode:"vocab", cat:null, menu:null, home:null, busy:false };
 
 function show(name, push = true){
   if (push && state.screen !== name) state.stack.push(state.screen);
@@ -265,6 +331,9 @@ function show(name, push = true){
   $("s-" + name).classList.add("on");
   window.scrollTo(0, 0);
   if (name === "home") tg?.BackButton.hide(); else tg?.BackButton.show();
+  const tab = { home:"home", learn:"learn", stats:"stats" }[name];
+  if (tab) document.querySelectorAll("[data-tab]").forEach(b =>
+    b.classList.toggle("on", b.dataset.tab === tab));
 }
 tg?.BackButton.onClick(() => show(state.stack.pop() || "home", false));
 const buzz = t => { try { tg?.HapticFeedback?.notificationOccurred?.(t); } catch(e){} };
@@ -306,11 +375,17 @@ const TITLES = { topics:"По темам", grammar:"Грамматика", verbs
 async function boot(){
   if (!tg?.initData)
     return fail("Откройте приложение через бота в Telegram — иначе его некому подписать.");
-  $("home-tiles").innerHTML = "<div class='skeleton'></div>".repeat(6);
+  $("home").innerHTML = "<div class='skeleton' style='height:150px'></div>"
+                      + "<div class='skeleton'></div>".repeat(3);
   try { state.menu = await api("/api/menu"); }
   catch(e){ return fail("Не удалось связаться с сервером. Попробуйте позже."); }
+  buildLearn();
+  $("tabs").hidden = false;
+  await renderHome();
+}
 
-  const host = $("home-tiles");
+function buildLearn(){
+  const host = $("learn-tiles");
   host.innerHTML = "";
   SECTIONS.forEach(s => host.appendChild(tile({ ...s, onclick:() => openList(s.go) })));
   host.appendChild(tile({
@@ -320,10 +395,91 @@ async function boot(){
     onclick:() => { if (!state.menu.weak) return;
                     state.mode = "weak"; state.cat = null; openFormat("Слабые места"); }
   }));
-  host.appendChild(tile({
-    ico:"chart", name:"Прогресс", sub:"точность, серия дней, что повторить",
-    badge: state.menu.due || null, onclick: openStats
-  }));
+}
+
+/* Кольцо темы — двойное, и это не украшение.
+
+   Светлая дуга — сколько слов темы вообще показывалось: она движется с
+   первого же раунда, иначе экран стоит мёртвым и заниматься не тянет.
+   Тёмная — сколько выучено по-настоящему: коробка 4 и выше по Лейтнеру,
+   то есть слово пережило три верных ответа с растущими промежутками.
+
+   Одной дугой не обойтись: показывать «пройдено» по одному верному
+   ответу приятно и неправда, а показывать только выученное — честно, но
+   первые дни там ноль. */
+function donut(seen, learned, total, size = 38){
+  const R = size/2 - 3, C = 2*Math.PI*R;
+  const arc = v => C * (1 - (total ? v/total : 0));
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"
+    role="img" aria-label="показано ${seen} из ${total}, выучено ${learned}">
+    <circle cx="${size/2}" cy="${size/2}" r="${R}" fill="none"
+            stroke="var(--border)" stroke-width="4"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${R}" fill="none" stroke="var(--tchelet)"
+            stroke-width="4" stroke-linecap="round" stroke-dasharray="${C}"
+            stroke-dashoffset="${arc(seen)}" transform="rotate(-90 ${size/2} ${size/2})"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${R}" fill="none" stroke="var(--primary)"
+            stroke-width="4" stroke-linecap="round" stroke-dasharray="${C}"
+            stroke-dashoffset="${arc(learned)}" transform="rotate(-90 ${size/2} ${size/2})"/>
+    <text x="${size/2}" y="${size/2+4}" text-anchor="middle"
+          font-size="11" font-weight="700" fill="var(--muted)">${seen}</text></svg>`;
+}
+
+async function renderHome(){
+  let h;
+  try { h = await api("/api/home"); }
+  catch(e){ return fail("Не удалось загрузить профиль."); }
+  if (h.error) return fail("Профиль недоступен.");
+  state.home = h;
+
+  const user = tg?.initDataUnsafe?.user;
+  const name = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || "Шалом";
+  const pct = h.need ? Math.round(100 * h.at_level / h.need) : 0;
+
+  let html = `
+    <section class="hero">
+      <div class="top">
+        <div class="who">
+          <div class="name">${name}</div>
+          <div class="lvl">Уровень ${h.level} · ${h.xp} XP</div>
+        </div>
+        <div class="flame">${icon("flame",16)}<span>${h.streak}</span></div>
+      </div>
+      <div class="xpbar"><i style="width:${pct}%"></i></div>
+      <div class="xptext"><span>${h.at_level} / ${h.need} до ${h.level + 1} уровня</span>
+        <span>${h.learned} слов выучено</span></div>
+    </section>`;
+
+  if (h.resume) html += `
+    <button class="resume" id="resume">
+      <span class="txt"><span class="cap">Продолжить</span>
+        <span class="name">${h.resume.label}</span></span>
+      <span class="go">${icon("play",18)}</span>
+    </button>`;
+
+  html += `<div class="metrics">
+      <div class="metric"><div class="n">${h.due}</div><div class="l">повторить</div></div>
+      <div class="metric"><div class="n">${h.weak}</div><div class="l">с ошибками</div></div>
+      <div class="metric"><div class="n">${h.answers}</div><div class="l">ответов</div></div>
+    </div>`;
+
+  html += `<h2>Темы</h2><div class="topics">`
+    + h.topics.map(t => `<button class="topic" data-topic="${t.key}">
+        ${donut(t.seen, t.learned, t.total)}
+        <span class="txt"><span class="nm">${t.name}</span>
+          <span class="sub">${t.learned ? "выучено " + t.learned
+                                        : t.seen + " из " + t.total}</span></span></button>`).join("")
+    + `</div>`;
+
+  $("home").innerHTML = html;
+
+  const r = $("resume");
+  if (r) r.onclick = () => { tap();
+    state.mode = h.resume.mode; state.cat = h.resume.cat;
+    openFormat(h.resume.label); };
+  document.querySelectorAll("[data-topic]").forEach(b => b.onclick = () => {
+    tap(); state.mode = "vocab"; state.cat = b.dataset.topic;
+    openFormat(state.menu.topics.find(t => t.key === b.dataset.topic).name);
+  });
 }
 
 function openList(kind){
@@ -366,8 +522,21 @@ function openFormat(title){
   });
   show("format");
 }
+const TAB_ICONS = { home:"home", learn:"book", stats:"chart" };
+document.querySelectorAll("[data-tab]").forEach(b => {
+  b.querySelector("span").innerHTML = icon(TAB_ICONS[b.dataset.tab], 22);
+  b.onclick = () => { tap(); goTab(b.dataset.tab); };
+});
+function goTab(name){
+  state.stack = [];
+  document.querySelectorAll("[data-tab]").forEach(b =>
+    b.classList.toggle("on", b.dataset.tab === name));
+  if (name === "stats") return openStats();
+  if (name === "home") renderHome();
+  show(name, false);
+}
 document.querySelectorAll("[data-go='home']").forEach(b =>
-  b.onclick = () => { state.stack = []; show("home", false); });
+  b.onclick = () => goTab("home"));
 
 // ---------- раунд ----------
 
@@ -465,8 +634,9 @@ function ring(score, total){
     <text x="70" y="79" text-anchor="middle">${score}/${total}</text></svg>`;
 }
 
-function finish(){
+async function finish(){
   const total = state.round.questions.length;
+  try { await api("/api/round_done", { score: state.score, total }); } catch(e){}
   $("ring-wrap").innerHTML = ring(state.score, total);
   $("score-sub").textContent =
     state.score === total ? "Идеально — весь раунд без единой ошибки." :
@@ -475,6 +645,7 @@ function finish(){
     "Тема ещё сырая — прогоним ещё раз.";
   buzz(state.score === total ? "success" : "warning");
   show("done");
+  renderHome();          // XP и прогресс тем меняются после каждого раунда
 }
 $("again").onclick = () => startRound(state.fmt);
 
