@@ -98,3 +98,47 @@ def wrap(key, body):
     """Просвет между фигурами — как во всём остальном рисунке."""
     return (f'<g id="w-{key}" stroke="{GAP}" stroke-width="1.1" '
             f'stroke-linejoin="round">{body}</g>')
+
+
+# ---------------------------------------------------------------- люди
+
+HAIR_D = "#6B4F3A"      # тёмные волосы
+HAIR_L = "#C29F5E"      # светлые
+HAIR_G = "#9A9184"      # седые
+SKIN = "#E0C49B"
+
+
+def figure(cx, base, h, body_c, hair=HAIR_D, skirt=False, beard=False,
+           long_hair=False, skin=SKIN, back=False):
+    """Человек. Отличаются ростом, цветом одежды и причёской — этого
+    хватает, чтобы мама, папа, сын и дочь не слились в одну фигуру."""
+    hr = h * 0.20
+    top = base - h
+    cy = top + hr
+    out = ""
+    if long_hair:
+        out += P(f"M{cx-hr*1.15} {cy} a{hr*1.15} {hr*1.15} 0 0 1 {hr*2.3} 0 "
+                 f"v{h*0.30} h-{hr*0.55} v-{h*0.16} h-{hr*1.2} v{h*0.16} "
+                 f"h-{hr*0.55} Z", hair)
+    # back=True — фигура отвёрнута: затылок целиком в цвете волос. Так
+    # «они» отличаются от «вы», где люди повёрнуты к говорящему.
+    out += circ(cx, cy, hr, hair if back else skin)
+    if not back:
+        out += P(f"M{cx-hr} {cy-hr*0.12} a{hr} {hr} 0 0 1 {hr*2} 0 "
+                 f"a{hr} {hr*0.5} 0 0 0 -{hr*2} 0 Z", hair)
+    if beard:
+        out += P(f"M{cx-hr*0.75} {cy+hr*0.35} a{hr*0.75} {hr*0.9} 0 0 0 "
+                 f"{hr*1.5} 0 q-{hr*0.75} {hr*0.9} -{hr*1.5} 0 Z", HAIR_G)
+    if skirt:
+        out += P(f"M{cx} {top+hr*2} l-{h*0.14} {h*0.34} l-{h*0.16} {h*0.44} "
+                 f"h{h*0.60} l-{h*0.16} -{h*0.44} Z", body_c)
+    else:
+        out += P(f"M{cx-h*0.24} {base} V{base-h*0.50} "
+                 f"a{h*0.24} {h*0.24} 0 0 1 {h*0.48} 0 v{h*0.50} Z", body_c)
+    return out
+
+
+def sign(cx, cy, w, h, fill, text_c=None):
+    """Табличка на столбике — для «имени», «остановки», «цены»."""
+    return (rect(cx-2.5, cy, 5, 82-cy-4, BROWN)
+            + rect(cx-w/2, cy-h, w, h, fill, 3))
