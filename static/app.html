@@ -5,133 +5,203 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Ani Lomed Ivrit</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-/* Цвета берём у Telegram, а не свои: приложение должно совпадать с темой
-   клиента, включая тёмную, и не выглядеть чужой вставкой. Значения после
-   запятой — запасные, если открыть страницу вне Telegram. */
+/* ─────────────────────────────────────────────────────────────────
+   Палитра — флаг Израиля: белый и синий. Своя, а не тема Telegram:
+   у продукта должен быть узнаваемый вид. Но светлую и тёмную ведём
+   отдельно — в тёмном клиенте белое полотно ночью бьёт по глазам.
+   Все пары проверены на контраст WCAG AA (минимум 4.5:1 для текста).
+   ───────────────────────────────────────────────────────────────── */
 :root{
-  --bg: var(--tg-theme-bg-color, #17212b);
-  --card: var(--tg-theme-secondary-bg-color, #232e3c);
-  --text: var(--tg-theme-text-color, #f5f5f5);
-  --hint: var(--tg-theme-hint-color, #8b9aa8);
-  --link: var(--tg-theme-link-color, #6ab3f3);
-  --btn: var(--tg-theme-button-color, #5288c1);
-  --btn-text: var(--tg-theme-button-text-color, #fff);
-  --ok:#3fae5a; --bad:#d9534f; --warn:#d9a441;
-  --radius:14px;
-}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{
-  margin:0;padding:12px 12px 28px;background:var(--bg);color:var(--text);
-  font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-}
-h1{font-size:20px;margin:4px 0 14px}
-h2{font-size:16px;margin:20px 0 8px;color:var(--hint);font-weight:600;
-   text-transform:uppercase;letter-spacing:.04em}
-.screen{display:none} .screen.on{display:block}
-.row{display:flex;gap:8px} .row>*{flex:1}
-button{font:inherit;color:inherit}
+  --bg:#EEF4FB; --surface:#FFFFFF; --surface-2:#F6FAFE;
+  --text:#0B1B2B; --muted:#586A7C; --border:#D3E1F0;
+  --primary:#0038B8; --on-primary:#FFFFFF; --primary-soft:#E3EDFC;
+  --tchelet:#7FC3E8;
+  --ok:#137A3C; --bad:#B5231B; --warn:#8A5A00;
+  --ok-soft:#E4F4EA; --bad-soft:#FBE7E5; --warn-soft:#FAF0DC;
 
+  --r-sm:12px; --r:18px; --r-lg:24px;
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px;
+  /* Мягкая двойная тень вместо жёсткого канта — от неё интерфейс
+     перестаёт выглядеть набором прямоугольников. */
+  --shadow:0 1px 2px rgba(11,27,43,.06), 0 6px 16px rgba(11,27,43,.07);
+  --shadow-p:0 2px 4px rgba(0,56,184,.18), 0 8px 20px rgba(0,56,184,.22);
+  --tap:44px;                       /* минимальная площадь касания */
+}
+html[data-theme="dark"]{
+  --bg:#0A1420; --surface:#152232; --surface-2:#1B2A3C;
+  --text:#E9F1F9; --muted:#9DB0C4; --border:#26374B;
+  --primary:#6FA8F5; --on-primary:#08182F; --primary-soft:#1B2C45;
+  --tchelet:#4E86B8;
+  --ok:#4FC77E; --bad:#FF7B72; --warn:#E0A94A;
+  --ok-soft:#12301F; --bad-soft:#341A18; --warn-soft:#332714;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.35);
+  --shadow-p:0 2px 6px rgba(0,0,0,.45);
+}
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{background:var(--bg)}
+body{
+  margin:0;color:var(--text);
+  /* Безопасные зоны: вырез сверху и полоса жеста снизу не должны
+     перекрывать содержимое. */
+  padding:calc(env(safe-area-inset-top) + var(--s4)) var(--s4)
+          calc(env(safe-area-inset-bottom) + var(--s6));
+  font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+h1{font-size:24px;line-height:1.25;margin:0 0 var(--s5);letter-spacing:-.02em}
+h2{font-size:13px;margin:var(--s5) 0 var(--s2);color:var(--muted);
+   font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:4px}
+.screen{display:none} .screen.on{display:block;animation:in .22s ease-out}
+@keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
+}
+
+/* Иврит — отдельным шрифтом. Системные рисуют огласовки вкривь, а у нас
+   весь банк огласованный, и читать его ученик будет именно здесь. */
+.he{font-family:"Noto Sans Hebrew",system-ui,sans-serif;direction:rtl;
+    unicode-bidi:isolate;font-size:30px;line-height:1.7;font-weight:600}
+.he.sm{font-size:21px}
+
+/* ── плитки ── */
 .tile{
-  display:flex;align-items:center;justify-content:space-between;gap:10px;
-  width:100%;text-align:left;padding:15px 16px;margin-bottom:8px;border:0;
-  border-radius:var(--radius);background:var(--card);cursor:pointer;
+  display:flex;align-items:center;gap:var(--s3);width:100%;min-height:var(--tap);
+  text-align:left;padding:var(--s4);margin-bottom:var(--s2);border:1px solid var(--border);
+  border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow);
+  transition:transform .16s ease-out, box-shadow .16s ease-out;
 }
-.tile:active{opacity:.7}
-.tile .sub{color:var(--hint);font-size:13px;margin-top:2px}
-.tile .badge{
-  background:var(--btn);color:var(--btn-text);border-radius:20px;
-  padding:2px 9px;font-size:13px;flex:0 0 auto;
-}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.grid .tile{margin:0;display:block}
+.tile:active{transform:scale(.985);box-shadow:0 1px 2px rgba(11,27,43,.08)}
+.tile .ico{flex:0 0 40px;height:40px;border-radius:var(--r-sm);display:grid;
+           place-items:center;background:var(--primary-soft);color:var(--primary)}
+.tile .txt{flex:1;min-width:0}
+.tile .name{font-weight:600}
+.tile .sub{color:var(--muted);font-size:13px;margin-top:1px}
+.tile .badge{flex:0 0 auto;background:var(--primary);color:var(--on-primary);
+             border-radius:999px;padding:3px 10px;font-size:13px;font-weight:600}
+.tile .chev{flex:0 0 auto;color:var(--muted)}
+.tile.dim{opacity:.55}
+
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s2)}
+.grid .tile{margin:0;flex-direction:column;align-items:flex-start;gap:var(--s2);
+            min-height:96px;justify-content:center}
+.grid .tile .ico{flex:0 0 32px;height:32px}
 
 .primary{
-  width:100%;padding:15px;border:0;border-radius:var(--radius);
-  background:var(--btn);color:var(--btn-text);font-weight:600;cursor:pointer;
+  width:100%;min-height:52px;padding:var(--s4);border:0;border-radius:var(--r);
+  background:var(--primary);color:var(--on-primary);font-weight:650;font-size:17px;
+  box-shadow:var(--shadow-p);transition:transform .16s ease-out;
 }
-.ghost{background:transparent;color:var(--link);border:0;padding:12px;
-       width:100%;cursor:pointer;font-size:15px}
+.primary:active{transform:scale(.985)}
+.ghost{background:transparent;color:var(--primary);border:0;padding:var(--s4);
+       width:100%;font-weight:600;min-height:var(--tap)}
 
-/* Иврит всегда справа налево и крупнее: это то, что читают. */
-.he{direction:rtl;unicode-bidi:isolate;font-size:26px;line-height:1.6}
-.he.small{font-size:19px}
-
-.progress{height:3px;background:var(--card);border-radius:3px;margin-bottom:14px}
-.progress i{display:block;height:100%;background:var(--btn);border-radius:3px;
-            transition:width .25s}
-.prompt{background:var(--card);border-radius:var(--radius);padding:18px;
-        margin-bottom:14px;text-align:center}
-.prompt .ask{color:var(--hint);font-size:13px;margin-bottom:6px}
-.prompt .word{font-size:22px;font-weight:600}
+/* ── раунд ── */
+.bar{height:6px;background:var(--border);border-radius:999px;margin-bottom:var(--s5);
+     overflow:hidden}
+.bar i{display:block;height:100%;background:var(--primary);border-radius:999px;
+       transition:width .3s cubic-bezier(.4,0,.2,1)}
+.prompt{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+        padding:var(--s5) var(--s4);margin-bottom:var(--s4);text-align:center;
+        box-shadow:var(--shadow)}
+.prompt .ask{color:var(--muted);font-size:12px;text-transform:uppercase;
+             letter-spacing:.07em;font-weight:600;margin-bottom:var(--s2)}
+.prompt .word{font-size:24px;font-weight:650;line-height:1.3}
 
 .opt{
-  width:100%;padding:16px;margin-bottom:8px;border:2px solid transparent;
-  border-radius:var(--radius);background:var(--card);cursor:pointer;
-  direction:rtl;font-size:22px;
+  display:flex;align-items:center;justify-content:flex-end;gap:var(--s3);
+  width:100%;min-height:60px;padding:var(--s3) var(--s4);margin-bottom:var(--s2);
+  border:2px solid var(--border);border-radius:var(--r);background:var(--surface);
+  transition:border-color .16s, background .16s, transform .16s;
 }
-.opt:disabled{cursor:default}
-.opt.ok{border-color:var(--ok)} .opt.bad{border-color:var(--bad)}
+.opt:active:not(:disabled){transform:scale(.985)}
+.opt.ok{border-color:var(--ok);background:var(--ok-soft)}
+.opt.bad{border-color:var(--bad);background:var(--bad-soft)}
+.opt .mark{flex:0 0 auto;display:none}
+.opt.ok .mark,.opt.bad .mark{display:block}
+.opt.ok .mark{color:var(--ok)} .opt.bad .mark{color:var(--bad)}
 
 input[type=text]{
-  width:100%;padding:15px;border-radius:var(--radius);border:2px solid transparent;
-  background:var(--card);color:var(--text);font-size:22px;direction:rtl;
+  width:100%;min-height:56px;padding:var(--s3) var(--s4);border-radius:var(--r);
+  border:2px solid var(--border);background:var(--surface);color:var(--text);
+  font-family:"Noto Sans Hebrew",system-ui,sans-serif;font-size:24px;direction:rtl;
 }
-input[type=text]:focus{outline:0;border-color:var(--btn)}
+input[type=text]:focus{outline:0;border-color:var(--primary)}
+.row{display:flex;gap:var(--s2);margin-top:var(--s2)}
 
-.verdict{border-radius:var(--radius);padding:14px 16px;margin-top:12px;background:var(--card)}
-.verdict.ok{border-left:3px solid var(--ok)}
-.verdict.bad{border-left:3px solid var(--bad)}
-.verdict.typo{border-left:3px solid var(--warn)}
-.verdict .memory{color:var(--hint);font-size:14px;margin-top:8px;font-style:italic}
-.reading{color:var(--hint);font-size:14px;margin-top:4px}
-.play{background:transparent;border:1px solid var(--hint);border-radius:20px;
-      padding:6px 14px;margin-top:10px;cursor:pointer;font-size:14px}
+.verdict{border-radius:var(--r);padding:var(--s4);margin-top:var(--s4);
+         background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow)}
+.verdict.ok{background:var(--ok-soft);border-color:var(--ok)}
+.verdict.bad{background:var(--bad-soft);border-color:var(--bad)}
+.verdict.typo{background:var(--warn-soft);border-color:var(--warn)}
+.verdict .head{display:flex;align-items:center;gap:var(--s2);font-weight:650;font-size:15px}
+.verdict.ok .head{color:var(--ok)} .verdict.bad .head{color:var(--bad)}
+.verdict.typo .head{color:var(--warn)}
+.reading{color:var(--muted);font-size:14px}
+.memory{color:var(--muted);font-size:14px;margin-top:var(--s2);font-style:italic}
+.play{display:inline-flex;align-items:center;gap:6px;min-height:var(--tap);
+      background:transparent;border:1px solid var(--border);border-radius:999px;
+      padding:0 var(--s4);margin-top:var(--s3);font-size:14px;font-weight:600}
 
-.stat{display:flex;justify-content:space-between;padding:11px 0;
-      border-bottom:1px solid var(--card)}
+.letters{display:flex;flex-wrap:wrap;gap:var(--s2);justify-content:center;
+         margin-bottom:var(--s4)}
+.letters span{background:var(--surface);border:1px solid var(--border);
+              border-radius:var(--r-sm);min-width:46px;height:52px;display:grid;
+              place-items:center;font-family:"Noto Sans Hebrew",sans-serif;font-size:26px;
+              box-shadow:var(--shadow)}
+
+/* ── итог и прогресс ── */
+.ring{display:block;margin:var(--s5) auto var(--s3)}
+.ring text{font:700 26px system-ui;fill:var(--text)}
+.center{text-align:center;color:var(--muted);padding:0 var(--s4)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+      box-shadow:var(--shadow);padding:var(--s2) var(--s4);margin-bottom:var(--s4)}
+.stat{display:flex;justify-content:space-between;align-items:center;gap:var(--s3);
+      padding:var(--s3) 0;border-bottom:1px solid var(--border)}
 .stat:last-child{border:0}
-.big{font-size:34px;font-weight:700;text-align:center;margin:18px 0 4px}
-.center{text-align:center;color:var(--hint)}
-.err{color:var(--bad);text-align:center;padding:30px 16px}
-.letters{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:12px}
-.letters span{background:var(--card);border-radius:8px;padding:8px 12px;font-size:22px}
+.stat b{font-variant-numeric:tabular-nums}
+.err{color:var(--bad);text-align:center;padding:var(--s6) var(--s4)}
+.skeleton{height:64px;border-radius:var(--r);background:var(--surface-2);
+          margin-bottom:var(--s2);animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
 </style>
 </head>
 <body>
 
+<!-- Иконки — один встроенный SVG-спрайт. Эмодзи для навигации не годятся:
+     они разные на разных телефонах и не красятся под тему. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<g id="i-book"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H19v3H6.5A2.5 2.5 0 0 1 4 20.5z"/></g>
+<g id="i-grammar"><path d="M4 7h16M4 12h10M4 17h13"/></g>
+<g id="i-verb"><path d="M12 3v18M5 8l7-5 7 5"/></g>
+<g id="i-alef"><path d="M5 5l14 14M19 5L5 19"/></g>
+<g id="i-spark"><path d="M12 3l2.2 5.6L20 10l-5.8 1.4L12 17l-2.2-5.6L4 10l5.8-1.4z"/></g>
+<g id="i-chart"><path d="M5 19V10M12 19V5M19 19v-6"/></g>
+<g id="i-sound"><path d="M5 10v4h3l4 3V7L8 10z"/><path d="M16 9a4 4 0 0 1 0 6"/></g>
+<g id="i-check"><path d="M4 12.5l5 5L20 7"/></g>
+<g id="i-cross"><path d="M6 6l12 12M18 6L6 18"/></g>
+<g id="i-chev"><path d="M9 5l7 7-7 7"/></g>
+</defs></svg>
+
 <div id="s-home" class="screen on">
   <h1>Что тренируем?</h1>
-  <button class="tile" data-go="topics">
-    <span><b>По темам</b><div class="sub">еда, семья, дом, город…</div></span></button>
-  <button class="tile" data-go="grammar">
-    <span><b>Грамматика</b><div class="sub">прилагательные, местоимения, числа</div></span></button>
-  <button class="tile" data-go="verbs">
-    <span><b>Глаголы</b><div class="sub">инфинитивы и три времени</div></span></button>
-  <button class="tile" data-go="alphabet">
-    <span><b>Алфавит</b><div class="sub">буквы, огласовки, чтение слогов</div></span></button>
-  <button class="tile" id="weak-tile" data-go="weak">
-    <span><b>Мои слабые места</b><div class="sub" id="weak-sub">карточки с ошибками</div></span>
-    <span class="badge" id="weak-badge" hidden></span></button>
-  <button class="tile" data-go="stats">
-    <span><b>Прогресс</b><div class="sub">точность, серия дней, что повторить</div></span>
-    <span class="badge" id="due-badge" hidden></span></button>
+  <div id="home-tiles"></div>
 </div>
 
 <div id="s-list" class="screen"><h1 id="list-title"></h1><div id="list"></div></div>
 
 <div id="s-format" class="screen">
   <h1 id="format-title"></h1>
-  <button class="tile" data-fmt="choice"><span><b>Выбрать из вариантов</b>
-    <div class="sub">узнавание — быстрее всего</div></span></button>
-  <button class="tile" data-fmt="type"><span><b>Написать самому</b>
-    <div class="sub">вспомнить, а не узнать. Огласовки не нужны</div></span></button>
-  <button class="tile" data-fmt="anagram" id="fmt-anagram"><span><b>Собрать из букв</b>
-    <div class="sub">тренирует написание</div></span></button>
+  <div id="format-tiles"></div>
 </div>
 
 <div id="s-round" class="screen">
-  <div class="progress"><i id="bar"></i></div>
+  <div class="bar"><i id="bar"></i></div>
   <div class="prompt">
     <div class="ask" id="ask"></div>
     <div class="word" id="word"></div>
@@ -140,27 +210,27 @@ input[type=text]:focus{outline:0;border-color:var(--btn)}
   <div id="options"></div>
   <div id="typed" hidden>
     <input type="text" id="answer" autocomplete="off" autocapitalize="off"
-           autocorrect="off" spellcheck="false" placeholder="ответ на иврите">
-    <div class="row" style="margin-top:8px">
+           autocorrect="off" spellcheck="false" aria-label="Ответ на иврите"
+           placeholder="напиши на иврите">
+    <div class="row">
       <button class="primary" id="send">Ответить</button>
-      <button class="ghost" id="skip" style="flex:0 0 40%">Не знаю</button>
+      <button class="ghost" id="skip" style="flex:0 0 38%">Не знаю</button>
     </div>
   </div>
-  <div id="verdict"></div>
-  <button class="primary" id="next" hidden style="margin-top:12px">Дальше</button>
+  <div id="verdict" aria-live="polite"></div>
+  <button class="primary" id="next" hidden style="margin-top:var(--s4)">Дальше</button>
 </div>
 
 <div id="s-done" class="screen">
-  <div class="big" id="score"></div>
-  <div class="center" id="score-sub"></div>
-  <div style="margin-top:26px">
+  <div id="ring-wrap"></div>
+  <div class="center" id="score-sub" style="font-size:17px;color:var(--text)"></div>
+  <div style="margin-top:var(--s6)">
     <button class="primary" id="again">Ещё раунд</button>
     <button class="ghost" data-go="home">В меню</button>
   </div>
 </div>
 
 <div id="s-stats" class="screen"><h1>Прогресс</h1><div id="stats"></div></div>
-
 <div id="s-error" class="screen"><div class="err" id="error-text"></div></div>
 
 <script>
@@ -168,171 +238,207 @@ const tg = window.Telegram?.WebApp;
 tg?.ready(); tg?.expand();
 
 const $ = id => document.getElementById(id);
-const state = { screen:"home", stack:[], round:null, idx:0, score:0, fmt:"choice",
-                mode:"vocab", cat:null, menu:null, answered:false };
+const icon = (name, size = 22) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 
-function show(name, push=true){
+/* Тема своя, но следует за клиентом: в тёмном Telegram светлое полотно
+   ночью бьёт по глазам. Шапку и фон красим в тон, чтобы приложение не
+   выглядело чужой вставкой. */
+function applyTheme(){
+  const dark = tg?.colorScheme === "dark";
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  const bg = dark ? "#0A1420" : "#EEF4FB";
+  try { tg?.setBackgroundColor?.(bg); tg?.setHeaderColor?.(bg); } catch(e){}
+}
+applyTheme();
+tg?.onEvent?.("themeChanged", applyTheme);
+
+const state = { screen:"home", stack:[], round:null, idx:0, score:0,
+                fmt:"choice", mode:"vocab", cat:null, menu:null, busy:false };
+
+function show(name, push = true){
   if (push && state.screen !== name) state.stack.push(state.screen);
   state.screen = name;
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("on"));
   $("s-" + name).classList.add("on");
-  window.scrollTo(0,0);
-  // Родная кнопка «назад» в шапке Telegram вместо своей в вёрстке.
+  window.scrollTo(0, 0);
   if (name === "home") tg?.BackButton.hide(); else tg?.BackButton.show();
 }
-tg?.BackButton.onClick(() => {
-  const prev = state.stack.pop() || "home";
-  show(prev, false);
-});
+tg?.BackButton.onClick(() => show(state.stack.pop() || "home", false));
+const buzz = t => { try { tg?.HapticFeedback?.notificationOccurred?.(t); } catch(e){} };
+const tap  = () => { try { tg?.HapticFeedback?.impactOccurred?.("light"); } catch(e){} };
 
-const buzz = t => tg?.HapticFeedback?.notificationOccurred?.(t);
-
-async function api(path, body={}){
+async function api(path, body = {}){
   const r = await fetch(path, {
     method:"POST", headers:{"Content-Type":"application/json"},
     body: JSON.stringify({ ...body, init_data: tg?.initData || "" })
   });
-  if (r.status === 401) throw new Error("unauthorized");
+  if (!r.ok && r.status !== 409) throw new Error(r.status);
   return r.json();
 }
-
 function fail(text){ $("error-text").textContent = text; show("error", false); }
+
+function tile({ ico, name, sub, badge, dim, onclick, compact }){
+  const b = document.createElement("button");
+  b.className = "tile" + (dim ? " dim" : "");
+  b.innerHTML =
+    `<span class="ico">${icon(ico, compact ? 18 : 22)}</span>
+     <span class="txt"><span class="name">${name}</span>
+       ${sub ? `<span class="sub">${sub}</span>` : ""}</span>
+     ${badge ? `<span class="badge">${badge}</span>` : ""}
+     ${compact ? "" : `<span class="chev">${icon("chev", 18)}</span>`}`;
+  b.onclick = () => { tap(); onclick(); };
+  return b;
+}
 
 // ---------- меню ----------
 
-async function boot(){
-  if (!tg?.initData) {
-    return fail("Откройте приложение через бота в Telegram — иначе его некому подписать.");
-  }
-  try {
-    state.menu = await api("/api/menu");
-  } catch (e) {
-    return fail("Не удалось связаться с сервером. Попробуйте позже.");
-  }
-  const due = state.menu.due, weak = state.menu.weak;
-  if (due)  { $("due-badge").hidden = false;  $("due-badge").textContent = due; }
-  if (weak) { $("weak-badge").hidden = false; $("weak-badge").textContent = weak;
-              $("weak-sub").textContent = "карточек, где ошибался"; }
-  else { $("weak-tile").style.opacity = .5; }
-}
-
+const SECTIONS = [
+  { go:"topics",   ico:"book",    name:"По темам",     sub:"еда, семья, дом, город…" },
+  { go:"grammar",  ico:"grammar", name:"Грамматика",   sub:"прилагательные, местоимения, числа" },
+  { go:"verbs",    ico:"verb",    name:"Глаголы",      sub:"инфинитивы и три времени" },
+  { go:"alphabet", ico:"alef",    name:"Алфавит",      sub:"буквы, огласовки, слоги" },
+];
 const TITLES = { topics:"По темам", grammar:"Грамматика", verbs:"Глаголы", alphabet:"Алфавит" };
+
+async function boot(){
+  if (!tg?.initData)
+    return fail("Откройте приложение через бота в Telegram — иначе его некому подписать.");
+  $("home-tiles").innerHTML = "<div class='skeleton'></div>".repeat(6);
+  try { state.menu = await api("/api/menu"); }
+  catch(e){ return fail("Не удалось связаться с сервером. Попробуйте позже."); }
+
+  const host = $("home-tiles");
+  host.innerHTML = "";
+  SECTIONS.forEach(s => host.appendChild(tile({ ...s, onclick:() => openList(s.go) })));
+  host.appendChild(tile({
+    ico:"spark", name:"Мои слабые места",
+    sub: state.menu.weak ? "карточки, где ошибался" : "пока ошибок нет",
+    badge: state.menu.weak || null, dim: !state.menu.weak,
+    onclick:() => { if (!state.menu.weak) return;
+                    state.mode = "weak"; state.cat = null; openFormat("Слабые места"); }
+  }));
+  host.appendChild(tile({
+    ico:"chart", name:"Прогресс", sub:"точность, серия дней, что повторить",
+    badge: state.menu.due || null, onclick: openStats
+  }));
+}
 
 function openList(kind){
   const items = state.menu[kind];
+  const wide  = kind === "topics" || kind === "grammar";
   $("list-title").textContent = TITLES[kind];
-  $("list").innerHTML = "";
-  const grid = document.createElement("div");
-  grid.className = kind === "topics" || kind === "grammar" ? "grid" : "";
-  items.forEach(it => {
-    const b = document.createElement("button");
-    b.className = "tile";
-    b.innerHTML = `<span><b>${it.name}</b><div class="sub">${it.count} карточек</div></span>`;
-    b.onclick = () => {
+  const host = $("list"); host.innerHTML = "";
+  const box = document.createElement("div");
+  box.className = wide ? "grid" : "";
+  items.forEach(it => box.appendChild(tile({
+    ico: kind === "verbs" ? "verb" : kind === "alphabet" ? "alef"
+        : kind === "grammar" ? "grammar" : "book",
+    name: it.name, sub: it.count + " карточек", compact: wide,
+    onclick:() => {
       // У глаголов и алфавита ключ — это режим, у слов — категория.
-      if (kind === "verbs" || kind === "alphabet") { state.mode = it.key; state.cat = null; }
+      if (kind === "verbs" || kind === "alphabet"){ state.mode = it.key; state.cat = null; }
       else { state.mode = "vocab"; state.cat = it.key; }
       openFormat(it.name);
-    };
-    grid.appendChild(b);
-  });
-  $("list").appendChild(grid);
-  if (kind === "topics" || kind === "grammar") {
-    const all = document.createElement("button");
-    all.className = "tile"; all.style.marginTop = "8px";
-    all.innerHTML = "<span><b>Всё вперемешку</b></span>";
-    all.onclick = () => { state.mode = "vocab"; state.cat = null; openFormat("все слова"); };
-    $("list").appendChild(all);
-  }
+    }
+  })));
+  host.appendChild(box);
+  if (wide) host.appendChild(tile({
+    ico:"spark", name:"Всё вперемешку", sub:"из всех тем сразу",
+    onclick:() => { state.mode = "vocab"; state.cat = null; openFormat("все слова"); }
+  }));
   show("list");
 }
 
+const FORMATS = [
+  { key:"choice",  ico:"check",   name:"Выбрать из вариантов", sub:"узнавание — быстрее всего" },
+  { key:"type",    ico:"grammar", name:"Написать самому",      sub:"вспомнить, а не узнать" },
+  { key:"anagram", ico:"alef",    name:"Собрать из букв",      sub:"тренирует написание" },
+];
 function openFormat(title){
   $("format-title").textContent = title;
-  $("fmt-anagram").hidden = !state.menu.anagram_modes.includes(state.mode);
+  const host = $("format-tiles"); host.innerHTML = "";
+  FORMATS.forEach(f => {
+    if (f.key === "anagram" && !state.menu.anagram_modes.includes(state.mode)) return;
+    host.appendChild(tile({ ...f, onclick:() => startRound(f.key) }));
+  });
   show("format");
 }
-
-document.querySelectorAll("[data-go]").forEach(b => b.onclick = () => {
-  const go = b.dataset.go;
-  if (go === "home")  return show("home", false);
-  if (go === "stats") return openStats();
-  if (go === "weak")  { state.mode = "weak"; state.cat = null; return openFormat("Слабые места"); }
-  openList(go);
-});
-document.querySelectorAll("[data-fmt]").forEach(b =>
-  b.onclick = () => startRound(b.dataset.fmt));
+document.querySelectorAll("[data-go='home']").forEach(b =>
+  b.onclick = () => { state.stack = []; show("home", false); });
 
 // ---------- раунд ----------
 
 async function startRound(fmt){
   state.fmt = fmt;
-  const r = await api("/api/round", { mode: state.mode, cat: state.cat, format: fmt });
+  const r = await api("/api/round", { mode:state.mode, cat:state.cat, format:fmt });
   if (r.error === "too_small") return fail("Тут пока слишком мало карточек для раунда.");
   if (r.error) return fail("Не получилось собрать раунд.");
   state.round = r; state.idx = 0; state.score = 0;
-  show("round");
-  renderQuestion();
+  show("round"); renderQuestion();
 }
 
 function renderQuestion(){
   const q = state.round.questions[state.idx];
-  state.answered = false;
-  $("bar").style.width = (state.idx / state.round.questions.length * 100) + "%";
+  const total = state.round.questions.length;
+  state.busy = false;
+  $("bar").style.width = (state.idx / total * 100) + "%";
   $("verdict").innerHTML = ""; $("next").hidden = true;
 
   const isForm = ["past","present","future"].includes(q.mode);
   const isAlef = q.mode.startsWith("alef_");
-  $("ask").textContent = isAlef ? "" : (isForm ? "какая это форма" : "как будет");
+  $("ask").textContent = isAlef ? `вопрос ${state.idx+1} из ${total}`
+                       : (isForm ? "какая это форма" : "как будет");
   $("word").textContent = q.ru;
-
   $("options").innerHTML = ""; $("typed").hidden = true; $("letters").hidden = true;
 
-  if (state.fmt === "choice") {
+  if (state.fmt === "choice"){
     q.options.forEach(opt => {
       const b = document.createElement("button");
-      b.className = "opt"; b.textContent = opt;
+      b.className = "opt";
+      b.innerHTML = `<span class="mark"></span><span class="he sm">${opt}</span>`;
       b.onclick = () => sendAnswer(opt, b);
       $("options").appendChild(b);
     });
   } else {
-    if (state.fmt === "anagram") {
+    if (state.fmt === "anagram"){
       $("letters").hidden = false;
       $("letters").innerHTML = q.letters.map(l => `<span>${l}</span>`).join("");
     }
-    $("typed").hidden = false;
-    $("answer").value = ""; $("answer").focus();
+    $("typed").hidden = false; $("answer").value = ""; $("answer").focus();
   }
 }
 
-async function sendAnswer(given, btn, skip=false){
-  if (state.answered) return;
-  state.answered = true;
+async function sendAnswer(given, btn, skip = false){
+  if (state.busy) return;
+  state.busy = true;
   const q = state.round.questions[state.idx];
-  const res = await api("/api/answer", {
-    mode: q.mode, ru: q.ru, answer: given, format: state.fmt, skip
-  });
+  const res = await api("/api/answer",
+    { mode:q.mode, ru:q.ru, answer:given, format:state.fmt, skip });
   if (res.correct) state.score++;
   buzz(res.correct ? "success" : "error");
 
-  if (state.fmt === "choice") {
+  if (state.fmt === "choice"){
     document.querySelectorAll(".opt").forEach(b => {
       b.disabled = true;
-      if (b.textContent === res.expected) b.classList.add("ok");
-      else if (b === btn) b.classList.add("bad");
+      const word = b.querySelector(".he").textContent;
+      if (word === res.expected){ b.classList.add("ok"); b.querySelector(".mark").innerHTML = icon("check", 20); }
+      else if (b === btn){ b.classList.add("bad"); b.querySelector(".mark").innerHTML = icon("cross", 20); }
     });
   }
 
   const kind = res.verdict === "typo" ? "typo" : (res.correct ? "ok" : "bad");
-  const head = { exact:"Верно", typo:"Почти — вот как пишется", wrong:"Не то",
-                 skip:"Правильный ответ" }[res.verdict] || "";
+  const head = { exact:"Верно", typo:"Почти — вот как пишется",
+                 wrong:"Не то", skip:"Правильный ответ" }[res.verdict] || "";
   $("verdict").innerHTML =
     `<div class="verdict ${kind}">
-       <div>${head}</div>
-       <div class="he small">${res.expected}</div>
+       <div class="head">${icon(res.correct ? "check" : "cross", 18)}<span>${head}</span></div>
+       <div class="he sm">${res.expected}</div>
        ${res.reading ? `<div class="reading">${res.reading}</div>` : ""}
        ${res.memory ? `<div class="memory">${res.memory}</div>` : ""}
-       ${res.audio ? `<button class="play" id="play">🔊 Послушать</button>` : ""}
+       ${res.audio ? `<button class="play" id="play">${icon("sound",18)}Послушать</button>` : ""}
      </div>`;
   if (res.audio) $("play").onclick = () => new Audio("/api/audio/" + res.audio).play();
   $("next").hidden = false;
@@ -341,20 +447,31 @@ async function sendAnswer(given, btn, skip=false){
 $("send").onclick = () => sendAnswer($("answer").value.trim());
 $("answer").addEventListener("keydown", e => { if (e.key === "Enter") $("send").click(); });
 $("skip").onclick = () => sendAnswer("", null, true);
-
 $("next").onclick = () => {
-  state.idx++;
+  tap(); state.idx++;
   if (state.idx >= state.round.questions.length) return finish();
   renderQuestion();
 };
 
+function ring(score, total){
+  const pct = total ? score / total : 0, R = 54, C = 2 * Math.PI * R;
+  const color = pct === 1 ? "var(--ok)" : pct >= .5 ? "var(--primary)" : "var(--warn)";
+  return `<svg class="ring" width="140" height="140" viewBox="0 0 140 140" role="img"
+               aria-label="${score} из ${total}">
+    <circle cx="70" cy="70" r="${R}" fill="none" stroke="var(--border)" stroke-width="12"/>
+    <circle cx="70" cy="70" r="${R}" fill="none" stroke="${color}" stroke-width="12"
+            stroke-linecap="round" stroke-dasharray="${C}"
+            stroke-dashoffset="${C * (1 - pct)}" transform="rotate(-90 70 70)"/>
+    <text x="70" y="79" text-anchor="middle">${score}/${total}</text></svg>`;
+}
+
 function finish(){
   const total = state.round.questions.length;
-  $("score").textContent = `${state.score} / ${total}`;
+  $("ring-wrap").innerHTML = ring(state.score, total);
   $("score-sub").textContent =
     state.score === total ? "Идеально — весь раунд без единой ошибки." :
-    state.score >= total*0.8 ? "Хорошо. Ошибки вернутся в следующем раунде." :
-    state.score >= total*0.5 ? "Половина взята, есть куда расти." :
+    state.score >= total * .8 ? "Хорошо. Ошибки вернутся в следующем раунде." :
+    state.score >= total * .5 ? "Половина взята, есть куда расти." :
     "Тема ещё сырая — прогоним ещё раз.";
   buzz(state.score === total ? "success" : "warning");
   show("done");
@@ -365,31 +482,32 @@ $("again").onclick = () => startRound(state.fmt);
 
 async function openStats(){
   show("stats");
-  $("stats").innerHTML = "<div class='center'>Считаю…</div>";
+  $("stats").innerHTML = "<div class='skeleton'></div>".repeat(3);
   const s = await api("/api/stats");
   if (s.error) return fail("Статистика недоступна.");
   const pct = s.total ? Math.round(100 * s.correct / s.total) : 0;
-  const rows = [
-    ["Всего ответов", s.total],
-    ["Правильных", `${s.correct} (${pct}%)`],
-    ["Занимаешься подряд", s.streak ? s.streak + " дн." : "—"],
-    ["Ждут повторения", s.due || "—"],
-  ].map(([k,v]) => `<div class="stat"><span>${k}</span><b>${v}</b></div>`).join("");
+  const line = (k, v) => `<div class="stat"><span>${k}</span><b>${v}</b></div>`;
 
-  const modes = s.by_mode.map(m =>
-    `<div class="stat"><span>${m.name}</span><b>${m.correct}/${m.total}</b></div>`).join("");
+  let html = `<div class="card">
+      ${line("Всего ответов", s.total)}
+      ${line("Правильных", `${s.correct} (${pct}%)`)}
+      ${line("Занимаешься подряд", s.streak ? s.streak + " дн." : "—")}
+      ${line("Ждут повторения", s.due || "—")}</div>`;
 
-  const weak = s.weak.map(w =>
-    `<div class="stat"><span><span class="he small">${w.he || w.ru}</span>
-       <div class="sub" style="color:var(--hint);font-size:13px">
-         ${w.reading ? w.reading + " — " : ""}${w.ru}</div></span>
-     <b>${w.wrong}</b></div>`).join("");
+  if (s.by_mode.length)
+    html += "<h2>По режимам</h2><div class='card'>"
+          + s.by_mode.map(m => line(m.name, `${m.correct}/${m.total}`)).join("") + "</div>";
 
-  $("stats").innerHTML = rows
-    + (modes ? "<h2>По режимам</h2>" + modes : "")
-    + (weak ? "<h2>Чаще всего ошибаешься</h2>" + weak
-              + `<button class="primary" style="margin-top:14px" id="train-weak">
-                   Потренировать эти</button>` : "");
+  if (s.weak.length){
+    html += "<h2>Чаще всего ошибаешься</h2><div class='card'>"
+      + s.weak.map(w => `<div class="stat">
+          <span><span class="he sm">${w.he || w.ru}</span>
+            <div class="sub" style="color:var(--muted);font-size:13px">
+              ${w.reading ? w.reading + " — " : ""}${w.ru}</div></span>
+          <b>${w.wrong}</b></div>`).join("")
+      + "</div><button class='primary' id='train-weak'>Потренировать эти</button>";
+  }
+  $("stats").innerHTML = html;
   const t = $("train-weak");
   if (t) t.onclick = () => { state.mode = "weak"; state.cat = null; openFormat("Слабые места"); };
 }
