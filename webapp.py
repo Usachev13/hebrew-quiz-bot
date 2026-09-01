@@ -538,15 +538,23 @@ def _say_card(cid, ph, female):
     # обратится или к женщине, а подстановка наугад учит неверной форме.
     pair = phrases.listener_forms(ph)
     if pair:
-        card["to"] = {
-            "m": {"he": pair["to_m"].replace(phrases.SLOT, "…"),
-                  "reading": translit(pair["to_m"].replace(phrases.SLOT, "")),
-                  "audio": (audio.audio_key(pair["to_m"])
-                            if audio.has_audio(pair["to_m"]) else None)},
-            "f": {"he": pair["to_f"].replace(phrases.SLOT, "…"),
-                  "reading": translit(pair["to_f"].replace(phrases.SLOT, "")),
-                  "audio": (audio.audio_key(pair["to_f"])
-                            if audio.has_audio(pair["to_f"]) else None)},
+        def side(to_female):
+            # Ключ звука — только через spoken(). Раньше здесь стояла
+            # сырая строка, и совпадало это по случайности.
+            v = phrases.spoken(ph, listener_female=to_female)
+            raw = pair["to_f"] if to_female else pair["to_m"]
+            return {"he": raw.replace(phrases.SLOT, "…"),
+                    "reading": translit(v),
+                    "audio": audio.audio_key(v) if audio.has_audio(v) else None}
+        card["to"] = {"m": side(False), "f": side(True)}
+
+    # Пример с заполненным слотом: человеку — образец целого предложения,
+    # диктору — то, что он произносит вместо «אֲנִי גָּר בְּ».
+    ex = ph.get("example")
+    if ex:
+        card["example"] = {
+            "he": (ex["he_f"] if (female and ex.get("he_f")) else ex["he"]),
+            "ru": ex["ru"],
         }
     return card
 

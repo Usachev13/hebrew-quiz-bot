@@ -247,6 +247,17 @@ button{font:inherit;color:inherit;cursor:pointer}
 .card-say .xl{display:block;font-size:30px;line-height:1.6;font-weight:700;
               direction:rtl}
 .card-say .tr{display:block;color:var(--muted);font-size:15px;margin-top:2px}
+/* Пример под фразой: видно, чем заполняется пропуск, и он же звучит. */
+.card-say .example{display:block;margin-top:var(--s3);padding:var(--s3);
+                   background:var(--surface-2);border-radius:var(--r)}
+.card-say .example[hidden]{display:none}
+.card-say .example .who{display:block;font-size:11px;font-weight:700;
+                        letter-spacing:.06em;text-transform:uppercase;
+                        color:var(--muted);margin-bottom:4px}
+.card-say .example .he{display:block;font-size:19px;font-weight:600;
+                       direction:rtl;line-height:1.5}
+.card-say .example .ru{display:block;color:var(--muted);font-size:13px;
+                       margin-top:2px}
 .card-say .snd{margin:var(--s3) auto 0;width:52px;height:52px;border:0;
                border-radius:999px;background:var(--primary);color:var(--on-primary);
                display:grid;place-items:center;box-shadow:var(--shadow-p)}
@@ -771,6 +782,7 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
     <span class="hidden-box" id="say-hidden">
       <span class="he xl" id="say-he"></span>
       <span class="tr" id="say-tr"></span>
+      <span class="example" id="say-example"></span>
       <button class="snd" id="say-snd" aria-label="Послушать"></button>
     </span>
     <span class="wait" id="say-wait"><i></i></span>
@@ -1287,6 +1299,14 @@ function renderSay(){
   $("say-note").hidden = !c.note;
   $("say-he").textContent = c.he;
   $("say-tr").textContent = c.reading || "";
+  // Пример с заполненным слотом: человек слышит и видит целую фразу, а
+  // не каркас с многоточием.
+  const ex = $("say-example");
+  ex.hidden = !c.example;
+  if (c.example) ex.innerHTML =
+    `<span class="who">например</span>
+     <span class="he">${c.example.he}</span>
+     <span class="ru">${c.example.ru}</span>`;
   $("say-hidden").hidden = true;
   $("say-judge").hidden = true;
   $("say-show").hidden = false;

@@ -102,6 +102,25 @@ def check():
             if phrases.by_id(cid) is not p:
                 problems.append(f"{where}: ключ {cid} не находит модель")
 
+            # 6б. У фразы со слотом обязан быть пример. Без него диктор
+            #     произносит обрубок: «אֲנִי גָּר בְּ» — предлог «в» без
+            #     того, к чему он относится.
+            if p.get("slot"):
+                ex = p.get("example")
+                if not ex:
+                    problems.append(f"{where}: слот есть, а примера нет")
+                else:
+                    if phrases.SLOT in ex.get("he", ""):
+                        problems.append(f"{where}: в примере остался слот")
+                    if not HEB.search(ex.get("he", "")):
+                        problems.append(f"{where}: в примере нет иврита")
+                    if not CYR.search(ex.get("ru", "")):
+                        problems.append(f"{where}: у примера нет перевода")
+                    # Если сама фраза меняется по говорящему, пример тоже
+                    # обязан: иначе женщина услышит мужскую форму.
+                    if p.get("he_f") and not ex.get("he_f"):
+                        problems.append(f"{where}: у примера нет женской формы")
+
             # 7. Строка для озвучки: без слота, без висящих знаков и не
             #    пустая. По ней ищется звуковой файл, и разойдись она с
             #    той, что записал генератор, звука не будет молча.
