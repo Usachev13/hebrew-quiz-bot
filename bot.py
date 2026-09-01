@@ -49,6 +49,11 @@ API_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
 ROUND_LEN = 10
 
+# Кому доступен /admin. Пусто — команда не работает ни у кого, кроме
+# подсказки «вот твой chat_id, впиши его в .env»: иначе на свежей
+# установке сводку увидел бы первый, кто наберёт команду.
+ADMIN_CHAT_ID = os.environ.get("ADMIN_CHAT_ID", "").strip()
+
 # Одна HTTP-сессия на процесс. Голый requests.post открывает новое
 # соединение на каждый вызов и заново жмёт руки по TLS, а на один вопрос
 # уходит три запроса подряд. Сессия держит соединение открытым.
@@ -1023,6 +1028,79 @@ def send_stats(chat_id):
     send_message(chat_id, "\n".join(lines), keyboard)
 
 
+# ---------- Сводка для владельца ----------
+
+def human_time(seconds):
+    """«2 ч 15 мин», «40 мин», «3 мин»."""
+    m = int(seconds) // 60
+    if m >= 60:
+        h, rest = divmod(m, 60)
+        return f"{h} ч {rest} мин" if rest else f"{h} ч"
+    return f"{m} мин" if m else "меньше минуты"
+
+
+def send_admin_stats(chat_id):
+    """Сводка по всей аудитории. Только владельцу бота."""
+    if not ADMIN_CHAT_ID:
+        send_message(
+            chat_id,
+            "Сводка не настроена.\n\n"
+            f"Твой chat_id: <code>{chat_id}</code>\n"
+            "Впиши его в <code>.env</code> как <code>ADMIN_CHAT_ID</code> "
+            "и перезапусти бота.",
+        )
+        return
+    if str(chat_id) != ADMIN_CHAT_ID:
+        # Молча: сообщать, что команда существует, посторонним незачем.
+        print(f"[admin] отказано {chat_id}")
+        return
+
+    try:
+        a = db.audience()
+        people = db.engagement()
+    except Exception as e:
+        print(f"[send_admin_stats] {e}")
+        send_message(chat_id, "Сводка недоступна: не читается база.")
+        return
+
+    acc = round(100 * a["correct"] / a["answers"]) if a["answers"] else 0
+    total_seconds = sum(p["seconds"] for p in people)
+    total_sessions = sum(p["sessions"] for p in people)
+
+    lines = [
+        "🛠 <b>Сводка</b>", "",
+        f"Всего заходило: {a['total']}",
+        f"Из них играли: {a['played']}",
+        f"Вернулись на второй день: {a['returned']}"
+        + (f" из {a['played']}" if a["played"] else ""),
+        "",
+        f"Активны за сутки: {a['day']}",
+        f"За неделю: {a['week']} (новых {a['new_week']})",
+        f"За месяц: {a['month']}",
+        "",
+        f"Ответов: {a['answers']} ({acc}% верных)",
+        f"Заходов: {total_sessions}",
+        f"Времени в боте: {human_time(total_seconds)}",
+    ]
+
+    if people:
+        lines += ["", "<b>По людям:</b>"]
+        for p in people[:15]:
+            mark = " ← ты" if p["chat_id"] == ADMIN_CHAT_ID else ""
+            lines.append(
+                f"• <code>{p['chat_id']}</code> — {human_time(p['seconds'])}, "
+                f"{p['sessions']} зах., {p['days']} дн., {p['answers']} отв.{mark}")
+        if len(people) > 15:
+            lines.append(f"<i>…и ещё {len(people) - 15}</i>")
+
+    lines += [
+        "",
+        "<i>Время считается по отметкам ответов: перерыв больше десяти "
+        "минут — новый заход. Это оценка, а не секундомер.</i>",
+    ]
+    send_message(chat_id, "\n".join(lines))
+
+
 # ---------- Webhook ----------
 
 @app.route(f"/webhook/{TELEGRAM_TOKEN}", methods=["POST"])
@@ -1065,6 +1143,8 @@ def _handle_webhook_update():
             send_message(chat_id, "Привет! Что тренируем сегодня?", main_menu_keyboard())
         elif text.startswith("/stats"):
             send_stats(chat_id)
+        elif text.startswith("/admin"):
+            send_admin_stats(chat_id)
         elif text.startswith("/word"):
             send_word_of_day(chat_id)
         elif text.startswith("/daily_on"):

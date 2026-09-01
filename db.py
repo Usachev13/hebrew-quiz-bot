@@ -421,6 +421,77 @@ def reactions_enabled(chat_id):
 
 # ---------- слово дня ----------
 
+# ---------- сводка для владельца бота ----------
+#
+# Времени в боте мы не пишем: считать секунды в вебхуке нечем — он живёт
+# от сообщения до сообщения и не знает, ушёл человек или задумался.
+# Зато у каждого ответа есть отметка времени, и по ним время
+# восстанавливается: подряд идущие ответы с паузой меньше SESSION_GAP —
+# один заход. Пауза больше — человек ушёл и вернулся, это уже новый.
+#
+# Это оценка, а не секундомер: последний ответ в заходе засчитывается
+# как SESSION_TAIL секунд, потому что сколько человек смотрел на экран
+# после него, мы знать не можем.
+SESSION_GAP = 600        # 10 минут
+SESSION_TAIL = 20        # сколько «стоит» одиночный ответ
+
+ENGAGEMENT_SQL = """
+WITH ordered AS (
+    -- Разницу берём в целых секундах через strftime('%s'), а не через
+    -- julianday: julianday возвращает дробные сутки, и на сотне ответов
+    -- накапливается погрешность в пару секунд.
+    SELECT chat_id, answered_at,
+           CAST(strftime('%s', answered_at) AS INTEGER)
+           - CAST(strftime('%s', LAG(answered_at) OVER (PARTITION BY chat_id
+                                                        ORDER BY answered_at))
+                  AS INTEGER) AS gap
+    FROM answers
+),
+marked AS (
+    SELECT chat_id,
+           CASE WHEN gap IS NULL OR gap > ? THEN 1 ELSE 0 END AS new_session,
+           CASE WHEN gap IS NULL OR gap > ? THEN ? ELSE gap END AS spent,
+           answered_at
+    FROM ordered
+)
+SELECT chat_id,
+       COUNT(*)                              AS answers,
+       SUM(new_session)                      AS sessions,
+       SUM(spent)                            AS seconds,
+       COUNT(DISTINCT date(answered_at))     AS days,
+       MIN(answered_at)                      AS first_answer,
+       MAX(answered_at)                      AS last_answer
+FROM marked
+GROUP BY chat_id
+"""
+
+
+def engagement(gap=SESSION_GAP, tail=SESSION_TAIL):
+    """По каждому, кто хоть раз отвечал: заходы, время, дни, ответы."""
+    rows = get_conn().execute(ENGAGEMENT_SQL, (gap, gap, tail)).fetchall()
+    return sorted((dict(r) for r in rows),
+                  key=lambda r: r["seconds"], reverse=True)
+
+
+def audience():
+    """Сводка по аудитории: сколько всего и сколько живых."""
+    q = lambda sql: get_conn().execute(sql).fetchone()[0]
+    return {
+        "total": q("SELECT COUNT(*) FROM users"),
+        "played": q("SELECT COUNT(DISTINCT chat_id) FROM answers"),
+        "day": q("SELECT COUNT(*) FROM users WHERE last_seen >= date('now','-1 day')"),
+        "week": q("SELECT COUNT(*) FROM users WHERE last_seen >= date('now','-7 day')"),
+        "month": q("SELECT COUNT(*) FROM users WHERE last_seen >= date('now','-30 day')"),
+        "new_week": q("SELECT COUNT(*) FROM users WHERE first_seen >= date('now','-7 day')"),
+        "answers": q("SELECT COUNT(*) FROM answers"),
+        "correct": q("SELECT COALESCE(SUM(correct),0) FROM answers"),
+        # Вернулся хотя бы на второй день — самая честная метрика на старте:
+        # показывает, зацепил продукт или человек посмотрел и ушёл.
+        "returned": q("SELECT COUNT(*) FROM (SELECT chat_id FROM answers "
+                      "GROUP BY chat_id HAVING COUNT(DISTINCT date(answered_at)) > 1)"),
+    }
+
+
 # ---------- кэш загруженных голосовых ----------
 
 def voice_file_id(file_key):
