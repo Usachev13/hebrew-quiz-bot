@@ -1191,7 +1191,7 @@ async function startRound(fmt){
   const r = await api("/api/round", { mode:state.mode, cat:state.cat, format:fmt });
   if (r.error === "too_small") return fail("Тут пока слишком мало карточек для раунда.");
   if (r.error) return fail("Не получилось собрать раунд.");
-  state.round = r; state.idx = 0; state.score = 0;
+  state.round = r; state.idx = 0; state.score = 0; state.busy = false;
   state.intro = r.intro || []; state.iIdx = 0;
   // Сначала знакомство, если в раунде есть слова, которых человек не видел.
   if (state.intro.length) renderIntro();
@@ -1202,6 +1202,10 @@ async function startRound(fmt){
 
 function renderIntro(){
   const c = state.intro[state.iIdx], total = state.intro.length;
+  // Флаг «занято» поднимается на время ответа и снимается в
+  // renderQuestion. После последнего вопроса раунда снимать его было
+  // некому, и он доживал до следующего раунда, где глушил все кнопки.
+  state.busy = false;
   show("intro");
   $("intro-of").textContent = `${state.iIdx + 1} / ${total}`;
   $("intro-bar").style.width = (state.iIdx / total * 100) + "%";
@@ -1327,7 +1331,11 @@ $("know").onclick = async () => {
   if (state.busy) return;
   state.busy = true;
   const q = state.round.questions[state.idx];
-  const r = await api("/api/know", { mode: q.mode, ru: q.ru });
+  let r;
+  // Без этого любой сбой оставлял флаг поднятым, и дальше не работала
+  // не только эта кнопка, а весь раунд.
+  try { r = await api("/api/know", { mode: q.mode, ru: q.ru }); }
+  catch(e){ state.busy = false; return fail("Не удалось отложить слово."); }
   buzz("success");
   $("verdict").innerHTML =
     `<div class="verdict ok"><div class="head">${icon("check",18)}

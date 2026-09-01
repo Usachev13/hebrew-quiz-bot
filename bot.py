@@ -22,6 +22,7 @@ from flask import Flask, request, jsonify
 import alphabet
 import audio
 import db
+import hebrew_name
 import quiz
 import reactions
 from quiz import (
@@ -174,6 +175,97 @@ def answer_callback(callback_id, text=None):
 # словарь с временами лежит на нём плашмя, ставить туда будет некуда.
 # Формат ответа (выбор / написать / анаграмма) вынесен в последний шаг:
 # раньше он был отдельной веткой меню и дублировал весь список тем.
+
+def plural(n, one, few, many):
+    """Склонение при числе: «201 слово», а не «201 слов». Числа здесь
+    считаются из данных и заранее неизвестны, так что руками не обойтись."""
+    n = abs(n) % 100
+    if 11 <= n <= 14:
+        return many
+    n %= 10
+    if n == 1:
+        return one
+    if 2 <= n <= 4:
+        return few
+    return many
+
+
+def _counts():
+    """Считаем по фактическим пулам, а не пишем цифры руками: словарь
+    пополняется, и захардкоженное число разойдётся с правдой молча."""
+    cats = {}
+    for _, _, c in POOLS["vocab"]:
+        cats[c] = cats.get(c, 0) + 1
+    return {
+        "words": len(POOLS["vocab"]),
+        "topic_words": sum(cats.get(k, 0) for k in TOPIC_LABELS),
+        "topics": len(TOPIC_LABELS),
+        "gram_words": sum(cats.get(k, 0) for k in GRAMMAR_LABELS),
+        "gram": len(GRAMMAR_LABELS),
+        "verbs": len(POOLS["verbs"]),
+        "forms": sum(len(POOLS[m]) for m in ("past", "present", "future")),
+        "alef": sum(len(POOLS[m]) for m in ALPHABET_MODES),
+        "alef_modes": len(ALPHABET_MODES),
+    }
+
+
+def welcome_text(name=""):
+    """Первое сообщение. Коротко: что это, с чего начать, куда нажать."""
+    hi = f", {name}" if name else ""
+    return (
+        f"<b>שלום{hi}!</b>\n"
+        "Это «Ани ломед иврит» — тренажёр для тех, кто учит иврит с нуля "
+        "или подтягивает ульпан.\n\n"
+        "Как это работает: сначала показываю новые слова — написание, "
+        "чтение, перевод и звук. Потом спрашиваю их же. Дальше слова "
+        "возвращаются по интервалам: через день, три, неделю, три недели. "
+        "Что даётся тяжело — приходит чаще.\n\n"
+        "Начните с алфавита, если буквы ещё не читаются. Если читаете — "
+        "берите темы.\n\n"
+        "Что внутри — /about"
+    )
+
+
+def about_text():
+    """«Что умеет бот». Без обещаний того, чего нет."""
+    c = _counts()
+    return (
+        "<b>Что здесь есть</b>\n\n"
+        f"🔤 <b>Алфавит</b> — {c['alef_modes']} "
+        f"{plural(c['alef_modes'], 'раздел', 'раздела', 'разделов')}, "
+        f"{c['alef']} {plural(c['alef'], 'карточка', 'карточки', 'карточек')}: "
+        "названия и звуки букв, конечные формы, дагеш "
+        "(почему בּ читается «б», а ב — «в»), огласовки, чтение слогов. "
+        "Разделы идут по порядку: от узнавания к чтению.\n\n"
+        f"📚 <b>Слова</b> — {c['topic_words']} "
+        f"{plural(c['topic_words'], 'слово', 'слова', 'слов')} "
+        f"в {c['topics']} бытовых темах "
+        "(еда, семья, дом, город, здоровье, покупки…) "
+        f"и ещё {c['gram_words']} в {c['gram']} грамматических группах: "
+        "прилагательные, местоимения, числительные, предлоги места.\n\n"
+        f"🔁 <b>Глаголы</b> — {c['verbs']} "
+        f"{plural(c['verbs'], 'инфинитив', 'инфинитива', 'инфинитивов')} "
+        f"и {c['forms']} {plural(c['forms'], 'форма', 'формы', 'форм')} "
+        "прошедшего, настоящего и будущего времени. Формы не набраны "
+        "вручную, а выведены по правилам биньянов — поэтому их столько.\n\n"
+        "🎧 <b>Озвучка</b> — произношение голосом, можно помедленнее. "
+        "Ударения размечены вручную, включая исключения вроде "
+        "בַּיִת и לָמָּה.\n\n"
+        "🧠 <b>Интервальные повторения</b> — пять коробок по Лейтнеру. "
+        "«Выучено» ставится не за один верный ответ, а за три с растущими "
+        "промежутками.\n\n"
+        "🎮 <b>Три формата</b> — выбрать из вариантов, написать самому, "
+        "собрать слово из букв. Ответ засчитывается и без огласовок, и с "
+        "опечаткой в одну букву.\n\n"
+        "📱 <b>Приложение</b> — прогресс по темам, слабые места, уровни и "
+        "серия дней. Открывается кнопкой ниже.\n\n"
+        "🗓 <b>Слово дня</b> по утрам — /daily_on и /daily_off.\n\n"
+        "<b>Чего пока нет:</b> связного курса уроков, разбора корня и "
+        "модели (шореш и мишкаль), готовых фраз и разговора с ИИ. "
+        "Это в планах — напишите, что из этого нужнее.\n\n"
+        "Команды: /start · /word · /stats · /voices · /speed"
+    )
+
 
 def main_menu_keyboard():
     rows = []
@@ -938,8 +1030,14 @@ def _handle_webhook_update():
             s["last_msg"] = message_id
         in_typing_round = bool(s and s.get("current") and s.get("typing"))
 
-        if text.startswith("/start") or text.startswith("/quiz"):
-            send_message(chat_id, "Привет! Что тренируем сегодня?", main_menu_keyboard())
+        if text.startswith("/start"):
+            first = (msg.get("from") or {}).get("first_name", "")
+            send_message(chat_id, welcome_text(hebrew_name.to_hebrew(first) or first),
+                         main_menu_keyboard())
+        elif text.startswith("/about") or text.startswith("/help"):
+            send_message(chat_id, about_text(), main_menu_keyboard())
+        elif text.startswith("/quiz"):
+            send_message(chat_id, "Что тренируем сегодня?", main_menu_keyboard())
         elif text.startswith("/stats"):
             send_stats(chat_id)
         elif text.startswith("/admin"):
