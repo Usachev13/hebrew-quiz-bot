@@ -28,6 +28,7 @@ from flask import Blueprint, jsonify, request, send_file
 
 import audio
 import db
+import hebrew_name
 import quiz
 from matching import check_answer, scramble
 from translit import translit
@@ -182,6 +183,32 @@ def menu(chat_id, payload):
         "weak": weak,
         "anagram_modes": sorted(quiz.ANAGRAM_MODES),
     })
+
+
+def _heb_name():
+    """Имя ивритскими буквами и признак того, что мы его угадали.
+
+    Имя берём из подписанного initData, а не из тела запроса: тело
+    клиент волен написать любое, а подпись Telegram подделать нельзя.
+    Правка пользователя всегда перевешивает то, что вывели правила.
+    """
+    user = current_user() or {}
+    ru = (user.get("first_name") or "").strip()
+    auto = hebrew_name.to_hebrew(ru)
+    try:
+        saved = db.heb_name(str(user.get("id", "")))
+    except Exception as e:
+        print(f"[heb_name] {e}")
+        saved = None
+    return {
+        "ru": ru,
+        "heb": saved or auto,
+        "auto": auto,
+        # Подсказку «поправьте, если не так» показываем только там, где
+        # действительно гадали: у имён из таблицы написание известное.
+        "guess": bool(auto) and not saved and hebrew_name.is_guess(ru),
+        "edited": bool(saved),
+    }
 
 
 # ---------- раунд ----------
@@ -389,6 +416,7 @@ def home(chat_id, payload):
         "answers": overall["total"], "correct": overall["correct"],
         "learned": sum(1 for b in boxes.values() if b >= 4),
         "topics": topics, "resume": resume,
+        "name": _heb_name(),
     })
 
 
@@ -488,6 +516,15 @@ def know(chat_id, payload):
 def profile(chat_id, payload):
     """Настройки и итоги. Настройки те же, что командами в чате, — иначе
     человек будет искать, где переключается озвучка, в двух местах."""
+    # Правка имени. Пустая строка стирает её и возвращает автоматическое
+    # написание — иначе опечатку было бы нечем откатить.
+    if "name" in payload:
+        try:
+            db.set_heb_name(chat_id, str(payload["name"])[:40])
+        except Exception as e:
+            print(f"[profile] имя: {e}")
+            return jsonify({"error": "db"}), 503
+
     if "set" in payload:
         what, value = payload["set"], bool(payload.get("value"))
         try:
@@ -506,6 +543,7 @@ def profile(chat_id, payload):
         return jsonify({
             "xp": xp, "level": level, "at_level": at_level, "need": need,
             "streak": db.streak_days(chat_id),
+            "name": _heb_name(),
             "answers": overall["total"], "correct": overall["correct"],
             "learned": sum(1 for b in db.word_boxes(chat_id).values() if b >= LEARNED_BOX),
             "favourites": len(db.favourites(chat_id)),

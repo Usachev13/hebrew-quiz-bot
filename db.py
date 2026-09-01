@@ -137,6 +137,9 @@ CREATE TABLE IF NOT EXISTS voice_files (
 LATER_COLUMNS = [
     ("prefs", "slow_voice", "INTEGER NOT NULL DEFAULT 0"),
     ("prefs", "reactions", "INTEGER NOT NULL DEFAULT 1"),
+    # Ивритское написание имени. Пусто — значит человек его не правил, и
+    # приложение показывает то, что вывело само.
+    ("prefs", "heb_name", "TEXT"),
 ]
 
 # Интервалы системы Лейтнера: сколько дней ждать до следующего показа.
@@ -404,6 +407,31 @@ def voice_enabled(chat_id):
         "SELECT voice FROM prefs WHERE chat_id = ?", (str(chat_id),)
     ).fetchone()
     return True if row is None else bool(row["voice"])
+
+
+def set_heb_name(chat_id, name):
+    """Имя ивритскими буквами, как его поправил сам пользователь.
+
+    Пустая строка стирает правку: приложение вернётся к тому написанию,
+    которое выводит само. Иначе опечатку было бы нечем откатить.
+    """
+    name = (name or "").strip()[:40]
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO prefs (chat_id, heb_name) VALUES (?, ?) "
+        "ON CONFLICT(chat_id) DO UPDATE SET heb_name = excluded.heb_name",
+        (str(chat_id), name or None),
+    )
+    conn.commit()
+    return name
+
+
+def heb_name(chat_id):
+    """Правка пользователя или None, если он ничего не менял."""
+    row = get_conn().execute(
+        "SELECT heb_name FROM prefs WHERE chat_id = ?", (str(chat_id),)
+    ).fetchone()
+    return (row["heb_name"] or None) if row else None
 
 
 def set_slow_voice(chat_id, slow):
