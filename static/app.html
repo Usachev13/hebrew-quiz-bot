@@ -260,6 +260,21 @@ button{font:inherit;color:inherit;cursor:pointer}
 .card-say .wait i{display:block;height:100%;width:0;background:var(--gold-bright);
                   border-radius:999px}
 .card-say .wait.run i{width:100%;transition:width 5s linear}
+/* Две формы рядом: подпись сверху говорит, кому так сказать. Без
+   подписи человек не поймёт, зачем ему два варианта. */
+.to-pair{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3);
+         margin-bottom:var(--s2)}
+.to-one{display:block;background:var(--surface-2);border-radius:var(--r);
+        padding:var(--s3)}
+.to-one .who{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;
+             text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.to-one .lg{display:block;font-size:20px;font-weight:700;direction:rtl;
+            line-height:1.5}
+.to-one .tr{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.to-one .mini{margin-top:var(--s2);width:34px;height:34px;border:0;
+              border-radius:999px;background:var(--primary-soft);
+              color:var(--primary);display:grid;place-items:center}
+
 .ok-btn{flex:1;min-height:52px;border:0;border-radius:var(--r);
         background:var(--ok);color:#fff;font-weight:650;font-size:17px;
         box-shadow:var(--shadow-p);transition:transform .18s var(--bounce)}
@@ -528,6 +543,13 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
 .me-form{width:100%;max-width:280px;margin-top:var(--s2)}
 .me-form input{font-size:22px;min-height:52px;text-align:center}
 .me-form .row{display:flex;gap:var(--s2);margin-top:var(--s2)}
+/* Переключатель из двух положений: видно и текущий выбор, и что его
+   можно поменять. */
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:999px;
+     overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--muted);
+            padding:6px 14px;font-size:14px;font-weight:600;min-height:34px}
+.seg button.on{background:var(--primary);color:var(--on-primary)}
 
 .tabs{position:fixed;left:0;right:0;bottom:0;display:flex;
       background:var(--glass);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-top:1px solid var(--border);
@@ -1210,19 +1232,21 @@ async function openSay(){
   catch(e){ return fail("Не удалось загрузить ситуации."); }
   host.innerHTML = "";
 
-  // Пол спрашиваем до первой фразы, а не в настройках: половина
-  // бытовых фраз меняет форму глагола по полу говорящего, и мужская
-  // форма у женщины — это выученная ошибка.
+  // Пол запирает вход в ситуации, а не соседствует с ними. Раньше
+  // плитки лежали прямо под вопросом, и его можно было проскочить —
+  // тогда женщина получала мужские формы, молча и без возможности
+  // поправить: управления в профиле не было вовсе.
   if (!r.gender){
     const box = document.createElement("div");
-    box.className = "card gender-ask";
+    box.className = "card";
     box.innerHTML = `<div class="stat"><span>Как вы говорите о себе?</span></div>
       <p class="lead" style="margin:0 0 12px">В иврите глагол меняется по полу
-         говорящего: «я хочу» звучит по-разному. Без этого половина фраз
-         будет с чужой формой.</p>
+         говорящего: мужчина скажет «אֲנִי רוֹצֶה», женщина — «אֲנִי רוֹצָה».
+         Без ответа половина фраз будет с чужой формой. Поменять можно
+         потом в профиле.</p>
       <div class="row">
-        <button class="primary" data-g="m">אֲנִי רוֹצֶה — мужская</button>
-        <button class="primary" data-g="f">אֲנִי רוֹצָה — женская</button>
+        <button class="primary" data-g="m">אֲנִי רוֹצֶה<br><small>мужская</small></button>
+        <button class="primary" data-g="f">אֲנִי רוֹצָה<br><small>женская</small></button>
       </div>`;
     host.appendChild(box);
     box.querySelectorAll("[data-g]").forEach(b => b.onclick = async () => {
@@ -1231,6 +1255,7 @@ async function openSay(){
       catch(e){ return fail("Не удалось сохранить."); }
       openSay();
     });
+    return;                       // ситуации не показываем, пока не ответят
   }
 
   r.situations.forEach(sit => host.appendChild(tile({
@@ -1280,6 +1305,35 @@ function revealSay(){
   $("say-wait").hidden = true;
   $("say-show").hidden = true;
   $("say-judge").hidden = false;
+
+  const box = $("say-hidden");
+  box.querySelector(".to-pair")?.remove();
+
+  if (c.to){
+    /* Фраза меняется по полу собеседника, а не говорящего. Выбрать за
+       человека нельзя — приложение не знает, к кому он обратится.
+       Поэтому показываем обе формы с подписями. */
+    $("say-he").hidden = true; $("say-tr").hidden = true;
+    const pair = document.createElement("span");
+    pair.className = "to-pair";
+    pair.innerHTML = ["m", "f"].map(k => `
+      <span class="to-one">
+        <span class="who">${k === "m" ? "мужчине" : "женщине"}</span>
+        <span class="he lg">${c.to[k].he}</span>
+        <span class="tr">${c.to[k].reading || ""}</span>
+        ${c.to[k].audio ? `<button class="mini" data-a="${c.to[k].audio}"
+             aria-label="Послушать">${icon("sound", 16)}</button>` : ""}
+      </span>`).join("");
+    box.insertBefore(pair, $("say-snd"));
+    pair.querySelectorAll("[data-a]").forEach(b => b.onclick = () => {
+      tap(); new Audio("/api/audio/" + b.dataset.a).play();
+    });
+    $("say-snd").hidden = true;
+    return;
+  }
+
+  $("say-he").hidden = false; $("say-tr").hidden = false;
+  $("say-snd").hidden = false;
   const snd = $("say-snd");
   snd.innerHTML = icon("sound", 22);
   snd.disabled = !c.audio;
@@ -1728,6 +1782,11 @@ async function openProfile(){
     </div>
     <h2>Настройки</h2>
     <div class="card settings">
+      <div class="stat"><span>Я говорю о себе</span>
+        <span class="seg" id="gender-seg">
+          <button data-g="m" class="${p.gender === "m" ? "on" : ""}">муж.</button>
+          <button data-g="f" class="${p.gender === "f" ? "on" : ""}">жен.</button>
+        </span></div>
       ${toggle("voice", "Произношение голосом", p.voice)}
       ${toggle("slow", "Медленная озвучка", p.slow)}
       ${toggle("daily", "Слово дня по утрам", p.daily)}
@@ -1766,6 +1825,16 @@ async function openProfile(){
       openProfile();
     };
   };
+
+  /* Пол меняется здесь же: раньше его спрашивали один раз в разделе
+     «Заговорить» и передумать было нельзя. */
+  $("gender-seg").querySelectorAll("[data-g]").forEach(b => b.onclick = async () => {
+    tap();
+    try { await api("/api/profile", { gender: b.dataset.g }); }
+    catch(e){ return fail("Не удалось сохранить."); }
+    buzz("success");
+    openProfile();
+  });
 
   $("stats").querySelectorAll("[data-set]").forEach(b => b.onclick = async () => {
     const on = !b.classList.contains("on");

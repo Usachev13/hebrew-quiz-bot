@@ -93,6 +93,10 @@ def collect(scope):
             items.append(ph.spoken(item, female=False))
             if item.get("he_f"):
                 items.append(ph.spoken(item, female=True))
+            # Формы к собеседнику-женщине: у них свой текст и свой файл.
+            pair = ph.listener_forms(item)
+            if pair:
+                items.append(pair["to_f"].replace(ph.SLOT, "").strip())
     if scope in ("all", "words"):
         for cat, pairs in VOCAB.items():
             for ru, he in pairs:

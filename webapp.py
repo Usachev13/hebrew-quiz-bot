@@ -524,7 +524,7 @@ def _say_card(cid, ph, female):
     # же строке, что записал генератор, — иначе ключи разойдутся.
     shown = he.replace(phrases.SLOT, "…")
     voice = phrases.spoken(ph, female)
-    return {
+    card = {
         "id": cid,
         "ru": ph["ru"].replace(phrases.SLOT, "…"),
         "he": shown,
@@ -533,6 +533,22 @@ def _say_card(cid, ph, female):
         "note": ph.get("note"),
         "slot": ph.get("slot"),
     }
+    # Фразы, зависящие от пола собеседника, отдаём обеими формами.
+    # Выбрать за человека нельзя: приложение не знает, к мужчине он
+    # обратится или к женщине, а подстановка наугад учит неверной форме.
+    pair = phrases.listener_forms(ph)
+    if pair:
+        card["to"] = {
+            "m": {"he": pair["to_m"].replace(phrases.SLOT, "…"),
+                  "reading": translit(pair["to_m"].replace(phrases.SLOT, "")),
+                  "audio": (audio.audio_key(pair["to_m"])
+                            if audio.has_audio(pair["to_m"]) else None)},
+            "f": {"he": pair["to_f"].replace(phrases.SLOT, "…"),
+                  "reading": translit(pair["to_f"].replace(phrases.SLOT, "")),
+                  "audio": (audio.audio_key(pair["to_f"])
+                            if audio.has_audio(pair["to_f"]) else None)},
+        }
+    return card
 
 
 @api.route("/api/say", methods=["POST"])
