@@ -6,7 +6,7 @@
 <title>Ani Lomed Ivrit</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@400;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
 <style>
 /* ─────────────────────────────────────────────────────────────────
    Палитра — флаг Израиля: белый и синий. Своя, а не тема Telegram:
@@ -15,12 +15,18 @@
    Все пары проверены на контраст WCAG AA (минимум 4.5:1 для текста).
    ───────────────────────────────────────────────────────────────── */
 :root{
-  --bg:#EEF4FB; --surface:#FFFFFF; --surface-2:#F6FAFE;
-  --text:#0B1B2B; --muted:#586A7C; --border:#D3E1F0;
-  --primary:#0038B8; --on-primary:#FFFFFF; --primary-soft:#E3EDFC;
-  --tchelet:#7FC3E8;
-  --ok:#137A3C; --bad:#B5231B; --warn:#8A5A00;
-  --ok-soft:#E4F4EA; --bad-soft:#FBE7E5; --warn-soft:#FAF0DC;
+  /* Песок, тёмно-синий, золото — как в утверждённом макете. Синий флага
+     остался, но ушёл из фона в акцент: на песочном полотне он читается
+     как чернила на бумаге, а не как заливка. */
+  --bg:#F4EFE6; --surface:#FFFFFF; --surface-2:#FBF8F2;
+  --text:#16233F; --muted:#6A6558; --border:#E3DACA;
+  --primary:#16233F; --on-primary:#FFFFFF; --primary-soft:#EFECE3;
+  --tchelet:#8FB4D9;
+  /* Золото двух видов: тёмное для текста (проходит контраст на белом),
+     светлое — только для дуг и штрихов, где текста нет. */
+  --gold:#8C6F12; --gold-bright:#C9A227;
+  --ok:#186B3A; --bad:#A32A20; --warn:#8A5A00;
+  --ok-soft:#E6F2EA; --bad-soft:#F9E9E7; --warn-soft:#F8F1DF;
 
   --r-sm:12px; --r:18px; --r-lg:24px;
   --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px;
@@ -31,7 +37,7 @@
      остаётся плоский прямоугольник с тенью. */
   /* Карточка — не глухая плита, а слой над фоном: полупрозрачная
      подложка с размытием пропускает свет и зерно снизу. */
-  --glass:rgba(255,255,255,.72);
+  --glass:rgba(255,255,255,.78);
   --shadow:inset 0 1px 0 rgba(255,255,255,.8),
            0 1px 2px rgba(11,27,43,.04), 0 10px 30px rgba(11,27,43,.08);
   --shadow-p:inset 0 1px 0 rgba(255,255,255,.28),
@@ -42,13 +48,16 @@
   --bounce:cubic-bezier(.34,1.56,.64,1);
 }
 html[data-theme="dark"]{
-  --bg:#0A1420; --surface:#152232; --surface-2:#1B2A3C;
-  --text:#E9F1F9; --muted:#9DB0C4; --border:#26374B;
-  --primary:#6FA8F5; --on-primary:#08182F; --primary-soft:#1B2C45;
-  --tchelet:#4E86B8;
-  --ok:#4FC77E; --bad:#FF7B72; --warn:#E0A94A;
-  --ok-soft:#12301F; --bad-soft:#341A18; --warn-soft:#332714;
-  --glass:rgba(21,34,50,.66);
+  /* Тёмная — та же гамма, а не другая: тёплый уголь вместо синевы,
+     чтобы песочный характер сохранялся и ночью. */
+  --bg:#12151C; --surface:#1B202B; --surface-2:#232936;
+  --text:#EDE7DA; --muted:#A39B8A; --border:#2E3543;
+  --primary:#E3D9C4; --on-primary:#12151C; --primary-soft:#252B37;
+  --tchelet:#5A7EA6;
+  --gold:#D9B84A; --gold-bright:#E3C766;
+  --ok:#57C77F; --bad:#FF8177; --warn:#E0A94A;
+  --ok-soft:#14301F; --bad-soft:#341A18; --warn-soft:#332714;
+  --glass:rgba(27,32,43,.7);
   --shadow:inset 0 1px 0 rgba(255,255,255,.06),
            0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.36);
   --shadow-p:inset 0 1px 0 rgba(255,255,255,.15), 0 8px 22px rgba(0,0,0,.5);
@@ -60,7 +69,7 @@ html[data-theme="dark"]{
    поверхности глухими — вид скромнее, читаемость та же. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
   :root{--glass:#FFFFFF}
-  html[data-theme="dark"]{--glass:#152232}
+  html[data-theme="dark"]{--glass:#1B202B}
 }
 
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -74,9 +83,9 @@ html{background:var(--bg)}
 body::before{
   content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;
   background:
-    radial-gradient(1100px 620px at 10% -10%, rgba(127,195,232,.42), transparent 62%),
-    radial-gradient(900px 520px at 95% 2%,   rgba(0,56,184,.14),   transparent 58%),
-    radial-gradient(820px 640px at 45% 106%, rgba(212,190,155,.38), transparent 64%);
+    radial-gradient(1000px 560px at 8% -12%,  rgba(201,162,39,.16),  transparent 62%),
+    radial-gradient(900px 520px at 96% 4%,    rgba(143,180,217,.24), transparent 60%),
+    radial-gradient(880px 660px at 48% 108%,  rgba(198,178,142,.30), transparent 66%);
 }
 /* Зерно поверх света. Оно и отличает «дорого» от «плоско»: убирает
    банддинг на градиентах и даёт поверхности материальность.
@@ -87,9 +96,9 @@ body::after{
 }
 html[data-theme="dark"] body::before{
   background:
-    radial-gradient(1100px 620px at 10% -10%, rgba(78,134,184,.26), transparent 62%),
-    radial-gradient(900px 520px at 95% 2%,   rgba(23,58,120,.34),  transparent 58%),
-    radial-gradient(820px 640px at 45% 106%, rgba(120,96,62,.18),  transparent 64%);
+    radial-gradient(1000px 560px at 8% -12%,  rgba(217,184,74,.10), transparent 62%),
+    radial-gradient(900px 520px at 96% 4%,    rgba(90,126,166,.16), transparent 60%),
+    radial-gradient(880px 660px at 48% 108%,  rgba(140,120,84,.14), transparent 66%);
 }
 html[data-theme="dark"] body::after{opacity:.09}
 
@@ -105,8 +114,12 @@ body{
 /* Типографика — главный признак «взрослого» интерфейса. Разница кеглей
    больше, начертания легче: 800 и 700 читаются как детский плакат, а
    сдержанные 600 с плотным трекингом — как редакционная вёрстка. */
-h1{font-size:28px;line-height:1.2;margin:0 0 var(--s5);letter-spacing:-.03em;
-   font-weight:600}
+/* Засечки только на крупном: заголовки и большие числа. В интерфейсных
+   мелочах они мешают, а здесь дают ту самую взрослую интонацию. */
+.serif{font-family:"Playfair Display",Georgia,serif;font-weight:600;
+       letter-spacing:-.01em}
+h1{font-family:"Playfair Display",Georgia,serif;font-size:30px;line-height:1.15;
+   margin:0 0 var(--s5);letter-spacing:-.01em;font-weight:600}
 h2{font-size:11px;margin:var(--s6) 0 var(--s3);color:var(--muted);
    font-weight:600;text-transform:uppercase;letter-spacing:.12em}
 button{font:inherit;color:inherit;cursor:pointer}
@@ -243,11 +256,24 @@ input[type=text]:focus{outline:0;border-color:var(--primary)}
    как «детское приложение»; конкурент на этом и проседает. Удод
    остаётся, но появляется только там, где эмоция уместна: итог раунда и
    пустой экран новичка. Здесь вместо него работают свет и типографика. */
-.hero{position:relative;overflow:hidden;color:#fff;border-radius:var(--r-lg);
-      background:linear-gradient(152deg,#052A7E 0%,#0B3E9E 46%,#2E6FBE 100%);
-      padding:var(--s5) var(--s4);margin-bottom:var(--s4);box-shadow:var(--shadow-p)}
+.hero{position:relative;overflow:hidden;color:#FFFFFF;border-radius:var(--r-lg);
+      background:linear-gradient(155deg,#1B2B4C 0%,#16233F 55%,#101A30 100%);
+      padding:var(--s5) var(--s4);margin-bottom:var(--s4);
+      box-shadow:0 12px 34px rgba(22,35,63,.22)}
 html[data-theme="dark"] .hero{
-      background:linear-gradient(152deg,#0B1F3E 0%,#123258 48%,#1D4C7A 100%)}
+      background:linear-gradient(155deg,#171C26 0%,#0E1522 60%,#0B111C 100%);
+      box-shadow:0 12px 34px rgba(0,0,0,.45)}
+.hero .greet{flex:1;min-width:0}
+.hero .hi{font-family:"Playfair Display",Georgia,serif;font-size:24px;
+          line-height:1.15;font-weight:600}
+.hero .ask{font-size:14px;opacity:.72;margin-top:4px}
+/* Серия — кольцо, как в макете: дуга золотом, число крупно внутри. */
+.streak{flex:0 0 auto;width:78px;height:78px;position:relative;display:grid;
+        place-items:center;text-align:center}
+.streak svg{position:absolute;inset:0}
+.streak .n{font-family:"Playfair Display",Georgia,serif;font-size:24px;
+           font-weight:600;line-height:1}
+.streak .l{font-size:9px;opacity:.7;letter-spacing:.06em;text-transform:uppercase}
 /* Мягкие блики вместо сплошного круга — та же слоистость, что у фона. */
 .hero::after{content:"";position:absolute;inset:0;pointer-events:none;
   background:
@@ -284,6 +310,20 @@ html[data-theme="dark"] .xpbar i{background:var(--on-primary)}
             color:var(--on-primary);display:grid;place-items:center}
 
 /* ── плитки-числа ── */
+/* Две плитки, как в макете: уровень с полосой и переход к статистике. */
+.prog{display:grid;grid-template-columns:1.35fr 1fr;gap:var(--s2);margin-bottom:var(--s5)}
+.prog .box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+           padding:var(--s4);box-shadow:var(--shadow);text-align:left;min-height:96px;
+           display:flex;flex-direction:column;justify-content:center;gap:var(--s2)}
+.prog .lvl{font-family:"Playfair Display",Georgia,serif;font-size:19px;font-weight:600}
+.prog .sub{font-size:12px;color:var(--muted)}
+.prog .line{display:flex;align-items:center;gap:var(--s2)}
+.prog .track{flex:1;height:6px;border-radius:999px;background:var(--border);overflow:hidden}
+.prog .track i{display:block;height:100%;border-radius:999px;background:var(--primary)}
+.prog .pct{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+.prog .stat-box{align-items:flex-start}
+.prog .stat-box .icon{color:var(--gold)}
+
 .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2);margin-bottom:var(--s5)}
 .metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
         padding:var(--s3);text-align:center;box-shadow:var(--shadow)}
@@ -297,27 +337,30 @@ html[data-theme="dark"] .xpbar i{background:var(--on-primary)}
    через конический градиент: тёмная дуга — выучено, светлая — показано,
    остальное — пустой ободок. Это тот же двойной показатель, что был в
    кольцах, но теперь он и есть форма плитки, а не значок сбоку. */
-.topics{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s4) var(--s2);
-        justify-items:center}
+/* Круги переехали на вкладку «Учиться»: на главной им было тесно, из-за
+   чего цифра налезала на значок, а подпись отрывалась от круга. Здесь
+   ширины хватает, и каждая плитка — цельный столбик. */
+.topics{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s5) var(--s3);
+        justify-items:center;margin-bottom:var(--s4)}
 .topic{display:flex;flex-direction:column;align-items:center;gap:var(--s2);
        background:none;border:0;padding:0;width:100%;
        transition:transform .18s var(--bounce)}
 .topic:active{transform:scale(.94)}
-.topic .ring{width:76px;height:76px;border-radius:50%;padding:5px;
+.topic .ring{width:72px;height:72px;border-radius:50%;padding:4px;
              display:grid;place-items:center;box-shadow:var(--shadow)}
 .topic .face{width:100%;height:100%;border-radius:50%;background:var(--surface);
              display:flex;flex-direction:column;align-items:center;justify-content:center;
              gap:1px;color:var(--text)}
-.topic .face .n{font-size:17px;font-weight:700;line-height:1;
-                font-variant-numeric:tabular-nums}
-.topic .face svg{opacity:.85}
+.topic .face .n{font-family:"Playfair Display",Georgia,serif;font-size:18px;
+                font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.topic .face svg{opacity:.7;margin-bottom:1px}
 /* Две строки с фиксированной высотой, а не обрезка многоточием:
    «Работа и учёба» в колонку не влезает, а «Работа и уч…» читается
    как сбой. Высота задана жёстко, иначе круги в ряду разъезжаются. */
 .topic .nm{font-size:13px;font-weight:600;text-align:center;line-height:1.25;
            max-width:100%;min-height:2.5em;display:-webkit-box;-webkit-line-clamp:2;
            -webkit-box-orient:vertical;overflow:hidden}
-.topic .sub{font-size:11px;color:var(--muted);line-height:1}
+.topic .sub{font-size:11px;color:var(--muted);line-height:1;margin-top:-2px}
 /* Каждой теме свой оттенок. Одноцветная сетка — то, от чего рябит и
    становится «сухо»: тринадцать одинаковых плиток глаз не различает. */
 .topic .txt{flex:1;min-width:0}
@@ -374,25 +417,33 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
 .word .dot-state.new{background:transparent;border:1px solid var(--border)}
 
 /* ── богатая карточка «продолжить» ── */
-.resume-rich{display:block;width:100%;text-align:left;background:var(--glass);
-             backdrop-filter:blur(14px);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;
-             box-shadow:var(--shadow);margin-bottom:var(--s4);padding:0}
+.resume-rich{display:block;width:100%;text-align:left;background:var(--surface);
+             border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;
+             box-shadow:var(--shadow);margin-bottom:var(--s5);padding:0;position:relative}
+/* Рисунок справа, как в макете: восход над холмами и оливковая ветвь.
+   Нарисован разметкой, а не картинкой — весит ничего и красится темой. */
+.resume-rich .art{position:absolute;right:0;top:0;width:44%;height:132px;
+                  border-bottom-left-radius:var(--r-lg);overflow:hidden;opacity:.95}
+.resume-rich .art svg{width:100%;height:100%;display:block}
 /* Каждая строка должна быть блоком. Со строчными span подпись, слово и
    транскрипция склеивались в одну строку — ровно то, что было видно. */
-.resume-rich .body{padding:var(--s4) var(--s4) 0}
+.resume-rich .body{padding:var(--s4) var(--s4) 0;position:relative;z-index:1}
 .resume-rich .body > span{display:block}
-.resume-rich .tr{display:inline-block!important;margin-inline-start:var(--s2)}
-.resume-rich .cap{font-size:11px;font-weight:700;letter-spacing:.08em;
-                  text-transform:uppercase;color:var(--primary)}
-.resume-rich .big{font-size:32px;line-height:1.6;font-weight:700;margin-top:var(--s1);
-                  display:block}
-.resume-rich .tr{color:var(--muted);font-size:14px}
-.resume-rich .ru{font-size:17px;font-weight:600;margin-top:var(--s2)}
-.resume-rich .where{color:var(--muted);font-size:13px;margin-top:2px}
+/* Ширину текста ограничиваем, чтобы строки не заезжали под рисунок. */
+.resume-rich .cap,.resume-rich .big,.resume-rich .tr{max-width:56%}
+.resume-rich .ru,.resume-rich .where{max-width:100%}
+.resume-rich .cap{font-size:10px;font-weight:700;letter-spacing:.14em;
+                  text-transform:uppercase;color:var(--gold)}
+.resume-rich .big{font-size:32px;line-height:1.65;font-weight:700;margin-top:var(--s2);
+                  display:block;text-align:right;direction:rtl}
+.resume-rich .tr{color:var(--muted);font-size:14px;text-align:right}
+.resume-rich .ru{font-size:18px;font-weight:600;margin-top:var(--s4)}
+.resume-rich .where{color:var(--muted);font-size:13px;margin-top:3px}
 .resume-rich .cta{display:flex;align-items:center;justify-content:space-between;
-                  gap:var(--s2);margin:var(--s4);min-height:52px;padding:0 var(--s4);
-                  border-radius:var(--r);background:var(--primary);color:var(--on-primary);
-                  font-weight:650;box-shadow:var(--shadow-p)}
+                  gap:var(--s2);margin:var(--s5) var(--s4) var(--s4);min-height:54px;
+                  padding:0 var(--s4);border-radius:var(--r);background:var(--primary);
+                  color:var(--on-primary);font-weight:600;font-size:16px;
+                  box-shadow:0 8px 20px rgba(22,35,63,.2)}
 .resume-rich:active{transform:translateY(2px)}
 
 .settings .stat{cursor:pointer}
@@ -449,7 +500,8 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
 </defs></svg>
 
 <div id="s-home" class="screen on"><div id="home"></div></div>
-<div id="s-learn" class="screen"><h1>Что тренируем?</h1><div id="learn-tiles"></div></div>
+<div id="s-learn" class="screen"><h1>Что тренируем?</h1>
+  <div id="learn-tiles"></div><div id="learn-topics"></div></div>
 
 <div id="s-list" class="screen"><h1 id="list-title"></h1><div id="list"></div></div>
 
@@ -643,6 +695,45 @@ function countUp(el, to){
   requestAnimationFrame(step);
 }
 
+/* Восход над холмами и оливковая ветвь — рисунок из макета, но
+   разметкой, а не картинкой: весит ничего, чёткий на любом экране и
+   красится вместе с темой. */
+function sunrise(){
+  return `<svg viewBox="0 0 200 132" preserveAspectRatio="xMidYMax slice"
+       role="img" aria-hidden="true">
+    <defs>
+      <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="var(--surface-2)"/>
+        <stop offset="1" stop-color="var(--primary-soft)"/></linearGradient>
+      <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="var(--gold-bright)"/>
+        <stop offset="1" stop-color="var(--gold-bright)" stop-opacity=".35"/></linearGradient>
+    </defs>
+    <rect width="200" height="132" fill="url(#sky)"/>
+    <circle cx="118" cy="74" r="26" fill="url(#sun)"/>
+    <path d="M0 96 Q34 74 62 90 T118 84 T200 98 V132 H0Z"
+          fill="var(--tchelet)" opacity=".38"/>
+    <path d="M0 110 Q40 92 78 104 T148 100 T200 112 V132 H0Z"
+          fill="var(--primary)" opacity=".16"/>
+    <g stroke="var(--gold)" stroke-width="1.6" fill="none" opacity=".65">
+      <path d="M14 8 C34 20 44 40 46 62"/>
+      <path d="M22 20 q10-8 18-4 q-8 8-18 4Z" fill="var(--gold)" opacity=".5" stroke="none"/>
+      <path d="M31 34 q11-7 19-2 q-9 8-19 2Z" fill="var(--gold)" opacity=".5" stroke="none"/>
+      <path d="M39 50 q11-6 19-1 q-9 8-19 1Z" fill="var(--gold)" opacity=".5" stroke="none"/>
+    </g>
+  </svg>`;
+}
+
+function streakRing(days){
+  const R = 34, C = 2 * Math.PI * R, p = Math.min(days, 30) / 30;
+  return `<svg viewBox="0 0 78 78" aria-hidden="true">
+    <circle cx="39" cy="39" r="${R}" fill="none" stroke="rgba(255,255,255,.18)"
+            stroke-width="5"/>
+    <circle cx="39" cy="39" r="${R}" fill="none" stroke="var(--gold-bright)"
+            stroke-width="5" stroke-linecap="round" stroke-dasharray="${C}"
+            stroke-dashoffset="${C * (1 - p)}" transform="rotate(-90 39 39)"/></svg>`;
+}
+
 async function renderHome(){
   let h;
   try { h = await api("/api/home"); }
@@ -662,25 +753,27 @@ async function renderHome(){
     ? `<img class="avatar" src="${user.photo_url}" alt="">`
     : `<div class="avatar">${initials}</div>`;
 
+  const first = (user?.first_name || "").trim();
   let html = `
     <section class="hero">
       <div class="top">
         ${avatar}
-        <div class="who">
-          <div class="name">${name}</div>
-          <div class="lvl">Уровень ${h.level} · ${h.xp} XP</div>
+        <div class="greet">
+          <div class="hi">Шалом${first ? ", " + first : ""}!</div>
+          <div class="ask">Готов продолжить?</div>
         </div>
-        <div class="flame">${icon("flame",16)}<span>${h.streak}</span></div>
+        <div class="streak">${streakRing(h.streak)}
+          <span><span class="n">${h.streak}</span><br>
+            <span class="l">${h.streak ? "дней подряд" : "начни серию"}</span></span>
+        </div>
       </div>
-      <div class="xpbar"><i style="width:${pct}%"></i></div>
-      <div class="xptext"><span>${h.at_level} / ${h.need} до ${h.level + 1} уровня</span>
-        <span>${h.learned} слов выучено</span></div>
     </section>`;
 
   // Карточка показывает то самое слово, которое выпадет первым.
   // Ярлык темы не говорит, ради чего нажимать.
   if (h.resume) html += h.resume.he ? `
     <button class="resume-rich" id="resume">
+      <span class="art">${sunrise()}</span>
       <span class="body">
         <span class="cap">Продолжить</span>
         <span class="big he">${h.resume.he}</span>
@@ -696,13 +789,19 @@ async function renderHome(){
       <span class="go">${icon("play",18)}</span>
     </button>`;
 
-  html += `<div class="metrics">
-      <div class="metric${h.due ? " accent" : ""}"><div class="n" data-count="${h.due}">0</div>
-        <div class="l">повторить</div></div>
-      <div class="metric"><div class="n" data-count="${h.weak}">0</div>
-        <div class="l">с ошибками</div></div>
-      <div class="metric"><div class="n" data-count="${h.answers}">0</div>
-        <div class="l">ответов</div></div>
+  html += `<h2>Твой прогресс</h2>
+    <div class="prog">
+      <div class="box">
+        <span class="lvl">Уровень ${h.level}</span>
+        <span class="sub">${h.learned} слов выучено</span>
+        <span class="line"><span class="track"><i style="width:${pct}%"></i></span>
+          <span class="pct">${pct}%</span></span>
+      </div>
+      <button class="box stat-box" id="to-stats">
+        <span class="icon">${icon("chart",22)}</span>
+        <span class="lvl" style="font-size:16px">Статистика</span>
+        <span class="sub">${h.due} к повторению</span>
+      </button>
     </div>`;
 
   if (!h.answers){
@@ -718,8 +817,22 @@ async function renderHome(){
     return;
   }
 
-  html += `<h2>Темы</h2><div class="topics">`
-    + h.topics.map(t => `<button class="topic" data-topic="${t.key}"
+  $("home").innerHTML = html;
+  $("to-stats").onclick = () => { tap(); goTab("stats"); };
+  const r = $("resume");
+  if (r) r.onclick = () => { tap();
+    state.mode = h.resume.mode; state.cat = h.resume.cat;
+    openFormat(h.resume.label); };
+  renderTopics(h.topics);
+}
+
+/* Темы живут на вкладке «Учиться»: на главной им не хватало ширины, и
+   круги слипались — цифра налезала на значок, подпись отрывалась. */
+function renderTopics(topics){
+  const host = $("learn-topics");
+  if (!host) return;
+  host.innerHTML = `<h2>Темы</h2><div class="topics">`
+    + topics.map(t => `<button class="topic" data-topic="${t.key}"
         aria-label="${t.name}: показано ${t.seen} из ${t.total}, выучено ${t.learned}">
         <span class="ring" style="${ringStyle(t.key, t.seen, t.learned, t.total)}">
           <span class="face">
@@ -732,15 +845,7 @@ async function renderHome(){
       </button>`).join("")
     + `</div>`;
 
-  $("home").innerHTML = html;
-  document.querySelectorAll("[data-count]").forEach(el =>
-    countUp(el, +el.dataset.count));
-
-  const r = $("resume");
-  if (r) r.onclick = () => { tap();
-    state.mode = h.resume.mode; state.cat = h.resume.cat;
-    openFormat(h.resume.label); };
-  document.querySelectorAll("[data-topic]").forEach(b => b.onclick = () => {
+  host.querySelectorAll("[data-topic]").forEach(b => b.onclick = () => {
     tap(); state.mode = "vocab"; state.cat = b.dataset.topic;
     openFormat(state.menu.topics.find(t => t.key === b.dataset.topic).name);
   });
