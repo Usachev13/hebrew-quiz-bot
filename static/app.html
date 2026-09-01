@@ -29,8 +29,11 @@
   /* Клеймофизм: двойная тень — внутренний блик сверху и мягкая внешняя
      снизу. Именно внутренний блик даёт ощущение объёма; без него
      остаётся плоский прямоугольник с тенью. */
-  --shadow:inset 0 1px 0 rgba(255,255,255,.9),
-           0 1px 2px rgba(11,27,43,.05), 0 8px 20px rgba(11,27,43,.09);
+  /* Карточка — не глухая плита, а слой над фоном: полупрозрачная
+     подложка с размытием пропускает свет и зерно снизу. */
+  --glass:rgba(255,255,255,.72);
+  --shadow:inset 0 1px 0 rgba(255,255,255,.8),
+           0 1px 2px rgba(11,27,43,.04), 0 10px 30px rgba(11,27,43,.08);
   --shadow-p:inset 0 1px 0 rgba(255,255,255,.28),
              0 2px 4px rgba(0,56,184,.2), 0 10px 24px rgba(0,56,184,.26);
   --tap:44px;                       /* минимальная площадь касания */
@@ -45,15 +48,53 @@ html[data-theme="dark"]{
   --tchelet:#4E86B8;
   --ok:#4FC77E; --bad:#FF7B72; --warn:#E0A94A;
   --ok-soft:#12301F; --bad-soft:#341A18; --warn-soft:#332714;
-  --shadow:inset 0 1px 0 rgba(255,255,255,.07),
-           0 1px 2px rgba(0,0,0,.45), 0 8px 22px rgba(0,0,0,.4);
+  --glass:rgba(21,34,50,.66);
+  --shadow:inset 0 1px 0 rgba(255,255,255,.06),
+           0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.36);
   --shadow-p:inset 0 1px 0 rgba(255,255,255,.15), 0 8px 22px rgba(0,0,0,.5);
 }
 
+/* Запасной путь. Размытие поддерживают не все вебвью, а без него
+   полупрозрачная карточка остаётся просто прозрачной: текст ложится
+   прямо на градиент фона и мутнеет. Там, где размытия нет, делаем
+   поверхности глухими — вид скромнее, читаемость та же. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
+  :root{--glass:#FFFFFF}
+  html[data-theme="dark"]{--glass:#152232}
+}
+
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{background:var(--bg)}
+html{background:var(--bg)}
+
+/* Фон — не однотонная заливка, а несколько мягких пятен света: тхелет
+   сверху слева, синий справа, тёплый песок снизу. Без него карточки
+   висят на пустом поле и всё читается бледно, что и было видно.
+   Всё на градиентах: ни одного лишнего запроса, чёткость на любом
+   экране, перекрашивается вместе с темой. */
+body::before{
+  content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;
+  background:
+    radial-gradient(1100px 620px at 10% -10%, rgba(127,195,232,.42), transparent 62%),
+    radial-gradient(900px 520px at 95% 2%,   rgba(0,56,184,.14),   transparent 58%),
+    radial-gradient(820px 640px at 45% 106%, rgba(212,190,155,.38), transparent 64%);
+}
+/* Зерно поверх света. Оно и отличает «дорого» от «плоско»: убирает
+   банддинг на градиентах и даёт поверхности материальность.
+   SVG-шум встроен строкой — файла нет, весит десятки байт. */
+body::after{
+  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.055;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+html[data-theme="dark"] body::before{
+  background:
+    radial-gradient(1100px 620px at 10% -10%, rgba(78,134,184,.26), transparent 62%),
+    radial-gradient(900px 520px at 95% 2%,   rgba(23,58,120,.34),  transparent 58%),
+    radial-gradient(820px 640px at 45% 106%, rgba(120,96,62,.18),  transparent 64%);
+}
+html[data-theme="dark"] body::after{opacity:.09}
+
 body{
-  margin:0;color:var(--text);
+  margin:0;color:var(--text);background:transparent;
   /* Безопасные зоны: вырез сверху и полоса жеста снизу не должны
      перекрывать содержимое. */
   padding:calc(env(safe-area-inset-top) + var(--s4)) var(--s4)
@@ -61,9 +102,13 @@ body{
   font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
   -webkit-font-smoothing:antialiased;
 }
-h1{font-size:24px;line-height:1.25;margin:0 0 var(--s5);letter-spacing:-.02em}
-h2{font-size:13px;margin:var(--s5) 0 var(--s2);color:var(--muted);
-   font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+/* Типографика — главный признак «взрослого» интерфейса. Разница кеглей
+   больше, начертания легче: 800 и 700 читаются как детский плакат, а
+   сдержанные 600 с плотным трекингом — как редакционная вёрстка. */
+h1{font-size:28px;line-height:1.2;margin:0 0 var(--s5);letter-spacing:-.03em;
+   font-weight:600}
+h2{font-size:11px;margin:var(--s6) 0 var(--s3);color:var(--muted);
+   font-weight:600;text-transform:uppercase;letter-spacing:.12em}
 button{font:inherit;color:inherit;cursor:pointer}
 :focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:4px}
 .screen{display:none} .screen.on{display:block;animation:in .22s ease-out}
@@ -94,8 +139,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 .tile{
   display:flex;align-items:center;gap:var(--s3);width:100%;min-height:var(--tap);
   text-align:left;padding:var(--s4);margin-bottom:var(--s2);border:1px solid var(--border);
-  border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow);
-  border-width:2px;
+  border-radius:var(--r);background:var(--glass);backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);box-shadow:var(--shadow);border-width:1px;
   transition:transform .18s var(--bounce), box-shadow .18s ease-out;
 }
 .tile:active{transform:translateY(2px) scale(.99);
@@ -130,7 +175,7 @@ button{font:inherit;color:inherit;cursor:pointer}
      overflow:hidden}
 .bar i{display:block;height:100%;background:var(--primary);border-radius:999px;
        transition:width .3s cubic-bezier(.4,0,.2,1)}
-.prompt{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+.prompt{background:var(--glass);backdrop-filter:blur(14px);border:1px solid var(--border);border-radius:var(--r-lg);
         padding:var(--s5) var(--s4);margin-bottom:var(--s4);text-align:center;
         box-shadow:var(--shadow)}
 .prompt .ask{color:var(--muted);font-size:12px;text-transform:uppercase;
@@ -140,8 +185,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 .opt{
   display:flex;align-items:center;justify-content:flex-end;gap:var(--s3);
   width:100%;min-height:60px;padding:var(--s3) var(--s4);margin-bottom:var(--s2);
-  border:3px solid var(--border);border-radius:var(--r);background:var(--surface);
-  box-shadow:var(--shadow);
+  border:2px solid var(--border);border-radius:var(--r);background:var(--glass);
+  backdrop-filter:blur(14px);box-shadow:var(--shadow);
   transition:border-color .18s, background .18s, transform .18s var(--bounce);
 }
 .opt:active:not(:disabled){transform:translateY(2px) scale(.99)}
@@ -185,7 +230,7 @@ input[type=text]:focus{outline:0;border-color:var(--primary)}
 .ring{display:block;margin:var(--s3) auto}
 .ring text{font:700 26px system-ui;fill:var(--text)}
 .center{text-align:center;color:var(--muted);padding:0 var(--s4)}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+.card{background:var(--glass);backdrop-filter:blur(14px);border:1px solid var(--border);border-radius:var(--r);
       box-shadow:var(--shadow);padding:var(--s2) var(--s4);margin-bottom:var(--s4)}
 .stat{display:flex;justify-content:space-between;align-items:center;gap:var(--s3);
       padding:var(--s3) 0;border-bottom:1px solid var(--border)}
@@ -193,38 +238,38 @@ input[type=text]:focus{outline:0;border-color:var(--primary)}
 .stat b{font-variant-numeric:tabular-nums}
 .err{color:var(--bad);text-align:center;padding:var(--s6) var(--s4)}
 /* ── шапка профиля ──
-   Заливка не плоская: небо флага уходит от насыщенного синего к тхелету.
-   Плоский прямоугольник — главная причина, по которой интерфейс читается
-   как страница, а не как приложение. Маскот тут же: у продукта есть лицо,
-   и прятать его в стикерпаке незачем. */
+   Маскот с постоянного экрана убран. Он рисованный, а аудитория —
+   взрослые из творческих профессий, для которых мультяшность читается
+   как «детское приложение»; конкурент на этом и проседает. Удод
+   остаётся, но появляется только там, где эмоция уместна: итог раунда и
+   пустой экран новичка. Здесь вместо него работают свет и типографика. */
 .hero{position:relative;overflow:hidden;color:#fff;border-radius:var(--r-lg);
-      background:linear-gradient(135deg,#0038B8 0%,#1E5FD6 55%,#4E9BE0 100%);
+      background:linear-gradient(152deg,#052A7E 0%,#0B3E9E 46%,#2E6FBE 100%);
       padding:var(--s5) var(--s4);margin-bottom:var(--s4);box-shadow:var(--shadow-p)}
 html[data-theme="dark"] .hero{
-      background:linear-gradient(135deg,#12325E 0%,#1B4A86 55%,#2B6BA8 100%)}
-.hero::after{content:"";position:absolute;right:-40px;top:-60px;width:190px;height:190px;
-             border-radius:50%;background:rgba(255,255,255,.10)}
-.hero .bird{position:absolute;right:-4px;bottom:-8px;width:88px;opacity:.95;
-            pointer-events:none}
-/* Текст под полосой опыта не должен заезжать под птицу: отступ считаем
-   от её ширины плюс зазор, иначе строка упирается вплотную. */
-.hero .xptext{padding-right:98px}
+      background:linear-gradient(152deg,#0B1F3E 0%,#123258 48%,#1D4C7A 100%)}
+/* Мягкие блики вместо сплошного круга — та же слоистость, что у фона. */
+.hero::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(300px 220px at 88% -12%, rgba(255,255,255,.17), transparent 62%),
+    radial-gradient(280px 240px at 6% 118%, rgba(127,195,232,.22), transparent 64%)}
 .hero .top{display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s4);
            position:relative;z-index:1}
 .hero .xpbar,.hero .xptext{position:relative;z-index:1}
 .avatar{flex:0 0 46px;width:46px;height:46px;border-radius:50%;object-fit:cover;
         border:2px solid rgba(255,255,255,.55);background:rgba(255,255,255,.2);
         display:grid;place-items:center;font-weight:700;font-size:17px}
-.hero .who{flex:1;min-width:0;max-width:60%}
-.hero .name{font-weight:650;font-size:18px;line-height:1.2}
-.hero .lvl{font-size:13px;opacity:.85;margin-top:2px}
+.hero .who{flex:1;min-width:0}
+.hero .name{font-weight:600;font-size:19px;line-height:1.2;letter-spacing:-.02em}
+.hero .lvl{font-size:11px;opacity:.75;margin-top:4px;letter-spacing:.1em;
+           text-transform:uppercase}
 .hero .flame{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.16);
              border-radius:999px;padding:6px 12px;font-weight:650;font-size:14px}
 .xpbar{height:8px;background:rgba(255,255,255,.22);border-radius:999px;overflow:hidden}
 .xpbar i{display:block;height:100%;background:#fff;border-radius:999px;
          transition:width .5s cubic-bezier(.4,0,.2,1)}
 .hero .xptext{display:flex;justify-content:space-between;font-size:12px;
-              opacity:.85;margin-top:6px}
+              opacity:.8;margin-top:8px}
 html[data-theme="dark"] .xpbar i{background:var(--on-primary)}
 
 /* ── карточка «продолжить» ── */
@@ -286,7 +331,7 @@ html[data-theme="dark"] .xpbar i{background:var(--on-primary)}
 /* ── нижняя навигация ── */
 body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
 .tabs{position:fixed;left:0;right:0;bottom:0;display:flex;
-      background:var(--surface);border-top:1px solid var(--border);
+      background:var(--glass);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-top:1px solid var(--border);
       padding-bottom:env(safe-area-inset-bottom);z-index:10}
 .tabs button{flex:1;min-height:56px;background:none;border:0;display:flex;
              flex-direction:column;align-items:center;justify-content:center;gap:2px;
@@ -297,7 +342,7 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
 
 /* ── словарь ── */
 .search{width:100%;min-height:48px;padding:0 var(--s4);border-radius:999px;
-        border:2px solid var(--border);background:var(--surface);color:var(--text);
+        border:1px solid var(--border);background:var(--glass);backdrop-filter:blur(14px);color:var(--text);
         font-size:16px;margin-bottom:var(--s3);box-shadow:var(--shadow)}
 .search:focus{outline:0;border-color:var(--primary)}
 .chips{display:flex;gap:var(--s2);overflow-x:auto;padding-bottom:var(--s3);
@@ -312,8 +357,8 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
 
 .word{display:flex;align-items:center;gap:var(--s3);width:100%;min-height:64px;
       padding:var(--s3) var(--s4);margin-bottom:var(--s2);text-align:left;
-      background:var(--surface);border:2px solid var(--border);border-radius:var(--r);
-      box-shadow:var(--shadow)}
+      background:var(--glass);backdrop-filter:blur(14px);
+      border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow)}
 .word .snd{flex:0 0 40px;height:40px;border-radius:999px;display:grid;place-items:center;
            background:var(--primary-soft);color:var(--primary);border:0}
 .word .snd:disabled{opacity:.35}
@@ -329,8 +374,8 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
 .word .dot-state.new{background:transparent;border:1px solid var(--border)}
 
 /* ── богатая карточка «продолжить» ── */
-.resume-rich{display:block;width:100%;text-align:left;background:var(--surface);
-             border:2px solid var(--border);border-radius:var(--r-lg);overflow:hidden;
+.resume-rich{display:block;width:100%;text-align:left;background:var(--glass);
+             backdrop-filter:blur(14px);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;
              box-shadow:var(--shadow);margin-bottom:var(--s4);padding:0}
 /* Каждая строка должна быть блоком. Со строчными span подпись, слово и
    транскрипция склеивались в одну строку — ровно то, что было видно. */
@@ -619,7 +664,6 @@ async function renderHome(){
 
   let html = `
     <section class="hero">
-      <img class="bird" src="/static/mascot/hello.webp" alt="" aria-hidden="true">
       <div class="top">
         ${avatar}
         <div class="who">
