@@ -18,46 +18,73 @@ LIGHT = "#F0D294"
 MOON  = "#F4E7C6"
 
 
-def _lights(x, y, n, gap, w=2.4, h=3, op=".85"):
+def _lights(x, y, n, gap, w=2.6, h=3.4, op=".85"):
     return "".join(
         f'<rect x="{round(x+i*gap,1)}" y="{y}" width="{w}" height="{h}" '
-        f'rx=".8" fill="{LIGHT}" opacity="{op}"/>' for i in range(n))
+        f'rx=".9" fill="{LIGHT}" opacity="{op}"/>' for i in range(n))
 
 
-def night_city():
-    """Ночной силуэт: три плана вглубь, чтобы шапка не выглядела наклейкой."""
+# Рисунок намеренно шире карточки: 420×164 при её пропорции от 1.76 до
+# 2.43 на разных телефонах. При slice браузер масштабирует по большей
+# нехватке; раз наша пропорция 2.56 больше любой из них, масштаб всегда
+# берётся по высоте, и срезаются только края. Это важно не ради красоты:
+# стена должна стоять ровно под полосой недели, а срез снизу увёл бы её.
+NW, NH = 420, 164
+SHIFT = 45                     # сдвиг центральной сцены в середину кадра
+
+# Куда нельзя лезть: строка приветствия (аватар, имя, кольцо серии) и
+# полоса недели. Силуэт заводим ниже первой, под вторую кладём ровную
+# стену, чтобы буквы дней читались на однородном фоне (контраст 5:1).
+WALL_TOP = 116
+
+
+def _town():
+    """Небо и два дальних плана. Рисуются в системе 330 и сдвигаются."""
     b = []
-    b.append(circ(272, 26, 13, MOON))
-    b.append(f'<circle cx="278" cy="20" r="11" fill="#2C5A8C"/>')   # серп
-    for x, y, r in ((36, 20, 1.3), (72, 34, 1), (120, 16, 1.4), (168, 28, 1),
-                    (206, 18, 1.2), (240, 40, 1), (300, 52, 1.1), (94, 52, 1)):
-        b.append(f'<circle cx="{x}" cy="{y}" r="{r}" fill="{MOON}" opacity=".55"/>')
+    for x, y, r in ((22, 16, 1.3), (58, 34, 1), (104, 14, 1.5), (150, 30, 1),
+                    (192, 18, 1.2), (232, 40, 1), (286, 22, 1.3), (312, 46, 1),
+                    (78, 56, 1.1), (256, 60, 1), (-24, 28, 1.1), (352, 32, 1.2)):
+        b.append(f'<circle cx="{x}" cy="{y}" r="{r}" fill="{MOON}" opacity=".45"/>')
 
-    # дальний план
-    b.append(f'<g opacity=".45" fill="{FAR}">')
-    b.append(rect(0, 82, 44, 48, FAR) + dome(22, 82, 22, FAR))
-    b.append(rect(52, 90, 38, 40, FAR) + dome(71, 90, 19, FAR))
-    b.append(rect(120, 86, 30, 44, FAR))
-    b.append(rect(190, 92, 44, 38, FAR) + dome(212, 92, 22, FAR))
-    b.append(rect(268, 88, 52, 42, FAR))
+    # дальний план — только силуэты, без окон: глубина даётся тоном
+    b.append('<g opacity=".38">')
+    b.append(rect(-50, 84, 44, 32, FAR))
+    b.append(rect(-6, 76, 52, 40, FAR) + dome(20, 76, 26, FAR))
+    b.append(rect(58, 82, 44, 34, FAR))
+    b.append(rect(112, 72, 38, 44, FAR) + dome(131, 72, 19, FAR))
+    b.append(rect(164, 80, 50, 36, FAR))
+    b.append(rect(226, 74, 42, 42, FAR) + dome(247, 74, 21, FAR))
+    b.append(rect(280, 82, 56, 34, FAR))
+    b.append(rect(340, 78, 46, 38, FAR) + dome(363, 78, 23, FAR))
     b.append("</g>")
 
     # средний план
-    b.append(rect(-4, 100, 60, 30, MID) + dome(26, 100, 30, MID))
-    b.append(tower(96, 130, 16, 46, MID, "cone"))
-    b.append(rect(150, 104, 56, 26, MID) + dome(178, 104, 28, MID))
-    b.append(rect(236, 98, 40, 32, MID))
-    b.append(gabled(288, 106, 34, 24, 14, MID))
-    b.append(_lights(160, 112, 5, 9))
-    b.append(_lights(242, 106, 4, 9))
+    b.append('<g opacity=".72">')
+    b.append(rect(-46, 96, 40, 20, MID))
+    b.append(rect(-6, 92, 56, 24, MID) + dome(22, 92, 28, MID))
+    b.append(tower(84, 116, 15, 42, MID, "cone"))
+    b.append(rect(126, 94, 52, 22, MID) + dome(152, 94, 26, MID))
+    b.append(rect(196, 88, 36, 28, MID))
+    b.append(gabled(248, 96, 32, 20, 13, MID))
+    b.append(rect(292, 90, 44, 26, MID))
+    b.append(tower(346, 116, 14, 38, MID, "dome"))
+    b.append("</g>")
+    for x, y, n, gap in ((132, 102, 5, 9), (202, 96, 3, 9), (300, 98, 4, 9),
+                         (8, 100, 3, 10), (254, 106, 3, 8), (-40, 102, 2, 9)):
+        b.append(_lights(x, y, n, gap, op=".6"))
+    return "".join(b)
 
-    # передний план — стена с зубцами, как в старом городе
-    b.append(rect(-4, 114, 328, 20, NEAR))
-    b.append(crenel(-4, 114, 328, 17, 5, NEAR))
-    b.append(_lights(6, 120, 16, 20, 3, 4, ".9"))
-    b.append(cypress(66, 130, 40, 7, NEAR, NEAR))
-    b.append(cypress(224, 130, 34, 6, NEAR, NEAR))
-    b.append(arch_win(130, 134, 14, 18, "#12294A"))
+
+def night_city():
+    """Ночной силуэт во всю карточку: звёзды, два плана, стена под неделей."""
+    b = [f'<g transform="translate({SHIFT} 0)">{_town()}</g>']
+    # передний план: ровная стена во всю ширину кадра
+    b.append(rect(-4, WALL_TOP, NW + 8, NH - WALL_TOP + 6, NEAR))
+    b.append(crenel(-4, WALL_TOP, NW + 8, 22, 6, NEAR))
+    b.append(cypress(105, WALL_TOP, 36, 7, NEAR, NEAR))
+    b.append(cypress(267, WALL_TOP, 32, 6, NEAR, NEAR))
+    b.append(arch_win(211, NH, 15, 18, "#12294A"))
+    b.append(_lights(8, 146, 20, 21, 3.4, 4.8, ".9"))
     return "".join(b)
 
 
