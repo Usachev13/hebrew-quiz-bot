@@ -204,8 +204,11 @@ html[data-theme="dark"] .hero{
       background:linear-gradient(135deg,#12325E 0%,#1B4A86 55%,#2B6BA8 100%)}
 .hero::after{content:"";position:absolute;right:-40px;top:-60px;width:190px;height:190px;
              border-radius:50%;background:rgba(255,255,255,.10)}
-.hero .bird{position:absolute;right:-6px;bottom:-10px;width:104px;opacity:.95;
+.hero .bird{position:absolute;right:-4px;bottom:-8px;width:88px;opacity:.95;
             pointer-events:none}
+/* Текст под полосой опыта не должен заезжать под птицу: отступ считаем
+   от её ширины плюс зазор, иначе строка упирается вплотную. */
+.hero .xptext{padding-right:98px}
 .hero .top{display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s4);
            position:relative;z-index:1}
 .hero .xpbar,.hero .xptext{position:relative;z-index:1}
@@ -245,21 +248,31 @@ html[data-theme="dark"] .xpbar i{background:var(--on-primary)}
 .metric .l{font-size:11px;color:var(--muted);margin-top:2px}
 
 /* ── прогресс по темам ── */
-/* Бенто-сетка: плитки разного размера. Ровная сетка одинаковых
-   прямоугольников — то, от чего экран читается как таблица. Крупные
-   достаются темам, которые человек уже начал: взгляд цепляется за то,
-   что продолжать. */
-.topics{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s2)}
-.topic{display:flex;align-items:center;gap:var(--s3);background:var(--surface);
-       border:2px solid var(--border);border-radius:var(--r);padding:var(--s3);
-       min-height:64px;box-shadow:var(--shadow);text-align:left;
-       transition:transform .18s var(--bounce), box-shadow .18s}
-.topic:active{transform:translateY(2px) scale(.99)}
-.topic.big{grid-column:span 2;min-height:92px;padding:var(--s4);
-           flex-direction:row;align-items:center;gap:var(--s4)}
-.topic.big .nm{font-size:17px}
-.topic.big .ring{width:56px;height:56px}
-.topic.big .sub{font-size:13px}
+/* Темы — круги, а не прямоугольники. Прогресс рисуется самим ободком
+   через конический градиент: тёмная дуга — выучено, светлая — показано,
+   остальное — пустой ободок. Это тот же двойной показатель, что был в
+   кольцах, но теперь он и есть форма плитки, а не значок сбоку. */
+.topics{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s4) var(--s2);
+        justify-items:center}
+.topic{display:flex;flex-direction:column;align-items:center;gap:var(--s2);
+       background:none;border:0;padding:0;width:100%;
+       transition:transform .18s var(--bounce)}
+.topic:active{transform:scale(.94)}
+.topic .ring{width:76px;height:76px;border-radius:50%;padding:5px;
+             display:grid;place-items:center;box-shadow:var(--shadow)}
+.topic .face{width:100%;height:100%;border-radius:50%;background:var(--surface);
+             display:flex;flex-direction:column;align-items:center;justify-content:center;
+             gap:1px;color:var(--text)}
+.topic .face .n{font-size:17px;font-weight:700;line-height:1;
+                font-variant-numeric:tabular-nums}
+.topic .face svg{opacity:.85}
+/* Две строки с фиксированной высотой, а не обрезка многоточием:
+   «Работа и учёба» в колонку не влезает, а «Работа и уч…» читается
+   как сбой. Высота задана жёстко, иначе круги в ряду разъезжаются. */
+.topic .nm{font-size:13px;font-weight:600;text-align:center;line-height:1.25;
+           max-width:100%;min-height:2.5em;display:-webkit-box;-webkit-line-clamp:2;
+           -webkit-box-orient:vertical;overflow:hidden}
+.topic .sub{font-size:11px;color:var(--muted);line-height:1}
 /* Каждой теме свой оттенок. Одноцветная сетка — то, от чего рябит и
    становится «сухо»: тринадцать одинаковых плиток глаз не различает. */
 .topic .txt{flex:1;min-width:0}
@@ -319,10 +332,15 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
 .resume-rich{display:block;width:100%;text-align:left;background:var(--surface);
              border:2px solid var(--border);border-radius:var(--r-lg);overflow:hidden;
              box-shadow:var(--shadow);margin-bottom:var(--s4);padding:0}
+/* Каждая строка должна быть блоком. Со строчными span подпись, слово и
+   транскрипция склеивались в одну строку — ровно то, что было видно. */
 .resume-rich .body{padding:var(--s4) var(--s4) 0}
+.resume-rich .body > span{display:block}
+.resume-rich .tr{display:inline-block!important;margin-inline-start:var(--s2)}
 .resume-rich .cap{font-size:11px;font-weight:700;letter-spacing:.08em;
                   text-transform:uppercase;color:var(--primary)}
-.resume-rich .big{font-size:34px;line-height:1.5;font-weight:700;margin-top:var(--s1)}
+.resume-rich .big{font-size:32px;line-height:1.6;font-weight:700;margin-top:var(--s1);
+                  display:block}
 .resume-rich .tr{color:var(--muted);font-size:14px}
 .resume-rich .ru{font-size:17px;font-weight:600;margin-top:var(--s2)}
 .resume-rich .where{color:var(--muted);font-size:13px;margin-top:2px}
@@ -369,6 +387,19 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
 <g id="i-play"><path d="M7 4l12 8-12 8z"/></g>
 <g id="i-star"><path d="M12 3.5l2.7 5.6 6 .9-4.4 4.2 1.1 6-5.4-2.9-5.4 2.9 1.1-6L3.3 10l6-.9z"/></g>
 <g id="i-user"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></g>
+<g id="i-t-greetings"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11m0-1.5a1.5 1.5 0 0 1 3 0V11m0-1a1.5 1.5 0 0 1 3 0v4a6 6 0 0 1-6 6h-1a5 5 0 0 1-5-5v-3a1.5 1.5 0 0 1 3 0"/></g>
+<g id="i-t-family"><circle cx="8" cy="8" r="3"/><circle cx="16.5" cy="9.5" r="2.5"/><path d="M3 20c0-3 2.2-5 5-5s5 2 5 5M14 20c0-2.4 1.6-4 3.5-4S21 17.6 21 20"/></g>
+<g id="i-t-food"><path d="M6 3v8a3 3 0 0 0 6 0V3M9 11v10M17 3c-1.5 2-2 3.5-2 6 0 1.5.7 2 2 2s2-.5 2-2c0-2.5-.5-4-2-6zM17 11v10"/></g>
+<g id="i-t-home"><path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></g>
+<g id="i-t-city"><path d="M3 21V9l6-4v16M9 21V11l6-3v13M15 21V12l6-2v11M3 21h18M6 12h.01M6 16h.01M12 14h.01M12 17h.01M18 15h.01"/></g>
+<g id="i-t-transport"><path d="M4 16v-4l2-5h12l2 5v4M4 16h16M4 16v2h3v-2M17 16v2h3v-2"/><circle cx="8" cy="13" r="1"/><circle cx="16" cy="13" r="1"/></g>
+<g id="i-t-time"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></g>
+<g id="i-t-weather"><circle cx="12" cy="11" r="4"/><path d="M12 3v1.5M12 17.5V19M4 11h1.5M18.5 11H20M6.3 5.3l1 1M16.7 5.3l-1 1M6.3 16.7l1-1M16.7 16.7l-1-1"/></g>
+<g id="i-t-health"><path d="M12 20s-7-4.4-7-9.3A4 4 0 0 1 12 8a4 4 0 0 1 7 2.7C19 15.6 12 20 12 20z"/></g>
+<g id="i-t-shopping"><path d="M5 8h14l-1 12H6zM9 8V6a3 3 0 0 1 6 0v2"/></g>
+<g id="i-t-work_study"><path d="M3 8h18v11H3zM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/></g>
+<g id="i-t-clothes"><path d="M9 4l3 2 3-2 5 3-2 4h-2v9H8v-9H6L4 7z"/></g>
+<g id="i-t-emotions"><circle cx="12" cy="12" r="8"/><path d="M9 10h.01M15 10h.01M8.5 14.5a4.5 4.5 0 0 0 7 0"/></g>
 <g id="i-list"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></g>
 </defs></svg>
 
@@ -529,32 +560,21 @@ function buildLearn(){
   }));
 }
 
-/* Кольцо темы — двойное, и это не украшение.
+/* Ободок круга и есть прогресс.
 
-   Светлая дуга — сколько слов темы вообще показывалось: она движется с
-   первого же раунда, иначе экран стоит мёртвым и заниматься не тянет.
-   Тёмная — сколько выучено по-настоящему: коробка 4 и выше по Лейтнеру,
-   то есть слово пережило три верных ответа с растущими промежутками.
+   Две дуги, а не одна. Светлая — сколько слов темы показывалось: она
+   движется с первого раунда, иначе круг стоит пустым и заниматься не
+   тянет. Тёмная — сколько выучено по-настоящему: коробка 4 и выше по
+   Лейтнеру. Одной дугой не обойтись: «пройдено» по одному верному
+   ответу приятно и неправда, а «выучено» первые дни показывает ноль.
 
-   Одной дугой не обойтись: показывать «пройдено» по одному верному
-   ответу приятно и неправда, а показывать только выученное — честно, но
-   первые дни там ноль. */
-function donut(seen, learned, total, size = 38,
-               strong = "var(--primary)", soft = "var(--tchelet)"){
-  const R = size/2 - 3, C = 2*Math.PI*R;
-  const arc = v => C * (1 - (total ? v/total : 0));
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"
-    role="img" aria-label="показано ${seen} из ${total}, выучено ${learned}">
-    <circle cx="${size/2}" cy="${size/2}" r="${R}" fill="none"
-            stroke="var(--border)" stroke-width="4"/>
-    <circle cx="${size/2}" cy="${size/2}" r="${R}" fill="none" stroke="${soft}"
-            stroke-width="4" stroke-linecap="round" stroke-dasharray="${C}"
-            stroke-dashoffset="${arc(seen)}" transform="rotate(-90 ${size/2} ${size/2})"/>
-    <circle cx="${size/2}" cy="${size/2}" r="${R}" fill="none" stroke="${strong}"
-            stroke-width="4" stroke-linecap="round" stroke-dasharray="${C}"
-            stroke-dashoffset="${arc(learned)}" transform="rotate(-90 ${size/2} ${size/2})"/>
-    <text x="${size/2}" y="${size/2+4}" text-anchor="middle"
-          font-size="11" font-weight="700" fill="${strong}">${seen}</text></svg>`;
+   Цифру внутри красим цветом текста, а не темы: на тёмном фоне тёмный
+   оттенок темы сливался, и числа было не разглядеть. */
+function ringStyle(key, seen, learned, total){
+  const p = v => total ? Math.round(1000 * v / total) / 10 : 0;
+  const strong = hue(key, 62, 52), soft = hue(key, 55, 72);
+  return `background:conic-gradient(${strong} 0 ${p(learned)}%,`
+       + ` ${soft} 0 ${p(seen)}%, var(--border) 0)`;
 }
 
 /* Оттенок на тему. Пары подобраны так, чтобы соседние плитки не сливались,
@@ -655,16 +675,17 @@ async function renderHome(){
   }
 
   html += `<h2>Темы</h2><div class="topics">`
-    + h.topics.map((t, i) => `<button class="topic${
-          // Крупные — начатым темам и первой в списке: взгляду нужна
-          // точка входа, а ровная сетка её не даёт.
-          (t.seen && i < 4) || i === 0 ? " big" : ""}" data-topic="${t.key}">
-        <span class="ring" style="background:${hue(t.key,70,94)}">
-          ${donut(t.seen, t.learned, t.total, 36, hue(t.key,62,45), hue(t.key,55,78))}
+    + h.topics.map(t => `<button class="topic" data-topic="${t.key}"
+        aria-label="${t.name}: показано ${t.seen} из ${t.total}, выучено ${t.learned}">
+        <span class="ring" style="${ringStyle(t.key, t.seen, t.learned, t.total)}">
+          <span class="face">
+            ${icon("t-" + t.key, 20)}
+            <span class="n">${t.seen}</span>
+          </span>
         </span>
-        <span class="txt"><span class="nm">${t.name}</span>
-          <span class="sub">${t.learned ? "выучено " + t.learned
-                                        : t.seen + " из " + t.total}</span></span></button>`).join("")
+        <span class="nm">${t.name}</span>
+        <span class="sub">из ${t.total}</span>
+      </button>`).join("")
     + `</div>`;
 
   $("home").innerHTML = html;
