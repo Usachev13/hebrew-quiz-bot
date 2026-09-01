@@ -79,6 +79,17 @@ CREATE TABLE IF NOT EXISTS daily_word (
     last_sent   TEXT
 );
 
+-- Какие слова уже приходили как «слово дня». Раньше бот помнил только
+-- дату последней отправки, но не само слово, а выбирал из тех, что ещё
+-- не встречались в раундах. По мере учёбы этот запас тает, и под конец
+-- бот присылал одно и то же слово каждый день.
+CREATE TABLE IF NOT EXISTS daily_sent (
+    chat_id     TEXT NOT NULL,
+    card_id     TEXT NOT NULL,
+    sent_on     TEXT NOT NULL,
+    PRIMARY KEY (chat_id, card_id)
+);
+
 -- Настройки пользователя. Пока одна: присылать ли произношение голосом.
 CREATE TABLE IF NOT EXISTS prefs (
     chat_id     TEXT PRIMARY KEY,
@@ -464,6 +475,26 @@ def daily_word_recipients():
         (today,),
     ).fetchall()
     return [r["chat_id"] for r in rows]
+
+
+def daily_sent_words(chat_id):
+    """{слово: когда присылали}. Пустой словарь — ещё ничего не слали."""
+    rows = get_conn().execute(
+        "SELECT card_id, sent_on FROM daily_sent WHERE chat_id = ?",
+        (str(chat_id),),
+    ).fetchall()
+    return {r["card_id"]: r["sent_on"] for r in rows}
+
+
+def record_daily_word(chat_id, card_id):
+    """Запоминает, что слово уже приходило (и когда в последний раз)."""
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO daily_sent (chat_id, card_id, sent_on) VALUES (?, ?, ?) "
+        "ON CONFLICT(chat_id, card_id) DO UPDATE SET sent_on = excluded.sent_on",
+        (str(chat_id), card_id, date.today().isoformat()),
+    )
+    conn.commit()
 
 
 def mark_daily_word_sent(chat_id):
