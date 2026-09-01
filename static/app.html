@@ -15,16 +15,15 @@
    Все пары проверены на контраст WCAG AA (минимум 4.5:1 для текста).
    ───────────────────────────────────────────────────────────────── */
 :root{
-  /* Песок, тёмно-синий, золото — как в утверждённом макете. Синий флага
-     остался, но ушёл из фона в акцент: на песочном полотне он читается
-     как чернила на бумаге, а не как заливка. */
-  --bg:#F4EFE6; --surface:#FFFFFF; --surface-2:#FBF8F2;
-  --text:#16233F; --muted:#6A6558; --border:#E3DACA;
-  --primary:#16233F; --on-primary:#FFFFFF; --primary-soft:#EFECE3;
-  --tchelet:#8FB4D9;
-  /* Золото двух видов: тёмное для текста (проходит контраст на белом),
-     светлое — только для дуг и штрихов, где текста нет. */
-  --gold:#8C6F12; --gold-bright:#C9A227;
+  /* Папирус и приглушённый флажный синий.
+     Флажный #0038B8 в интерфейсе кричит, поэтому приглушён до #2C5A8C:
+     тот же цвет, но живёт на бумаге, а не спорит с ней.
+     Все пары проверены расчётом, худшая — 4.6 при норме 4.5. */
+  --bg:#EDE3CE; --surface:#FAF5EA; --surface-2:#F4ECDC;
+  --text:#2A2418; --muted:#6B6250; --border:#DACDB2;
+  --primary:#2C5A8C; --on-primary:#FFFFFF; --primary-soft:#DCE6F0;
+  --tchelet:#7FA6CC;
+  --gold:#8A6B1C; --gold-bright:#C4A24A;
   --ok:#186B3A; --bad:#A32A20; --warn:#8A5A00;
   --ok-soft:#E6F2EA; --bad-soft:#F9E9E7; --warn-soft:#F8F1DF;
 
@@ -47,25 +46,6 @@
      как движение, а не как отклик. */
   --bounce:cubic-bezier(.34,1.56,.64,1);
 }
-html[data-theme="dark"]{
-  /* Тёмная — та же гамма, а не другая: тёплый уголь вместо синевы,
-     чтобы песочный характер сохранялся и ночью. */
-  /* Нейтрали тёплые, а не серо-синие. Дороговизна берётся отсюда:
-     синеватый уголь читается как «системная тема», тёплый — как
-     бумага и чернила. Замерено: у прежних цветов красного было на
-     12–25 меньше, чем синего, теперь на 5–17 больше. */
-  --bg:#171512; --surface:#232019; --surface-2:#2C2820;
-  --text:#F3EDE0; --muted:#B0A691; --border:#3B352A;
-  --primary:#EDE4CE; --on-primary:#171512; --primary-soft:#2C2820;
-  --tchelet:#7C9CBE;
-  --gold:#D9B75F; --gold-bright:#EBD79A;
-  --ok:#66C98A; --bad:#FF8B7E; --warn:#E0B45F;
-  --ok-soft:#1B2A1E; --bad-soft:#2E1E1A; --warn-soft:#2C2418;
-  --glass:rgba(35,32,25,.78);
-  --shadow:inset 0 1px 0 rgba(255,255,255,.06),
-           0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.36);
-  --shadow-p:inset 0 1px 0 rgba(255,255,255,.15), 0 8px 22px rgba(0,0,0,.5);
-}
 
 /* Запасной путь. Размытие поддерживают не все вебвью, а без него
    полупрозрачная карточка остаётся просто прозрачной: текст ложится
@@ -73,8 +53,7 @@ html[data-theme="dark"]{
    поверхности глухими — вид скромнее, читаемость та же. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
   :root{--glass:#FFFFFF}
-  html[data-theme="dark"]{--glass:#232019}
-}
+  }
 
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{background:var(--bg)}
@@ -87,24 +66,18 @@ html{background:var(--bg)}
 body::before{
   content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;
   background:
-    radial-gradient(1000px 560px at 8% -12%,  rgba(201,162,39,.16),  transparent 62%),
-    radial-gradient(900px 520px at 96% 4%,    rgba(143,180,217,.24), transparent 60%),
-    radial-gradient(880px 660px at 48% 108%,  rgba(198,178,142,.30), transparent 66%);
+    radial-gradient(1000px 560px at 8% -12%,  rgba(196,162,74,.20),  transparent 62%),
+    radial-gradient(900px 520px at 96% 4%,    rgba(127,166,204,.22), transparent 60%),
+    radial-gradient(880px 660px at 48% 108%,  rgba(176,150,104,.22), transparent 66%);
 }
 /* Зерно поверх света. Оно и отличает «дорого» от «плоско»: убирает
    банддинг на градиентах и даёт поверхности материальность.
    SVG-шум встроен строкой — файла нет, весит десятки байт. */
+/* Зерно чуть заметнее: на папирусе оно и создаёт ощущение бумаги. */
 body::after{
-  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.055;
+  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.08;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
-html[data-theme="dark"] body::before{
-  background:
-    radial-gradient(1000px 560px at 8% -12%,  rgba(217,183,95,.13),  transparent 62%),
-    radial-gradient(900px 520px at 96% 4%,    rgba(124,156,190,.13), transparent 60%),
-    radial-gradient(880px 660px at 48% 108%,  rgba(196,168,118,.16), transparent 66%);
-}
-html[data-theme="dark"] body::after{opacity:.07}
 
 body{
   margin:0;color:var(--text);background:transparent;
@@ -277,12 +250,9 @@ input[type=text]:focus{outline:0;border-color:var(--primary)}
    остаётся, но появляется только там, где эмоция уместна: итог раунда и
    пустой экран новичка. Здесь вместо него работают свет и типографика. */
 .hero{position:relative;overflow:hidden;color:#FFFFFF;border-radius:var(--r-lg);
-      background:linear-gradient(155deg,#1B2B4C 0%,#16233F 55%,#101A30 100%);
+      background:linear-gradient(155deg,#3A6EA0 0%,#2C5A8C 52%,#234A76 100%);
       padding:var(--s5) var(--s4);margin-bottom:var(--s4);
-      box-shadow:0 12px 34px rgba(22,35,63,.22)}
-html[data-theme="dark"] .hero{
-      background:linear-gradient(155deg,#332C21 0%,#2A251C 58%,#211D16 100%);
-      box-shadow:0 14px 36px rgba(0,0,0,.45)}
+      box-shadow:0 12px 30px rgba(44,90,140,.24)}
 .hero .greet{flex:1;min-width:0}
 .hero .hi{font-family:"Playfair Display",Georgia,serif;font-size:24px;
           line-height:1.15;font-weight:600}
@@ -307,11 +277,6 @@ html[data-theme="dark"] .hero{
 .hero .name{font-weight:600;font-size:19px;line-height:1.2;letter-spacing:-.02em}
 .hero .lvl{font-size:11px;opacity:.75;margin-top:4px;letter-spacing:.1em;
            text-transform:uppercase}
-html[data-theme="dark"] 
-/* ── карточка «продолжить» ── */
-.resume{display:flex;align-items:center;gap:var(--s3);width:100%;text-align:left;
-        background:var(--surface);border:2px solid var(--primary);border-radius:var(--r-lg);
-        padding:var(--s4);margin-bottom:var(--s4);box-shadow:var(--shadow);min-height:var(--tap)}
 .resume .txt{flex:1;min-width:0}
 .resume .cap{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
              color:var(--primary)}
@@ -461,16 +426,21 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
 .resume-rich{display:block;width:100%;text-align:left;background:var(--surface);
              border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;
              box-shadow:var(--shadow);margin-bottom:var(--s5);padding:0;position:relative}
-.resume-rich .art{position:relative;width:100%;height:104px;overflow:hidden;display:block}
+.resume-rich .art{position:relative;width:100%;height:112px;overflow:hidden;display:block;
+                  border-bottom:1px solid var(--border)}
 .resume-rich .art svg{width:100%;height:100%;display:block}
 /* Слово лежит на полосе снизу — как подпись под фотографией. */
 .resume-rich .art .cap{position:absolute;left:var(--s4);top:var(--s3);
   font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--gold);background:var(--surface);padding:3px 8px;border-radius:999px}
+  color:var(--primary);background:var(--surface);padding:4px 10px;border-radius:999px;
+  border:1px solid var(--border)}
 /* Каждая строка должна быть блоком. Со строчными span подпись, слово и
    транскрипция склеивались в одну строку — ровно то, что было видно. */
 .resume-rich .body{padding:var(--s4);position:relative;z-index:1}
-.resume-rich .body > span{display:block}
+/* Кнопку из этого правила исключаем: она flex, а «все дети блоками»
+   перебивало ей раскладку — стрелка липла к тексту вместо правого края.
+   Специфичность у `.body > span` выше, чем у `.cta`, поэтому :not. */
+.resume-rich .body > span:not(.cta){display:block}
 .resume-rich .where{font-size:10px;font-weight:700;letter-spacing:.14em;
                     text-transform:uppercase;color:var(--gold)}
 .resume-rich .big{font-size:34px;line-height:1.65;font-weight:700;margin-top:var(--s2);
@@ -480,10 +450,12 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
 /* Уточнение формы — отдельной строкой и мельче: у глагольных карточек
    подсказка длинная, и в одну строку с переводом она давила. */
 .resume-rich .form{color:var(--muted);font-size:13px;margin-top:3px}
-.resume-rich .cta{display:flex;align-items:center;justify-content:space-between;
-                  gap:var(--s2);margin:var(--s4) 0 0;min-height:52px;
-                  padding:0 var(--s4);border-radius:var(--r);background:var(--primary);
-                  color:var(--on-primary);font-weight:600;font-size:16px}
+.resume-rich .cta{display:flex!important;align-items:center;
+                  justify-content:space-between;gap:var(--s2);margin:var(--s4) 0 0;
+                  min-height:52px;padding:0 var(--s4);border-radius:var(--r);
+                  background:var(--primary);color:var(--on-primary);
+                  font-weight:600;font-size:16px;
+                  box-shadow:0 6px 16px rgba(44,90,140,.24)}
 .resume-rich:active{transform:translateY(2px)}
 
 .settings .stat{cursor:pointer}
@@ -619,11 +591,14 @@ const glyph = (key, size = 26) =>
 /* Тема своя, но следует за клиентом: в тёмном Telegram светлое полотно
    ночью бьёт по глазам. Шапку и фон красим в тон, чтобы приложение не
    выглядело чужой вставкой. */
+/* Тема всегда светлая — папирус, а не подстройка под клиент.
+   Раньше приложение следовало за Telegram, и у тех, у кого клиент
+   тёмный, оно уходило в уголь. Для продукта с собственной палитрой это
+   потеря лица: бумага и есть его вид. Шапку клиента красим в тон, чтобы
+   стык не выглядел вставкой. */
 function applyTheme(){
-  const dark = tg?.colorScheme === "dark";
-  document.documentElement.dataset.theme = dark ? "dark" : "light";
-  const bg = dark ? "#0A1420" : "#EEF4FB";
-  try { tg?.setBackgroundColor?.(bg); tg?.setHeaderColor?.(bg); } catch(e){}
+  document.documentElement.dataset.theme = "light";
+  try { tg?.setBackgroundColor?.("#EDE3CE"); tg?.setHeaderColor?.("#EDE3CE"); } catch(e){}
 }
 applyTheme();
 tg?.onEvent?.("themeChanged", applyTheme);
@@ -757,27 +732,23 @@ function countUp(el, to){
    разметкой, а не картинкой: весит ничего, чёткий на любом экране и
    красится вместе с темой. */
 function sunrise(){
-  return `<svg viewBox="0 0 200 132" preserveAspectRatio="xMidYMax slice"
+  return `<svg viewBox="0 0 200 112" preserveAspectRatio="xMidYMid slice"
        role="img" aria-hidden="true">
     <defs>
       <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="var(--surface-2)"/>
-        <stop offset="1" stop-color="var(--primary-soft)"/></linearGradient>
-      <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="var(--gold-bright)"/>
-        <stop offset="1" stop-color="var(--gold-bright)" stop-opacity=".35"/></linearGradient>
+        <stop offset="0" stop-color="#F7F1E2"/>
+        <stop offset="1" stop-color="#E7DCC4"/></linearGradient>
     </defs>
-    <rect width="200" height="132" fill="url(#sky)"/>
-    <circle cx="118" cy="74" r="26" fill="url(#sun)"/>
-    <path d="M0 96 Q34 74 62 90 T118 84 T200 98 V132 H0Z"
-          fill="var(--tchelet)" opacity=".38"/>
-    <path d="M0 110 Q40 92 78 104 T148 100 T200 112 V132 H0Z"
-          fill="var(--primary)" opacity=".16"/>
-    <g stroke="var(--gold)" stroke-width="1.6" fill="none" opacity=".65">
-      <path d="M14 8 C34 20 44 40 46 62"/>
-      <path d="M22 20 q10-8 18-4 q-8 8-18 4Z" fill="var(--gold)" opacity=".5" stroke="none"/>
-      <path d="M31 34 q11-7 19-2 q-9 8-19 2Z" fill="var(--gold)" opacity=".5" stroke="none"/>
-      <path d="M39 50 q11-6 19-1 q-9 8-19 1Z" fill="var(--gold)" opacity=".5" stroke="none"/>
+    <rect width="200" height="112" fill="url(#sky)"/>
+    <circle cx="132" cy="52" r="24" fill="#C4A24A" opacity=".55"/>
+    <path d="M0 74 Q30 58 58 68 T112 62 T200 76 V112 H0Z" fill="#7FA6CC" opacity=".45"/>
+    <path d="M0 88 Q38 74 74 84 T142 80 T200 92 V112 H0Z" fill="#2C5A8C" opacity=".3"/>
+    <path d="M0 100 Q46 92 92 98 T200 104 V112 H0Z" fill="#2A2418" opacity=".14"/>
+    <g stroke="#8A6B1C" stroke-width="1.5" fill="none" opacity=".7">
+      <path d="M16 10 C33 22 41 40 43 60"/>
+      <path d="M23 21 q10-7 17-3 q-8 8-17 3Z" fill="#8A6B1C" opacity=".55" stroke="none"/>
+      <path d="M31 34 q10-7 17-2 q-8 8-17 2Z" fill="#8A6B1C" opacity=".55" stroke="none"/>
+      <path d="M38 48 q10-6 17-1 q-8 8-17 1Z" fill="#8A6B1C" opacity=".55" stroke="none"/>
     </g>
   </svg>`;
 }
