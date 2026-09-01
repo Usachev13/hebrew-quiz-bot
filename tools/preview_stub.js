@@ -47,11 +47,17 @@ window.fetch = async (path, opt) => {
     // «Алфавит» показывал слова вместо букв. Теперь заглушка знает
     // про режимы alef_* и берёт их настоящие карточки.
     const al = ALEF[b.mode];
+    // Знакомство: в предпросмотре показываем первые четыре слова темы.
+    const intro = al
+      ? al.slice(0, 4).map(q => ({ru:q.ru, main:q.he, gloss:q.ru,
+          cat:b.mode, reading:"", audio:null}))
+      : PW.slice(0, 4).map(([ru,he,reading]) => ({ru, main:he, gloss:ru,
+          cat:"food", reading, audio:null}));
     r = al
-      ? { label:b.mode, format:b.format,
+      ? { label:b.mode, format:b.format, intro,
           questions: al.map(q => ({ru:q.ru, mode:b.mode, options:q.opts,
             letters:[...q.he.replace(/[\u0591-\u05C7]/g,"")]})) }
-      : { label:"еда", format:b.format,
+      : { label:"еда", format:b.format, intro,
           questions: PW.map(([ru,he],i) => ({ru, mode:"vocab",
             options:[he, PW[(i+1)%10][1], PW[(i+2)%10][1], PW[(i+3)%10][1]],
             letters:[...he.replace(/[\u0591-\u05C7]/g,"")]})) }; }

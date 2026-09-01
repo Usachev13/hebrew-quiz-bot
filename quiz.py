@@ -79,12 +79,43 @@ def pick_card(remaining, priorities):
     return random.choice([w for w in remaining if rank(w) == best])
 
 
-def build_question(pool, used, priorities=None):
+INTRO_LEN = 6      # сколько новых слов показываем перед викториной
+MIN_ROUND = 5      # короче этого раунд не имеет смысла запускать
+
+
+def intro_cards(chat_id, mode, pool):
+    """Карточки из пула, которых пользователь ещё ни разу не видел.
+
+    До этого приложение сразу спрашивало слово, которого человек не
+    встречал: викторина превращалась в угадайку, а первая коробка
+    интервального повторения наполнялась случайными промахами. Сначала
+    знакомство, потом вопрос.
+    """
+    if mode == "weak":
+        return []                      # слабые места по определению уже видели
+    try:
+        seen = db.seen_cards(chat_id, mode)
+    except Exception as e:
+        print(f"[intro_cards] БД недоступна: {e}")
+        return []
+    fresh = [w for w in pool if w[0] not in seen]
+    random.shuffle(fresh)
+    return fresh[:INTRO_LEN]
+
+
+def build_question(pool, used, priorities=None, pick_from=None):
     """Выбирает карточку (ещё не заданную в этом раунде) и 3 дистрактора
-    из той же категории/группы биньяна — так угадать наугад сложнее."""
-    remaining = [w for w in pool if w[0] not in used]
+    из той же категории/группы биньяна — так угадать наугад сложнее.
+
+    pick_from сужает выбор самой карточки, не трогая дистракторы: после
+    знакомства спрашиваем ровно те слова, которые только что показали, а
+    неверные варианты по-прежнему берём из всей темы — иначе они были бы
+    только из шести новых и ответ вычислялся бы по исключению.
+    """
+    source = pick_from if pick_from else pool
+    remaining = [w for w in source if w[0] not in used]
     if not remaining:
-        remaining = pool
+        remaining = source
     correct = pick_card(remaining, priorities or {})
     ru, he, cat = correct
 

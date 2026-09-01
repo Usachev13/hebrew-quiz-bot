@@ -19,6 +19,7 @@ import json
 import mimetypes
 import os
 import random
+import re
 import time
 import urllib.parse
 from pathlib import Path
@@ -185,6 +186,30 @@ def menu(chat_id, payload):
 
 # ---------- раунд ----------
 
+# Ивритский текст внутри подсказки. Нужен, чтобы карточка знакомства
+# всегда показывала крупно именно ивритское написание: у словаря оно
+# лежит в ответе («хлеб» → לֶחֶם), а у курса алфавита — в вопросе
+# («буква א» → «алеф»).
+HEB_RUN = re.compile(r"[\u0590-\u05FF][\u0590-\u05FF]*")
+
+
+def _intro_card(ru, he, cat, mode):
+    """Карточка знакомства: что показать крупно, как это читается и что
+    оно значит."""
+    if HEB_RUN.search(he):
+        main, gloss = he, ru
+    else:
+        m = HEB_RUN.search(ru)
+        main, gloss = (m.group(0) if m else ru), he
+    return {
+        "ru": ru,
+        "main": main,
+        "gloss": gloss,
+        "cat": cat,
+        "reading": translit(main) if mode not in quiz.ALPHABET_MODES else "",
+        "audio": audio.audio_key(main) if audio.has_audio(main) else None,
+    }
+
 @api.route("/api/round", methods=["POST"])
 @guarded
 def round_(chat_id, payload):
@@ -206,9 +231,20 @@ def round_(chat_id, payload):
         print(f"[round] приоритеты недоступны: {e}")
         priorities = {}
 
+    # Знакомство: слова, которых человек ещё не видел. Если такие есть,
+    # раунд спрашивает ровно их — сначала показали, потом проверили.
+    intro = quiz.intro_cards(chat_id, mode, pool)
+    # Когда новых слов в теме осталось два, раунд из двух вопросов —
+    # огрызок. Спрашиваем сперва их, а до разумной длины добираем
+    # повторением из той же темы.
+    count = (max(len(intro), quiz.MIN_ROUND) if intro
+             else min(quiz.ROUND_LEN, len(pool)))
+    count = min(count, len(pool))
+
     used, questions = set(), []
-    for _ in range(min(quiz.ROUND_LEN, len(pool))):
-        q = quiz.build_question(pool, used, priorities)
+    for i in range(count):
+        pick = intro if (intro and i < len(intro)) else None
+        q = quiz.build_question(pool, used, priorities, pick_from=pick)
         used.add(q["ru"])
         card_mode = modes.get((q["ru"], q["correct"]), mode)
         item = {"ru": q["ru"], "mode": card_mode}
@@ -218,7 +254,10 @@ def round_(chat_id, payload):
             item["letters"] = scramble(q["correct"], random)
         questions.append(item)
 
-    return jsonify({"label": label, "format": fmt, "questions": questions})
+    return jsonify({
+        "label": label, "format": fmt, "questions": questions,
+        "intro": [_intro_card(ru, he, cat, mode) for ru, he, cat in intro],
+    })
 
 
 @api.route("/api/answer", methods=["POST"])

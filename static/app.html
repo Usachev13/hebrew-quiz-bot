@@ -184,20 +184,66 @@ button{font:inherit;color:inherit;cursor:pointer}
        width:100%;font-weight:600;min-height:var(--tap)}
 
 /* ── раунд ── */
+/* Шапка урока: слева тема, справа счёт вопросов. Без счётчика раунд
+   ощущается бесконечным — не видно, сколько осталось. */
+.lesson-head{display:flex;align-items:baseline;justify-content:space-between;
+             gap:var(--s3);margin-bottom:var(--s2)}
+.lesson-head .cap{font-size:12px;font-weight:700;letter-spacing:.08em;
+                  text-transform:uppercase;color:var(--muted)}
+.lesson-head .of{font-size:13px;font-weight:600;color:var(--primary);
+                 font-variant-numeric:tabular-nums}
+
 .bar{height:6px;background:var(--border);border-radius:999px;margin-bottom:var(--s5);
      overflow:hidden}
 .bar i{display:block;height:100%;background:var(--primary);border-radius:999px;
        transition:width .3s cubic-bezier(.4,0,.2,1)}
-.prompt{background:var(--glass);backdrop-filter:blur(14px);border:1px solid var(--border);border-radius:var(--r-lg);
-        padding:var(--s5) var(--s4);margin-bottom:var(--s4);text-align:center;
-        box-shadow:var(--shadow)}
+.prompt{position:relative;overflow:hidden;background:var(--surface);
+        border:1px solid var(--border);border-radius:var(--r-lg);
+        margin-bottom:var(--s4);text-align:center;box-shadow:var(--shadow)}
+/* Рисунок темы фоном: он подсказывает область, к которой относится слово,
+   и стоит почти неслышно — 0.3, иначе спорит с вопросом. */
+.prompt .scene{position:absolute;inset:0;z-index:0;opacity:.3}
+.prompt .scene svg{width:100%;height:100%;display:block}
+.prompt .scene::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(180deg, rgba(250,245,234,.55), rgba(250,245,234,.92))}
+.prompt .inner{position:relative;z-index:1;display:block;
+               padding:var(--s5) var(--s4)}
 .prompt .ask{color:var(--muted);font-size:12px;text-transform:uppercase;
              letter-spacing:.07em;font-weight:600;margin-bottom:var(--s2)}
-.prompt .word{font-size:24px;font-weight:650;line-height:1.3}
+.prompt .qword{font-size:26px;font-weight:650;line-height:1.3}
+
+/* ── карточка знакомства ── */
+/* Раньше приложение сразу спрашивало слово, которого человек не видел.
+   Здесь оно сначала показывается: написание крупно, чтение, перевод и
+   звук. Вопросы идут следом, по этим же словам. */
+.card-lesson{position:relative;overflow:hidden;display:block;
+             background:var(--surface);border:1px solid var(--border);
+             border-radius:var(--r-lg);box-shadow:var(--shadow);
+             margin-bottom:var(--s4)}
+.card-lesson .scene{position:absolute;left:0;right:0;top:0;height:150px;
+                    z-index:0;opacity:.55}
+.card-lesson .scene svg{width:100%;height:100%;display:block}
+.card-lesson .scene::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(180deg, rgba(250,245,234,.20) 0%,
+             rgba(250,245,234,.86) 62%, var(--surface) 100%)}
+.card-lesson .body{position:relative;z-index:1;display:block;
+                   padding:96px var(--s5) var(--s5);text-align:center}
+.card-lesson .xl{display:block;font-size:44px;line-height:1.5;font-weight:700;
+                 direction:rtl}
+.card-lesson .tr{display:block;color:var(--muted);font-size:15px;margin-top:2px}
+.card-lesson .gloss{display:block;font-size:20px;font-weight:600;
+                    margin-top:var(--s3)}
+.card-lesson .snd{margin:var(--s4) auto 0;width:56px;height:56px;border:0;
+                  border-radius:999px;background:var(--primary);
+                  color:var(--on-primary);display:grid;place-items:center;
+                  box-shadow:var(--shadow-p);
+                  transition:transform .18s var(--bounce)}
+.card-lesson .snd:active{transform:scale(.94)}
+.card-lesson .snd:disabled{opacity:.3;box-shadow:none}
 
 .opt{
   display:flex;align-items:center;justify-content:flex-end;gap:var(--s3);
-  width:100%;min-height:60px;padding:var(--s3) var(--s4);margin-bottom:var(--s2);
+  width:100%;min-height:64px;padding:var(--s3) var(--s5);margin-bottom:var(--s3);
   border:2px solid var(--border);border-radius:var(--r);background:var(--glass);
   backdrop-filter:blur(14px);box-shadow:var(--shadow);
   transition:border-color .18s, background .18s, transform .18s var(--bounce);
@@ -558,11 +604,37 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
   <div id="format-tiles"></div>
 </div>
 
+<div id="s-intro" class="screen">
+  <div class="lesson-head">
+    <span class="cap" id="intro-cap">Новые слова</span>
+    <span class="of" id="intro-of"></span>
+  </div>
+  <div class="bar"><i id="intro-bar"></i></div>
+  <div class="card-lesson">
+    <span class="scene" id="intro-scene"></span>
+    <span class="body">
+      <span class="he xl" id="intro-he"></span>
+      <span class="tr" id="intro-tr"></span>
+      <span class="gloss" id="intro-gloss"></span>
+      <button class="snd" id="intro-snd" aria-label="Послушать"></button>
+    </span>
+  </div>
+  <button class="ghost" id="intro-know">Я уже знаю это</button>
+  <button class="primary" id="intro-next" style="margin-top:var(--s3)">Дальше</button>
+</div>
+
 <div id="s-round" class="screen">
+  <div class="lesson-head">
+    <span class="cap" id="round-cap"></span>
+    <span class="of" id="round-of"></span>
+  </div>
   <div class="bar"><i id="bar"></i></div>
   <div class="prompt">
-    <div class="ask" id="ask"></div>
-    <div class="word" id="word"></div>
+    <span class="scene" id="round-scene"></span>
+    <span class="inner">
+      <div class="ask" id="ask"></div>
+      <div class="qword" id="word"></div>
+    </span>
   </div>
   <div class="letters" id="letters" hidden></div>
   <div id="options"></div>
@@ -653,7 +725,8 @@ function plural(n, one, few, many){
 }
 
 const state = { screen:"home", stack:[], round:null, idx:0, score:0,
-                fmt:"choice", mode:"vocab", cat:null, menu:null, home:null, busy:false };
+                fmt:"choice", mode:"vocab", cat:null, menu:null, home:null, busy:false,
+                intro:[], iIdx:0 };
 
 function show(name, push = true){
   if (push && state.screen !== name) state.stack.push(state.screen);
@@ -998,14 +1071,77 @@ document.querySelectorAll("[data-go='home']").forEach(b =>
 
 // ---------- раунд ----------
 
+/* Какие ключи тем вообще нарисованы — берём из самой страницы, чтобы
+   список не разъезжался со спрайтом. Слово из грамматики или спряжений
+   попадает на общий городской фон. */
+const HAS_SCENE = new Set([...document.querySelectorAll('[id^="sk-"]')]
+  .map(g => g.id.slice(3)));
+const sceneFor = cat => HAS_SCENE.has(cat) ? cat : "city";
+const sceneSvg = cat =>
+  `<svg viewBox="0 0 150 104" preserveAspectRatio="xMidYMid slice"
+        aria-hidden="true"><use href="#sk-${sceneFor(cat)}"/></svg>`;
+
 async function startRound(fmt){
   state.fmt = fmt;
   const r = await api("/api/round", { mode:state.mode, cat:state.cat, format:fmt });
   if (r.error === "too_small") return fail("Тут пока слишком мало карточек для раунда.");
   if (r.error) return fail("Не получилось собрать раунд.");
   state.round = r; state.idx = 0; state.score = 0;
-  show("round"); renderQuestion();
+  state.intro = r.intro || []; state.iIdx = 0;
+  // Сначала знакомство, если в раунде есть слова, которых человек не видел.
+  if (state.intro.length) renderIntro();
+  else { show("round"); renderQuestion(); }
 }
+
+/* ── знакомство ── */
+
+function renderIntro(){
+  const c = state.intro[state.iIdx], total = state.intro.length;
+  show("intro");
+  $("intro-of").textContent = `${state.iIdx + 1} / ${total}`;
+  $("intro-bar").style.width = (state.iIdx / total * 100) + "%";
+  $("intro-scene").innerHTML = sceneSvg(c.cat);
+  $("intro-he").textContent = c.main;
+  $("intro-tr").textContent = c.reading || "";
+  $("intro-tr").hidden = !c.reading;
+  $("intro-gloss").textContent = c.gloss;
+  const snd = $("intro-snd");
+  snd.innerHTML = icon("sound", 24);
+  snd.disabled = !c.audio;
+  snd.onclick = () => { tap(); new Audio("/api/audio/" + c.audio).play(); };
+  $("intro-next").textContent = state.iIdx + 1 < total ? "Дальше" : "Проверим";
+  // Звук сам, без нажатия: слово надо услышать прежде, чем повторить.
+  if (c.audio) new Audio("/api/audio/" + c.audio).play().catch(() => {});
+}
+
+function introDone(){
+  // Если все слова отложили кнопкой «уже знаю», спрашивать нечего.
+  if (!state.round.questions.length) return finish();
+  show("round", false); renderQuestion();
+}
+
+$("intro-next").onclick = () => {
+  tap();
+  if (++state.iIdx < state.intro.length) renderIntro();
+  else introDone();
+};
+
+/* Отложенное на знакомстве слово не должно всплыть вопросом через
+   секунду после того, как человек сказал «я это знаю»: убираем его и из
+   показа, и из викторины. */
+$("intro-know").onclick = async () => {
+  if (state.busy) return;
+  state.busy = true;
+  const c = state.intro[state.iIdx];
+  try { await api("/api/know", { mode: state.mode, ru: c.ru }); }
+  catch(e){ /* сеть отвалилась — слово просто останется в раунде */ }
+  buzz("success");
+  state.busy = false;
+  state.round.questions = state.round.questions.filter(q => q.ru !== c.ru);
+  state.intro.splice(state.iIdx, 1);
+  if (state.iIdx < state.intro.length) renderIntro();
+  else introDone();
+};
 
 function renderQuestion(){
   const q = state.round.questions[state.idx];
@@ -1013,10 +1149,13 @@ function renderQuestion(){
   state.busy = false;
   $("bar").style.width = (state.idx / total * 100) + "%";
   $("verdict").innerHTML = ""; $("next").hidden = true; $("know").hidden = false;
+  $("round-cap").textContent = state.round.label || "";
+  $("round-of").textContent = `${state.idx + 1} / ${total}`;
+  $("round-scene").innerHTML = sceneSvg(state.cat || q.mode);
 
   const isForm = ["past","present","future"].includes(q.mode);
   const isAlef = q.mode.startsWith("alef_");
-  $("ask").textContent = isAlef ? `вопрос ${state.idx+1} из ${total}`
+  $("ask").textContent = isAlef ? "что это"
                        : (isForm ? "какая это форма" : "как будет");
   $("word").textContent = q.ru;
   $("options").innerHTML = ""; $("typed").hidden = true; $("letters").hidden = true;
