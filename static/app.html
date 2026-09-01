@@ -26,9 +26,17 @@
   --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px;
   /* Мягкая двойная тень вместо жёсткого канта — от неё интерфейс
      перестаёт выглядеть набором прямоугольников. */
-  --shadow:0 1px 2px rgba(11,27,43,.06), 0 6px 16px rgba(11,27,43,.07);
-  --shadow-p:0 2px 4px rgba(0,56,184,.18), 0 8px 20px rgba(0,56,184,.22);
+  /* Клеймофизм: двойная тень — внутренний блик сверху и мягкая внешняя
+     снизу. Именно внутренний блик даёт ощущение объёма; без него
+     остаётся плоский прямоугольник с тенью. */
+  --shadow:inset 0 1px 0 rgba(255,255,255,.9),
+           0 1px 2px rgba(11,27,43,.05), 0 8px 20px rgba(11,27,43,.09);
+  --shadow-p:inset 0 1px 0 rgba(255,255,255,.28),
+             0 2px 4px rgba(0,56,184,.2), 0 10px 24px rgba(0,56,184,.26);
   --tap:44px;                       /* минимальная площадь касания */
+  /* Отскок только на нажатие. Смещение держим до 2 px: больше читается
+     как движение, а не как отклик. */
+  --bounce:cubic-bezier(.34,1.56,.64,1);
 }
 html[data-theme="dark"]{
   --bg:#0A1420; --surface:#152232; --surface-2:#1B2A3C;
@@ -37,8 +45,9 @@ html[data-theme="dark"]{
   --tchelet:#4E86B8;
   --ok:#4FC77E; --bad:#FF7B72; --warn:#E0A94A;
   --ok-soft:#12301F; --bad-soft:#341A18; --warn-soft:#332714;
-  --shadow:0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.35);
-  --shadow-p:0 2px 6px rgba(0,0,0,.45);
+  --shadow:inset 0 1px 0 rgba(255,255,255,.07),
+           0 1px 2px rgba(0,0,0,.45), 0 8px 22px rgba(0,0,0,.4);
+  --shadow-p:inset 0 1px 0 rgba(255,255,255,.15), 0 8px 22px rgba(0,0,0,.5);
 }
 
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -59,6 +68,18 @@ button{font:inherit;color:inherit;cursor:pointer}
 :focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:4px}
 .screen{display:none} .screen.on{display:block;animation:in .22s ease-out}
 @keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* Волна при входе: плитки проявляются по очереди, а не разом. Задержка
+   считается из порядкового номера, без JS. */
+@keyframes rise{from{opacity:0;transform:translateY(10px) scale(.97)}
+                to{opacity:1;transform:none}}
+.topics .topic{animation:rise .34s var(--bounce) backwards}
+.topics .topic:nth-child(1){animation-delay:.02s}
+.topics .topic:nth-child(2){animation-delay:.05s}
+.topics .topic:nth-child(3){animation-delay:.08s}
+.topics .topic:nth-child(4){animation-delay:.11s}
+.topics .topic:nth-child(5){animation-delay:.14s}
+.topics .topic:nth-child(6){animation-delay:.17s}
+.topics .topic:nth-child(n+7){animation-delay:.2s}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
 }
@@ -74,9 +95,11 @@ button{font:inherit;color:inherit;cursor:pointer}
   display:flex;align-items:center;gap:var(--s3);width:100%;min-height:var(--tap);
   text-align:left;padding:var(--s4);margin-bottom:var(--s2);border:1px solid var(--border);
   border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow);
-  transition:transform .16s ease-out, box-shadow .16s ease-out;
+  border-width:2px;
+  transition:transform .18s var(--bounce), box-shadow .18s ease-out;
 }
-.tile:active{transform:scale(.985);box-shadow:0 1px 2px rgba(11,27,43,.08)}
+.tile:active{transform:translateY(2px) scale(.99);
+             box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 1px 3px rgba(11,27,43,.1)}
 .tile .ico{flex:0 0 40px;height:40px;border-radius:var(--r-sm);display:grid;
            place-items:center;background:var(--primary-soft);color:var(--primary)}
 .tile .txt{flex:1;min-width:0}
@@ -95,9 +118,10 @@ button{font:inherit;color:inherit;cursor:pointer}
 .primary{
   width:100%;min-height:52px;padding:var(--s4);border:0;border-radius:var(--r);
   background:var(--primary);color:var(--on-primary);font-weight:650;font-size:17px;
-  box-shadow:var(--shadow-p);transition:transform .16s ease-out;
+  box-shadow:var(--shadow-p);transition:transform .18s var(--bounce), box-shadow .18s;
 }
-.primary:active{transform:scale(.985)}
+.primary:active{transform:translateY(2px) scale(.99);
+                box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 2px 6px rgba(0,56,184,.3)}
 .ghost{background:transparent;color:var(--primary);border:0;padding:var(--s4);
        width:100%;font-weight:600;min-height:var(--tap)}
 
@@ -116,10 +140,11 @@ button{font:inherit;color:inherit;cursor:pointer}
 .opt{
   display:flex;align-items:center;justify-content:flex-end;gap:var(--s3);
   width:100%;min-height:60px;padding:var(--s3) var(--s4);margin-bottom:var(--s2);
-  border:2px solid var(--border);border-radius:var(--r);background:var(--surface);
-  transition:border-color .16s, background .16s, transform .16s;
+  border:3px solid var(--border);border-radius:var(--r);background:var(--surface);
+  box-shadow:var(--shadow);
+  transition:border-color .18s, background .18s, transform .18s var(--bounce);
 }
-.opt:active:not(:disabled){transform:scale(.985)}
+.opt:active:not(:disabled){transform:translateY(2px) scale(.99)}
 .opt.ok{border-color:var(--ok);background:var(--ok-soft)}
 .opt.bad{border-color:var(--bad);background:var(--bad-soft)}
 .opt .mark{flex:0 0 auto;display:none}
@@ -220,12 +245,21 @@ html[data-theme="dark"] .xpbar i{background:var(--on-primary)}
 .metric .l{font-size:11px;color:var(--muted);margin-top:2px}
 
 /* ── прогресс по темам ── */
+/* Бенто-сетка: плитки разного размера. Ровная сетка одинаковых
+   прямоугольников — то, от чего экран читается как таблица. Крупные
+   достаются темам, которые человек уже начал: взгляд цепляется за то,
+   что продолжать. */
 .topics{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s2)}
 .topic{display:flex;align-items:center;gap:var(--s3);background:var(--surface);
-       border:1px solid var(--border);border-radius:var(--r);padding:var(--s3);
-       min-height:var(--tap);box-shadow:var(--shadow);text-align:left;
-       transition:transform .16s ease-out}
-.topic:active{transform:scale(.985)}
+       border:2px solid var(--border);border-radius:var(--r);padding:var(--s3);
+       min-height:64px;box-shadow:var(--shadow);text-align:left;
+       transition:transform .18s var(--bounce), box-shadow .18s}
+.topic:active{transform:translateY(2px) scale(.99)}
+.topic.big{grid-column:span 2;min-height:92px;padding:var(--s4);
+           flex-direction:row;align-items:center;gap:var(--s4)}
+.topic.big .nm{font-size:17px}
+.topic.big .ring{width:56px;height:56px}
+.topic.big .sub{font-size:13px}
 /* Каждой теме свой оттенок. Одноцветная сетка — то, от чего рябит и
    становится «сухо»: тринадцать одинаковых плиток глаз не различает. */
 .topic .txt{flex:1;min-width:0}
@@ -538,7 +572,10 @@ async function renderHome(){
   }
 
   html += `<h2>Темы</h2><div class="topics">`
-    + h.topics.map(t => `<button class="topic" data-topic="${t.key}">
+    + h.topics.map((t, i) => `<button class="topic${
+          // Крупные — начатым темам и первой в списке: взгляду нужна
+          // точка входа, а ровная сетка её не даёт.
+          (t.seen && i < 4) || i === 0 ? " big" : ""}" data-topic="${t.key}">
         <span class="ring" style="background:${hue(t.key,70,94)}">
           ${donut(t.seen, t.learned, t.total, 36, hue(t.key,62,45), hue(t.key,55,78))}
         </span>
