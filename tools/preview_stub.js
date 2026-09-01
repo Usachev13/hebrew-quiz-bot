@@ -30,7 +30,7 @@ window.fetch = async (path, opt) => {
       .map(([key,name,count]) => ({key,name,count})),
     verbs: [["verbs","глаголы",75],["past","прошедшее время",693]]
       .map(([key,name,count]) => ({key,name,count})),
-    alphabet: [{"key": "alef_by_name", "name": "узнать букву по названию", "count": 22}, {"key": "alef_dotted", "name": "точка меняет звук", "count": 8}, {"key": "alef_finals", "name": "конечные формы", "count": 5}, {"key": "alef_names", "name": "названия букв", "count": 22}, {"key": "alef_niqqud", "name": "огласовки", "count": 9}, {"key": "alef_sounds", "name": "звуки букв", "count": 22}, {"key": "alef_syllables", "name": "чтение слогов", "count": 40}],
+    alphabet: [{"key": "alef_names", "name": "названия букв", "count": 22}, {"key": "alef_sounds", "name": "звуки букв", "count": 22}, {"key": "alef_by_name", "name": "узнать букву по названию", "count": 22}, {"key": "alef_finals", "name": "конечные формы", "count": 5}, {"key": "alef_dotted", "name": "точка меняет звук", "count": 8}, {"key": "alef_niqqud", "name": "огласовки", "count": 9}, {"key": "alef_syllables", "name": "чтение слогов", "count": 40}],
     due: 91, weak: 42, anagram_modes: ["vocab","weak"] };
   else if (path.endsWith("/home")) r = {
     xp:158, level:5, at_level:27, need:64, streak:1, due:91, weak:42,

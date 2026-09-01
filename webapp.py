@@ -176,7 +176,7 @@ def menu(chat_id, payload):
         "verbs": [{"key": m, "name": quiz.LABELS[m], "count": counts[m]}
                   for m in ("verbs", "past", "present", "future")],
         "alphabet": [{"key": m, "name": quiz.LABELS[m], "count": counts[m]}
-                     for m in sorted(quiz.ALPHABET_MODES)],
+                     for m in quiz.ALPHABET_ORDER],
         "due": due,
         "weak": weak,
         "anagram_modes": sorted(quiz.ANAGRAM_MODES),
