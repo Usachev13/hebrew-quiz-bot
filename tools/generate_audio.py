@@ -77,13 +77,22 @@ SENTENCE_BREAK = os.environ.get("TTS_SENTENCE_BREAK", "0ms")
 PRICE_PER_1M_CHARS = 16.0
 
 
-SCOPES = ["all", "words", "forms", "present", "past", "future"]
+SCOPES = ["all", "words", "forms", "present", "past", "future", "phrases"]
 
 
 def collect(scope):
     """Тексты для озвучки. Порядок — от самого нужного к менее нужному,
     чтобы при --limit сначала озвучились слова, а не редкие формы."""
     items = []
+    # Разговорные фразы озвучиваем первыми: человек их произносит вслух,
+    # и без образца произношения упражнение теряет половину смысла.
+    # Слот из каркаса убираем — озвучивать «…» бессмысленно.
+    if scope in ("all", "phrases"):
+        import phrases as ph
+        for _sit, item in ph.all_phrases():
+            items.append(ph.spoken(item, female=False))
+            if item.get("he_f"):
+                items.append(ph.spoken(item, female=True))
     if scope in ("all", "words"):
         for cat, pairs in VOCAB.items():
             for ru, he in pairs:

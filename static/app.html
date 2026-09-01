@@ -228,6 +228,44 @@ button{font:inherit;color:inherit;cursor:pointer}
              letter-spacing:.07em;font-weight:600;margin-bottom:var(--s2)}
 .prompt .qword{font-size:26px;font-weight:650;line-height:1.3}
 
+/* ── карточка «скажите вслух» ── */
+/* Ответ закрыт до нажатия нарочно: если иврит виден сразу, человек его
+   прочитает, а не вспомнит. Разница между чтением и говорением — ровно
+   то, ради чего этот режим и сделан. */
+.card-say{display:block;background:var(--surface);border:1px solid var(--border);
+          border-radius:var(--r-lg);box-shadow:var(--shadow);
+          padding:var(--s5);margin-bottom:var(--s4);text-align:center}
+.card-say .ask{display:block;color:var(--muted);font-size:12px;font-weight:600;
+               letter-spacing:.07em;text-transform:uppercase}
+.card-say .ru{display:block;font-size:24px;font-weight:650;line-height:1.3;
+              margin-top:var(--s3)}
+.card-say .hint{display:block;color:var(--muted);font-size:13px;
+                margin-top:var(--s2);line-height:1.4}
+.card-say .hidden-box{display:block;margin-top:var(--s4);
+                      border-top:1px solid var(--border);padding-top:var(--s4)}
+.card-say .hidden-box[hidden]{display:none}
+.card-say .xl{display:block;font-size:30px;line-height:1.6;font-weight:700;
+              direction:rtl}
+.card-say .tr{display:block;color:var(--muted);font-size:15px;margin-top:2px}
+.card-say .snd{margin:var(--s3) auto 0;width:52px;height:52px;border:0;
+               border-radius:999px;background:var(--primary);color:var(--on-primary);
+               display:grid;place-items:center;box-shadow:var(--shadow-p)}
+.card-say .snd:disabled{opacity:.3;box-shadow:none}
+/* Полоска ожидания: пять секунд тишины, за которые надо успеть сказать.
+   Без паузы человек жмёт «показать» рефлекторно и опять ничего не
+   произносит. */
+.card-say .wait{display:block;height:4px;background:var(--border);
+                border-radius:999px;margin-top:var(--s4);overflow:hidden}
+.card-say .wait[hidden]{display:none}
+.card-say .wait i{display:block;height:100%;width:0;background:var(--gold-bright);
+                  border-radius:999px}
+.card-say .wait.run i{width:100%;transition:width 5s linear}
+.ok-btn{flex:1;min-height:52px;border:0;border-radius:var(--r);
+        background:var(--ok);color:#fff;font-weight:650;font-size:17px;
+        box-shadow:var(--shadow-p);transition:transform .18s var(--bounce)}
+.ok-btn:active{transform:translateY(2px)}
+.lead{color:var(--muted);font-size:14px;line-height:1.45;margin:0 0 var(--s4)}
+
 /* ── карточка знакомства ── */
 /* Раньше приложение сразу спрашивало слово, которого человек не видел.
    Здесь оно сначала показывается: написание крупно, чтение, перевод и
@@ -691,6 +729,38 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
   <div id="format-tiles"></div>
 </div>
 
+<div id="s-say-list" class="screen"><h1>Заговорить</h1>
+  <p class="lead">Сначала скажите вслух, потом смотрите ответ. Молча
+     упражнение не работает — в этом вся разница.</p>
+  <div id="say-tiles"></div>
+</div>
+
+<div id="s-say" class="screen">
+  <div class="lesson-head">
+    <span class="cap" id="say-cap"></span>
+    <span class="of" id="say-of"></span>
+  </div>
+  <div class="bar"><i id="say-bar"></i></div>
+
+  <div class="card-say">
+    <span class="ask">скажите вслух</span>
+    <span class="ru" id="say-ru"></span>
+    <span class="hint" id="say-note"></span>
+    <span class="hidden-box" id="say-hidden">
+      <span class="he xl" id="say-he"></span>
+      <span class="tr" id="say-tr"></span>
+      <button class="snd" id="say-snd" aria-label="Послушать"></button>
+    </span>
+    <span class="wait" id="say-wait"><i></i></span>
+  </div>
+
+  <button class="primary" id="say-show">Показать ответ</button>
+  <div class="row" id="say-judge" hidden>
+    <button class="ok-btn" id="say-yes">Сказал</button>
+    <button class="ghost" id="say-no">Не смог</button>
+  </div>
+</div>
+
 <div id="s-intro" class="screen">
   <div class="lesson-head">
     <span class="cap" id="intro-cap">Новые слова</span>
@@ -816,7 +886,7 @@ function plural(n, one, few, many){
 
 const state = { screen:"home", stack:[], round:null, idx:0, score:0,
                 fmt:"choice", mode:"vocab", cat:null, menu:null, home:null, busy:false,
-                intro:[], iIdx:0 };
+                intro:[], iIdx:0, say:null, sIdx:0 };
 
 function show(name, push = true){
   if (push && state.screen !== name) state.stack.push(state.screen);
@@ -907,12 +977,16 @@ function tile({ ico, letter, bg, name, sub, badge, dim, onclick, compact, plate 
 
 // Алфавит первым: без букв остальное не читается, это нулевой уровень.
 const SECTIONS = [
+  // Разговор первым: ради него всё остальное и учится. Раньше человек
+  // мог месяцами узнавать слова и ни разу не открыть рот.
+  { go:"say",      bg:"greetings", name:"Заговорить", sub:"фразы, которые скажете завтра" },
   { go:"alphabet", bg:"alphabet", name:"Алфавит",    sub:"буквы, огласовки, слоги" },
   { go:"topics",   bg:"topics",   name:"По темам",   sub:"еда, семья, дом, город…" },
   { go:"grammar",  bg:"grammar",  name:"Грамматика", sub:"прилагательные, местоимения, числа" },
   { go:"verbs",    bg:"verbs",    name:"Глаголы",    sub:"инфинитивы и три времени" },
 ];
-const TITLES = { topics:"По темам", grammar:"Грамматика", verbs:"Глаголы", alphabet:"Алфавит" };
+const TITLES = { topics:"По темам", grammar:"Грамматика", verbs:"Глаголы",
+                 alphabet:"Алфавит", say:"Заговорить" };
 
 /* Время суток берём с устройства: сервер стоит во Франкфурте, и в шесть
    утра по Тель-Авиву он бы показывал ночь.
@@ -1123,7 +1197,117 @@ function renderTopics(topics){
    начальная форма как вход. */
 const VERB_BG = { verbs:"inf", past:"past", present:"present", future:"future" };
 
+/* ── разговорные модели ── */
+
+const SAY_BG = { daily:"food", office:"city", home:"home", meeting:"greetings" };
+
+async function openSay(){
+  show("say-list");
+  const host = $("say-tiles");
+  host.innerHTML = "<div class='skeleton'></div>".repeat(3);
+  let r;
+  try { r = await api("/api/situations"); }
+  catch(e){ return fail("Не удалось загрузить ситуации."); }
+  host.innerHTML = "";
+
+  // Пол спрашиваем до первой фразы, а не в настройках: половина
+  // бытовых фраз меняет форму глагола по полу говорящего, и мужская
+  // форма у женщины — это выученная ошибка.
+  if (!r.gender){
+    const box = document.createElement("div");
+    box.className = "card gender-ask";
+    box.innerHTML = `<div class="stat"><span>Как вы говорите о себе?</span></div>
+      <p class="lead" style="margin:0 0 12px">В иврите глагол меняется по полу
+         говорящего: «я хочу» звучит по-разному. Без этого половина фраз
+         будет с чужой формой.</p>
+      <div class="row">
+        <button class="primary" data-g="m">אֲנִי רוֹצֶה — мужская</button>
+        <button class="primary" data-g="f">אֲנִי רוֹצָה — женская</button>
+      </div>`;
+    host.appendChild(box);
+    box.querySelectorAll("[data-g]").forEach(b => b.onclick = async () => {
+      tap();
+      try { await api("/api/profile", { gender: b.dataset.g }); }
+      catch(e){ return fail("Не удалось сохранить."); }
+      openSay();
+    });
+  }
+
+  r.situations.forEach(sit => host.appendChild(tile({
+    bg: SAY_BG[sit.key] || "greetings",
+    name: sit.name,
+    sub: sit.learned ? `${sit.learned} из ${sit.total} закреплено`
+                     : `${sit.total} фраз`,
+    onclick: () => startSay(sit.key),
+  })));
+}
+
+async function startSay(situation){
+  let r;
+  try { r = await api("/api/say", { situation }); }
+  catch(e){ return fail("Не получилось собрать подход."); }
+  if (r.error) return fail("Тут пока нечего повторять.");
+  state.say = r; state.sIdx = 0; state.busy = false;
+  show("say"); renderSay();
+}
+
+function renderSay(){
+  const c = state.say.cards[state.sIdx], total = state.say.cards.length;
+  state.busy = false;
+  $("say-cap").textContent = state.say.label;
+  $("say-of").textContent = `${state.sIdx + 1} / ${total}`;
+  $("say-bar").style.width = (state.sIdx / total * 100) + "%";
+  $("say-ru").textContent = c.ru;
+  $("say-note").textContent = c.note || "";
+  $("say-note").hidden = !c.note;
+  $("say-he").textContent = c.he;
+  $("say-tr").textContent = c.reading || "";
+  $("say-hidden").hidden = true;
+  $("say-judge").hidden = true;
+  $("say-show").hidden = false;
+
+  // Пять секунд тишины: за них надо успеть сказать. Без паузы человек
+  // жмёт «показать» рефлекторно и снова ничего не произносит.
+  const w = $("say-wait");
+  w.hidden = false; w.classList.remove("run");
+  void w.offsetWidth;                 // перезапуск перехода
+  w.classList.add("run");
+}
+
+function revealSay(){
+  const c = state.say.cards[state.sIdx];
+  $("say-hidden").hidden = false;
+  $("say-wait").hidden = true;
+  $("say-show").hidden = true;
+  $("say-judge").hidden = false;
+  const snd = $("say-snd");
+  snd.innerHTML = icon("sound", 22);
+  snd.disabled = !c.audio;
+  snd.onclick = () => { tap(); new Audio("/api/audio/" + c.audio).play(); };
+  if (c.audio) new Audio("/api/audio/" + c.audio).play().catch(() => {});
+}
+
+async function judgeSay(said){
+  if (state.busy) return;
+  state.busy = true;
+  const c = state.say.cards[state.sIdx];
+  try { await api("/api/say_answer", { id: c.id, said }); }
+  catch(e){ /* сеть отвалилась — подход всё равно доводим до конца */ }
+  buzz(said ? "success" : "error");
+  state.busy = false;
+  if (++state.sIdx >= state.say.cards.length){
+    state.score = state.say.cards.length; state.round = { questions: [] };
+    return openSay();
+  }
+  renderSay();
+}
+
+$("say-show").onclick = () => { tap(); revealSay(); };
+$("say-yes").onclick = () => judgeSay(true);
+$("say-no").onclick = () => judgeSay(false);
+
 function openList(kind){
+  if (kind === "say") return openSay();
   const items = state.menu[kind];
   const wide  = kind === "topics" || kind === "grammar";
   $("list-title").textContent = TITLES[kind];

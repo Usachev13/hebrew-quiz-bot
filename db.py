@@ -140,6 +140,11 @@ LATER_COLUMNS = [
     # Ивритское написание имени. Пусто — значит человек его не правил, и
     # приложение показывает то, что вывело само.
     ("prefs", "heb_name", "TEXT"),
+    # Пол говорящего: 'm', 'f' или NULL. В иврите глагол настоящего
+    # времени меняется по полу того, кто говорит, — «אני רוצה» у мужчины
+    # и «אני רוצה» с другой огласовкой у женщины. Выдать женщине мужскую
+    # форму значит научить её говорить неправильно.
+    ("prefs", "gender", "TEXT"),
 ]
 
 # Интервалы системы Лейтнера: сколько дней ждать до следующего показа.
@@ -409,6 +414,27 @@ def voice_enabled(chat_id):
     return True if row is None else bool(row["voice"])
 
 
+def set_gender(chat_id, gender):
+    """Пол говорящего. Пусто — не выбран, показываем мужскую форму и
+    просим уточнить."""
+    gender = gender if gender in ("m", "f") else None
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO prefs (chat_id, gender) VALUES (?, ?) "
+        "ON CONFLICT(chat_id) DO UPDATE SET gender = excluded.gender",
+        (str(chat_id), gender),
+    )
+    conn.commit()
+    return gender
+
+
+def gender(chat_id):
+    row = get_conn().execute(
+        "SELECT gender FROM prefs WHERE chat_id = ?", (str(chat_id),)
+    ).fetchone()
+    return (row["gender"] or None) if row else None
+
+
 def set_heb_name(chat_id, name):
     """Имя ивритскими буквами, как его поправил сам пользователь.
 
@@ -617,18 +643,23 @@ def xp_earned_today(chat_id, reason):
     return row[0]
 
 
-def learned_by_card(chat_id):
-    """{карточка: коробка Лейтнера}. Отсюда считается прогресс по темам.
+def card_boxes(chat_id, mode):
+    """{карточка: коробка Лейтнера} для одного режима.
 
-    «Выучено» — коробка 4 и выше: слово пережило три верных ответа с
+    «Выучено» — коробка 4 и выше: карточка пережила три верных ответа с
     растущими промежутками. Показывать «пройдено» по одному верному
     ответу было бы приятнее и враньём.
     """
     rows = get_conn().execute(
-        "SELECT card_id, box FROM card_state WHERE chat_id = ? AND mode = 'vocab'",
-        (str(chat_id),),
+        "SELECT card_id, box FROM card_state WHERE chat_id = ? AND mode = ?",
+        (str(chat_id), mode),
     ).fetchall()
     return {r["card_id"]: r["box"] for r in rows}
+
+
+def learned_by_card(chat_id):
+    """Коробки словарных карточек. Отсюда считается прогресс по темам."""
+    return card_boxes(chat_id, "vocab")
 
 
 def active_days(chat_id, days=7):

@@ -29,6 +29,7 @@ from flask import Blueprint, jsonify, request, send_file
 import audio
 import db
 import hebrew_name
+import phrases
 import quiz
 from matching import check_answer, scramble
 from translit import translit
@@ -509,6 +510,114 @@ def know(chat_id, payload):
                     "reading": translit(found[0]) if mode not in quiz.ALPHABET_MODES else ""})
 
 
+# ---------- разговорные модели ----------
+
+SAY_MODE = "say"        # отдельный режим для интервальных повторений
+SAY_LEN = 8             # длина подхода: больше — и голос устаёт
+
+
+def _say_card(cid, ph, female):
+    """Одна модель для показа. Слот не заполняем: подставлять слово —
+    отдельное упражнение, а здесь задача произнести каркас."""
+    he = phrases.text(ph, female)
+    # Показываем со слотом-многоточием, а озвучиваем и ищем звук по той
+    # же строке, что записал генератор, — иначе ключи разойдутся.
+    shown = he.replace(phrases.SLOT, "…")
+    voice = phrases.spoken(ph, female)
+    return {
+        "id": cid,
+        "ru": ph["ru"].replace(phrases.SLOT, "…"),
+        "he": shown,
+        "reading": translit(voice),
+        "audio": audio.audio_key(voice) if audio.has_audio(voice) else None,
+        "note": ph.get("note"),
+        "slot": ph.get("slot"),
+    }
+
+
+@api.route("/api/say", methods=["POST"])
+@guarded
+def say(chat_id, payload):
+    """Подход разговорных моделей.
+
+    Порядок задают те же коробки Лейтнера, что и у слов: интервальные
+    повторения — это расписание, а не метод, и в них ложится что угодно,
+    в том числе произнесённая вслух фраза.
+    """
+    situation = payload.get("situation")
+    if situation and situation not in phrases.SITUATIONS:
+        return jsonify({"error": "unknown situation"}), 400
+
+    female = False
+    try:
+        female = db.gender(chat_id) == "f"
+        priorities = db.card_priorities(chat_id, SAY_MODE)
+    except Exception as e:
+        print(f"[say] {e}")
+        priorities = {}
+
+    pool = [(phrases.card_id(s, i), p)
+            for s, items in phrases.PHRASES.items()
+            for i, p in enumerate(items)
+            if not situation or s == situation]
+    if not pool:
+        return jsonify({"error": "empty"}), 409
+
+    # Сначала то, что пора повторить, затем невиданное, затем остальное.
+    rank = lambda c: priorities.get(c[0], db.PRIORITY_NEW)
+    pool.sort(key=lambda c: (-rank(c), random.random()))
+    take = pool[:SAY_LEN]
+    random.shuffle(take)
+
+    return jsonify({
+        "label": phrases.SITUATIONS.get(situation, "разговор"),
+        "female": female,
+        "gender_set": bool(db.gender(chat_id)) if priorities is not None else False,
+        "cards": [_say_card(cid, ph, female) for cid, ph in take],
+    })
+
+
+@api.route("/api/say_answer", methods=["POST"])
+@guarded
+def say_answer(chat_id, payload):
+    """Самооценка: сказал или не смог.
+
+    Машина здесь не судья — она и не может им быть, пока нет распознавания
+    речи. Но произнесённая вслух фраза с честной отметкой полезнее, чем
+    выбор из четырёх вариантов с точной проверкой.
+    """
+    cid = payload.get("id", "")
+    if not phrases.by_id(cid):
+        return jsonify({"error": "unknown card"}), 400
+    said = bool(payload.get("said"))
+    try:
+        db.record_answer(chat_id, SAY_MODE, cid, said)
+        db.award_for_answer(chat_id, said)
+    except Exception as e:
+        print(f"[say_answer] {e}")
+    return jsonify({"ok": True})
+
+
+@api.route("/api/situations", methods=["POST"])
+@guarded
+def situations(chat_id, payload):
+    """Список ситуаций с тем, сколько в каждой уже отработано."""
+    try:
+        boxes = db.card_boxes(chat_id, SAY_MODE)
+    except Exception as e:
+        print(f"[situations] {e}")
+        boxes = {}
+    out = []
+    for key, name in phrases.SITUATIONS.items():
+        ids = [phrases.card_id(key, i) for i in range(len(phrases.PHRASES[key]))]
+        out.append({
+            "key": key, "name": name, "total": len(ids),
+            "seen": sum(1 for c in ids if c in boxes),
+            "learned": sum(1 for c in ids if boxes.get(c, 0) >= LEARNED_BOX),
+        })
+    return jsonify({"situations": out, "gender": db.gender(chat_id)})
+
+
 # ---------- профиль ----------
 
 @api.route("/api/profile", methods=["POST"])
@@ -523,6 +632,14 @@ def profile(chat_id, payload):
             db.set_heb_name(chat_id, str(payload["name"])[:40])
         except Exception as e:
             print(f"[profile] имя: {e}")
+            return jsonify({"error": "db"}), 503
+
+    # Пол говорящего — не переключатель «да/нет», поэтому отдельно.
+    if "gender" in payload:
+        try:
+            db.set_gender(chat_id, payload["gender"])
+        except Exception as e:
+            print(f"[profile] пол: {e}")
             return jsonify({"error": "db"}), 503
 
     if "set" in payload:
@@ -544,6 +661,7 @@ def profile(chat_id, payload):
             "xp": xp, "level": level, "at_level": at_level, "need": need,
             "streak": db.streak_days(chat_id),
             "name": _heb_name(),
+            "gender": db.gender(chat_id),
             "answers": overall["total"], "correct": overall["correct"],
             "learned": sum(1 for b in db.word_boxes(chat_id).values() if b >= LEARNED_BOX),
             "favourites": len(db.favourites(chat_id)),
