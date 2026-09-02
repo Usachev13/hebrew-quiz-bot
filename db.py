@@ -151,6 +151,12 @@ LATER_COLUMNS = [
     # больше не переопределяется: человек мог поставить в телефоне
     # английский, а учиться хотеть по-русски.
     ("prefs", "lang", "TEXT"),
+    # Язык из настроек Telegram, каким мы его видели в последний раз.
+    # Хранится ОТДЕЛЬНО от `lang`: то — выбор человека, это — подсказка
+    # системы, и смешивать их нельзя. Нужен там, где Telegram рядом нет:
+    # утренняя рассылка «слова дня» идёт из таймера, без входящего
+    # сообщения, и без этой отметки уходила бы всем по-русски.
+    ("prefs", "tg_lang", "TEXT"),
 ]
 
 # Интервалы системы Лейтнера: сколько дней ждать до следующего показа.
@@ -578,6 +584,41 @@ def lang(chat_id):
     return (row["lang"] or None) if row else None
 
 
+def remember_tg_lang(chat_id, code):
+    """Запоминает язык из настроек Telegram.
+
+    Пишем только при изменении: иначе каждое сообщение в чате тянуло бы
+    за собой запись в базу ради строки, которая почти всегда та же.
+    """
+    code = (code or "").split("-")[0].lower()
+    if not code:
+        return
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT tg_lang FROM prefs WHERE chat_id = ?",
+                           (str(chat_id),)).fetchone()
+        if row and row["tg_lang"] == code:
+            return
+        conn.execute(
+            "INSERT INTO prefs (chat_id, tg_lang) VALUES (?, ?) "
+            "ON CONFLICT(chat_id) DO UPDATE SET tg_lang = excluded.tg_lang",
+            (str(chat_id), code),
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[remember_tg_lang] {e}")
+
+
+def _seen_tg_lang(chat_id):
+    try:
+        row = get_conn().execute(
+            "SELECT tg_lang FROM prefs WHERE chat_id = ?", (str(chat_id),)
+        ).fetchone()
+    except Exception:
+        return None
+    return (row["tg_lang"] or None) if row else None
+
+
 def resolve_lang(chat_id, telegram_code=None):
     """Каким языком говорить с этим человеком.
 
@@ -598,7 +639,10 @@ def resolve_lang(chat_id, telegram_code=None):
     chosen = lang(chat_id)
     if chosen in LANGS:
         return chosen
-    code = (telegram_code or "").split("-")[0].lower()
+    # Telegram сообщает язык только вместе с сообщением. Утренняя
+    # рассылка идёт из таймера, там его нет — берём то, что видели в
+    # последний раз, иначе «слово дня» уходило бы всем по-русски.
+    code = (telegram_code or "").split("-")[0].lower() or _seen_tg_lang(chat_id)
     if not code:
         return DEFAULT_LANG
     return "ru" if code in RU_READING_CODES else "en"

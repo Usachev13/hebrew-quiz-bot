@@ -26,9 +26,11 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
+import messages          # noqa: E402
 import phrases            # noqa: E402
 import phrases_en         # noqa: E402
 import quiz               # noqa: E402
+import reactions          # noqa: E402
 
 
 def check_cards():
@@ -214,9 +216,65 @@ def check_keys_used():
     return "код зовёт ключ, которого нет в словаре", sorted(used - known)
 
 
+# ------------------------------------------------------------------- бот
+
+def check_bot_messages():
+    """Каждая строка бота должна быть на обоих языках."""
+    bad = []
+    for key, item in messages.M.items():
+        for lang in ("ru", "en"):
+            if not item.get(lang):
+                bad.append(f"{key}: нет {lang}")
+    return "текст бота не на всех языках", bad
+
+
+def check_plural_forms():
+    """Формы множественного числа: три в русском, две в английском.
+
+    Ошибка тут тихая: `forms[2]` на списке из двух элементов даст
+    IndexError только при определённых числах, то есть у кого-то в
+    середине раунда, а не на первом же запуске.
+    """
+    bad = []
+    for key, item in messages.M.items():
+        if not key.startswith("n."):
+            continue
+        for lang, need in (("ru", 3), ("en", 2)):
+            got = len((item.get(lang) or "").split("|"))
+            if got != need:
+                bad.append(f"{key} [{lang}]: {got} форм вместо {need}")
+    return "не столько форм множественного числа", bad
+
+
+def check_reactions():
+    """Пулы живых реплик — на обоих языках и непустые.
+
+    Пустой английский пул уронил бы бота на первом же ответе: pick()
+    берёт случайный элемент из списка.
+    """
+    bad = []
+    pools = {"CORRECT": reactions.CORRECT, "WRONG": reactions.WRONG,
+             "TYPO": reactions.TYPO, "SKIPPED": reactions.SKIPPED}
+    for name, pool in pools.items():
+        for lang in ("ru", "en"):
+            if not pool.get(lang):
+                bad.append(f"{name}: пуст пул {lang}")
+    for n, item in reactions.STREAK_LINES.items():
+        for lang in ("ru", "en"):
+            if not item.get(lang):
+                bad.append(f"серия {n}: нет {lang}")
+    for group, name in ((reactions.MEMORY, "память"), (reactions.SUMMARY, "итог")):
+        for key, item in group.items():
+            for lang in ("ru", "en"):
+                if not item.get(lang):
+                    bad.append(f"{name} «{key}»: нет {lang}")
+    return "живые реплики не на всех языках", bad
+
+
 CHECKS = [check_cards, check_answers, check_ids, check_labels,
           check_vocab_topics, check_phrase_alignment, check_situations,
-          check_he_en, check_catalogue_parity, check_keys_used]
+          check_he_en, check_catalogue_parity, check_keys_used,
+          check_bot_messages, check_plural_forms, check_reactions]
 
 
 def main():

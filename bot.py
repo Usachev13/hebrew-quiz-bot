@@ -26,13 +26,14 @@ import hebrew_name
 import phrases
 import quiz
 import reactions
+from messages import t, plural
 from quiz import (
     POOLS, LABELS, TOPIC_LABELS, GRAMMAR_LABELS, ALPHABET_MODES,
     ANSWERS, KNOWN_FORMS, ANAGRAM_MODES, ROUND_LEN, VOCAB_FLAT,
     build_question, round_pool,
 )
 from matching import check_answer, accepted_forms, hint_for, scramble
-from translit import translit
+from translit import reading, translit
 from words import VOCAB, VERBS
 from conjugations import (
     CONJUGATIONS,
@@ -182,19 +183,9 @@ def answer_callback(callback_id, text=None):
 # Формат ответа (выбор / написать / анаграмма) вынесен в последний шаг:
 # раньше он был отдельной веткой меню и дублировал весь список тем.
 
-def plural(n, one, few, many):
-    """Склонение при числе: «201 слово», а не «201 слов». Числа здесь
-    считаются из данных и заранее неизвестны, так что руками не обойтись."""
-    n = abs(n) % 100
-    if 11 <= n <= 14:
-        return many
-    n %= 10
-    if n == 1:
-        return one
-    if 2 <= n <= 4:
-        return few
-    return many
-
+# Склонение переехало в messages.plural: формы принадлежат языку, а не
+# месту вызова. Прежняя брала три русские формы прямо в аргументах —
+# для английского, где их две, такая подпись не годится.
 
 def _counts():
     """Считаем по фактическим пулам, а не пишем цифры руками: словарь
@@ -217,170 +208,175 @@ def _counts():
     }
 
 
-def welcome_text(name=""):
+def user_lang(chat_id, tg_user=None):
+    """Язык, на котором говорим с этим человеком.
+
+    Правило одно на бота и приложение и живёт в db.resolve_lang: сперва
+    выбор в профиле, потом настройки Telegram. Держать вторую копию
+    здесь нельзя — разъедутся, и человек, переключивший язык в
+    приложении, продолжил бы получать чат на прежнем.
+    """
+    code = (tg_user or {}).get("language_code")
+    try:
+        if code:
+            # Запоминаем подсказку системы: утренняя рассылка идёт без
+            # входящего сообщения, и там спросить будет не у кого.
+            db.remember_tg_lang(chat_id, code)
+        return db.resolve_lang(chat_id, code)
+    except Exception as e:
+        print(f"[user_lang] {e}")
+        return "ru"
+
+
+def welcome_text(name="", lang="ru"):
     """Первое сообщение. Коротко: что это, с чего начать, куда нажать."""
     hi = f", {name}" if name else ""
-    return (
-        f"<b>שלום{hi}!</b>\n"
-        "Это «Ани ломед иврит» — тренажёр для тех, кто учит иврит с нуля "
-        "или подтягивает ульпан.\n\n"
-        "Как это работает: сначала показываю новое — написание, чтение, "
-        "перевод и звук. Потом спрашиваю. Дальше материал возвращается по "
-        "интервалам: через день, три, неделю, три недели. Что даётся "
-        "тяжело — приходит чаще.\n\n"
-        "Главное отличие: фразы вы произносите вслух до того, как "
-        "увидите ответ. Узнавать и говорить — разные умения, и второе "
-        "тренируется только ртом.\n\n"
-        "Начните с раздела «Заговорить»: там фразы, которые пригодятся "
-        "уже завтра. Если буквы ещё не читаются — сперва алфавит.\n\n"
-        "Что внутри — /about"
-    )
+    return f"<b>שלום{hi}!</b>\n" + t("welcome", lang)
 
 
-def about_text():
-    """«Что умеет бот». Без обещаний того, чего нет."""
+def about_text(lang="ru"):
+    """«Что умеет бот». Без обещаний того, чего нет.
+
+    Числа считаются по фактическим пулам (см. _counts), а склонение
+    берётся из языка: «77 инфинитивов» и «77 infinitives» устроены
+    по-разному, и подставить одно в другое нельзя.
+    """
     c = _counts()
-    return (
-        "<b>Что здесь есть</b>\n\n"
-        f"🗣 <b>Заговорить</b> — {c['say']} готовых фраз в {c['situations']} "
-        "ситуациях: макколет и кафе, банк и купат холим, съём квартиры, "
-        "знакомство. Сначала говорите вслух, потом смотрите ответ — "
-        "молча упражнение не работает. Формы для мужчины и женщины "
-        "разные, потому что в иврите глагол меняется по полу говорящего.\n\n"
-        f"🔤 <b>Алфавит</b> — {c['alef_modes']} "
-        f"{plural(c['alef_modes'], 'раздел', 'раздела', 'разделов')}, "
-        f"{c['alef']} {plural(c['alef'], 'карточка', 'карточки', 'карточек')}: "
-        "названия и звуки букв, конечные формы, дагеш "
-        "(почему בּ читается «б», а ב — «в»), огласовки, чтение слогов. "
-        "Разделы идут по порядку: от узнавания к чтению.\n\n"
-        f"📚 <b>Слова</b> — {c['topic_words']} "
-        f"{plural(c['topic_words'], 'слово', 'слова', 'слов')} "
-        f"в {c['topics']} бытовых темах "
-        "(еда, семья, дом, город, здоровье, покупки…) "
-        f"и ещё {c['gram_words']} в {c['gram']} грамматических группах: "
-        "прилагательные, местоимения, числительные, предлоги места.\n\n"
-        f"🔁 <b>Глаголы</b> — {c['verbs']} "
-        f"{plural(c['verbs'], 'инфинитив', 'инфинитива', 'инфинитивов')} "
-        f"и {c['forms']} {plural(c['forms'], 'форма', 'формы', 'форм')} "
-        "прошедшего, настоящего и будущего времени. Формы не набраны "
-        "вручную, а выведены по правилам биньянов — поэтому их столько.\n\n"
-        "🎧 <b>Озвучка</b> — произношение голосом, можно помедленнее. "
-        "Ударения размечены вручную, включая исключения вроде "
-        "בַּיִת и לָמָּה.\n\n"
-        "🧠 <b>Интервальные повторения</b> — пять коробок по Лейтнеру. "
-        "«Выучено» ставится не за один верный ответ, а за три с растущими "
-        "промежутками.\n\n"
-        "🎮 <b>Три формата</b> — выбрать из вариантов, написать самому, "
-        "собрать слово из букв. Ответ засчитывается и без огласовок, и с "
-        "опечаткой в одну букву.\n\n"
-        "📱 <b>Приложение</b> — прогресс по темам, слабые места, уровни и "
-        "серия дней. Открывается кнопкой ниже.\n\n"
-        "🗓 <b>Слово дня</b> по утрам — /daily_on и /daily_off.\n\n"
-        "<b>Чего пока нет:</b> проверки произношения на слух, разбора "
-        "корня и модели (шореш и мишкаль), разговора с ИИ. Распознавание "
-        "речи — следующий шаг: сейчас вы сами отмечаете, получилось "
-        "сказать или нет.\n\n"
-        "Команды: /start · /word · /stats · /voices · /speed"
-    )
+    n = lambda v, key: plural(v, key, lang)
+    return "\n\n".join([
+        t("about.head", lang),
+        t("about.say", lang, say=c["say"], situations=c["situations"]),
+        t("about.alef", lang, modes=c["alef_modes"],
+          modes_w=n(c["alef_modes"], "n.section"),
+          cards=c["alef"], cards_w=n(c["alef"], "n.card")),
+        t("about.words", lang, topic_words=c["topic_words"],
+          words_w=n(c["topic_words"], "n.word"), topics=c["topics"],
+          gram_words=c["gram_words"], gram=c["gram"]),
+        t("about.verbs", lang, verbs=c["verbs"],
+          verbs_w=n(c["verbs"], "n.infinitive"),
+          forms=c["forms"], forms_w=n(c["forms"], "n.form")),
+        t("about.voice", lang),
+        t("about.leitner", lang),
+        t("about.formats", lang),
+        t("about.app", lang),
+        t("about.daily", lang),
+        t("about.missing", lang),
+        t("about.commands", lang),
+    ])
 
 
-def main_menu_keyboard():
+def main_menu_keyboard(lang="ru"):
     rows = []
     if WEBAPP_URL:
-        rows.append([{"text": "📱 Открыть приложение",
+        rows.append([{"text": t("menu.app", lang),
                       "web_app": {"url": WEBAPP_URL}}])
     return {
         "inline_keyboard": rows + [
-            [{"text": "📚 Слова и грамматика", "callback_data": "menu|words"}],
-            [{"text": "🔤 Алфавит (с нуля)", "callback_data": "alphabet_menu"}],
-            [{"text": "🗓 Слово дня", "callback_data": "word_of_day"},
-             {"text": "📊 Статистика", "callback_data": "show_stats"}],
+            [{"text": t("menu.words", lang), "callback_data": "menu|words"}],
+            [{"text": t("menu.alphabet", lang), "callback_data": "alphabet_menu"}],
+            [{"text": t("menu.wordOfDay", lang), "callback_data": "word_of_day"},
+             {"text": t("menu.stats", lang), "callback_data": "show_stats"}],
         ]
     }
 
 
-def words_menu_keyboard():
+def words_menu_keyboard(lang="ru"):
     return {
         "inline_keyboard": [
-            [{"text": "🗂 По темам", "callback_data": "menu|topics"}],
-            [{"text": "✏️ Грамматика", "callback_data": "menu|grammar"}],
-            [{"text": "🔤 Глаголы", "callback_data": "menu|verbs"}],
-            [{"text": "⚡ Мои слабые места", "callback_data": "pick|weak|"}],
-            [{"text": "‹ Назад", "callback_data": "main_menu"}],
+            [{"text": t("menu.topics", lang), "callback_data": "menu|topics"}],
+            [{"text": t("menu.grammar", lang), "callback_data": "menu|grammar"}],
+            [{"text": t("menu.verbs", lang), "callback_data": "menu|verbs"}],
+            [{"text": t("menu.weak", lang), "callback_data": "pick|weak|"}],
+            [{"text": t("menu.back", lang), "callback_data": "main_menu"}],
         ]
     }
 
 
-def category_keyboard(labels, back):
-    """Список категорий по две в ряд плюс «всё вперемешку»."""
-    buttons = [{"text": name, "callback_data": f"pick|vocab|{key}"}
-               for key, name in labels.items()]
+def category_keyboard(keys, back, lang="ru"):
+    """Список категорий по две в ряд плюс «всё вперемешку».
+
+    Принимает ключи, а не готовые подписи: название темы берётся из
+    quiz.section_label на языке собеседника. Раньше сюда передавали
+    словарь TOPIC_LABELS целиком, и подписи были только русские.
+    """
+    buttons = [{"text": quiz.section_label("vocab", key, lang),
+                "callback_data": f"pick|vocab|{key}"} for key in keys]
     rows = keyboard_rows(buttons, per_row=2)
-    rows.append([{"text": "🎲 Всё вперемешку", "callback_data": "pick|vocab|"}])
-    rows.append([{"text": "‹ Назад", "callback_data": back}])
+    rows.append([{"text": t("menu.mix", lang), "callback_data": "pick|vocab|"}])
+    rows.append([{"text": t("menu.back", lang), "callback_data": back}])
     return {"inline_keyboard": rows}
 
 
-def verbs_menu_keyboard():
+def verbs_menu_keyboard(lang="ru"):
     return {
         "inline_keyboard": [
-            [{"text": "🔤 Инфинитивы", "callback_data": "pick|verbs|"}],
-            [{"text": "⏪ Прошедшее", "callback_data": "pick|past|"},
-             {"text": "▶️ Настоящее", "callback_data": "pick|present|"}],
-            [{"text": "⏩ Будущее", "callback_data": "pick|future|"}],
-            [{"text": "‹ Назад", "callback_data": "menu|words"}],
+            [{"text": t("menu.infinitives", lang), "callback_data": "pick|verbs|"}],
+            [{"text": t("menu.past", lang), "callback_data": "pick|past|"},
+             {"text": t("menu.present", lang), "callback_data": "pick|present|"}],
+            [{"text": t("menu.future", lang), "callback_data": "pick|future|"}],
+            [{"text": t("menu.back", lang), "callback_data": "menu|words"}],
         ]
     }
 
 
-def format_keyboard(mode, cat):
+def format_keyboard(mode, cat, lang="ru"):
     """Последний шаг: как отвечать."""
     rows = [
-        [{"text": "🔘 Выбрать из вариантов", "callback_data": f"go|choice|{mode}|{cat}"}],
-        [{"text": "⌨️ Написать самому", "callback_data": f"go|type|{mode}|{cat}"}],
+        [{"text": t("menu.choice", lang), "callback_data": f"go|choice|{mode}|{cat}"}],
+        [{"text": t("menu.type", lang), "callback_data": f"go|type|{mode}|{cat}"}],
     ]
     if mode in ANAGRAM_MODES:
-        rows.append([{"text": "🔡 Собрать из букв", "callback_data": f"go|anagram|{mode}|{cat}"}])
-    rows.append([{"text": "‹ Назад", "callback_data": "menu|words"}])
+        rows.append([{"text": t("menu.anagram", lang),
+                      "callback_data": f"go|anagram|{mode}|{cat}"}])
+    rows.append([{"text": t("menu.back", lang), "callback_data": "menu|words"}])
     return {"inline_keyboard": rows}
 
 
-def alphabet_menu_keyboard():
+def alphabet_menu_keyboard(lang="ru"):
     return {
         "inline_keyboard": [
-            [{"text": "📜 Показать весь алфавит", "callback_data": "alef_table"}],
-            [{"text": "Названия букв", "callback_data": "start_alef_names"},
-             {"text": "Звуки букв", "callback_data": "start_alef_sounds"}],
-            [{"text": "Узнать по названию", "callback_data": "start_alef_by_name"},
-             {"text": "Конечные формы", "callback_data": "start_alef_finals"}],
-            [{"text": "Огласовки", "callback_data": "start_alef_niqqud"},
-             {"text": "Чтение слогов", "callback_data": "start_alef_syllables"}],
-            [{"text": "Точка меняет звук (בּ / ב)", "callback_data": "start_alef_dotted"}],
-            [{"text": "‹ Назад", "callback_data": "main_menu"}],
+            [{"text": t("alef.table", lang), "callback_data": "alef_table"}],
+            [{"text": t("alef.names", lang), "callback_data": "start_alef_names"},
+             {"text": t("alef.sounds", lang), "callback_data": "start_alef_sounds"}],
+            [{"text": t("alef.byName", lang), "callback_data": "start_alef_by_name"},
+             {"text": t("alef.finals", lang), "callback_data": "start_alef_finals"}],
+            [{"text": t("alef.niqqud", lang), "callback_data": "start_alef_niqqud"},
+             {"text": t("alef.syllables", lang), "callback_data": "start_alef_syllables"}],
+            [{"text": t("alef.dotted", lang), "callback_data": "start_alef_dotted"}],
+            [{"text": t("menu.back", lang), "callback_data": "main_menu"}],
         ]
     }
 
 
-def send_alphabet_table(chat_id):
-    """Справочник: все буквы с названием и звуком, потом огласовки."""
-    lines = ["📜 <b>Алфавит</b> (читается справа налево)", ""]
+def send_alphabet_table(chat_id, lang="ru"):
+    """Справочник: все буквы с названием и звуком, потом огласовки.
+
+    Названия и звуки букв берём из alphabet_en: по-английски хет — не
+    «хет», а «chet», и звук у неё описывается своими средствами.
+    """
+    import alphabet_en as ae
+    en = lang == "en"
+    name_of = lambda ltr, ru: (ae.LETTER_NAMES_EN.get(ltr) or ru) if en else ru
+    sound_of = lambda ltr, ru: (ae.LETTER_SOUNDS_EN.get(ltr) or ru) if en else ru
+
+    lines = [t("alef.title", lang), ""]
     for letter, name, sound, final in alphabet.LETTERS:
-        final_note = f"  (в конце слова: {final})" if final else ""
-        lines.append(f"<b>{letter}</b> — {name}, {sound}{final_note}")
+        note = t("alef.atEnd", lang, final=final) if final else ""
+        lines.append(f"<b>{letter}</b> — {name_of(letter, name)}, "
+                     f"{sound_of(letter, sound)}{note}")
 
-    lines += ["", "<b>Точка внутри буквы меняет звук</b>", ""]
+    lines += ["", t("alef.dotHead", lang), ""]
     for shown, name, sound in alphabet.DOTTED:
-        lines.append(f"<b>{shown}</b> — {name}, звук «{sound}»")
+        lines.append(t("alef.dotLine", lang, shown=shown, name=name,
+                       sound=(ae.DOTTED_EN.get(shown) or sound) if en else sound))
 
-    lines += ["", "<b>Огласовки</b> (показаны на букве ב)", ""]
+    lines += ["", t("alef.niqqudHead", lang), ""]
     for shown, _, sound in alphabet.NIQQUD:
-        lines.append(f"<b>{shown}</b> — звук «{sound}»")
+        lines.append(t("alef.niqqudLine", lang, shown=shown,
+                       sound=(ae.NIQQUD_EN.get(shown) or sound) if en else sound))
 
-    lines += [
-        "",
-        "<i>Пять букв в конце слова пишутся иначе: כ→ך, מ→ם, נ→ן, פ→ף, צ→ץ.</i>",
-    ]
-    send_message(chat_id, "\n".join(lines), alphabet_menu_keyboard())
+    lines += ["", t("alef.finalNote", lang)]
+    send_message(chat_id, "\n".join(lines), alphabet_menu_keyboard(lang))
 
 
 # ---------- Игровая логика ----------
@@ -393,7 +389,8 @@ def keyboard_rows(buttons, per_row=2):
 
 def send_question(chat_id):
     s = sessions[chat_id]
-    q = build_question(s["pool"], s["used"], s.get("priorities"))
+    lang = s.get("lang", "ru")
+    q = build_question(s["pool"], s["used"], s.get("priorities"), lang=lang)
     s["used"].add(q["id"])
     s["current"] = q
 
@@ -413,9 +410,10 @@ def send_question(chat_id):
         s["hints"] = 0
         letters = " ".join(scramble(q["correct"], random))
         text = (
-            f"Вопрос {idx}/{s['total']}\n<b>{q['ru']}</b>\n"
-            f"Буквы: <code>{letters}</code>\n\n"
-            f"<i>Собери из них слово. «?» — подсказка, /skip — пропустить.</i>"
+            f"{t('q.counter', lang, idx=idx, total=s['total'])}\n"
+            f"<b>{q['ru']}</b>\n"
+            f"{t('q.letters', lang, letters=letters)}\n\n"
+            f"{t('q.anagramHint', lang)}"
         )
         send_message(chat_id, text, {"remove_keyboard": True})
         return
@@ -424,10 +422,11 @@ def send_question(chat_id):
         # Вариантов не показываем — ответ нужно вспомнить и написать.
         # Клавиатуру с прошлого раунда убираем, чтобы не мешала набору.
         s["hints"] = 0
-        task = "Напиши эту форму на иврите" if is_form else "Напиши это слово на иврите"
+        task = t("q.typeForm" if is_form else "q.typeWord", lang)
         text = (
-            f"Вопрос {idx}/{s['total']}\n<b>{q['ru']}</b>\n{task}.\n\n"
-            f"<i>Огласовки писать не нужно. «?» — подсказка, /skip — пропустить.</i>"
+            f"{t('q.counter', lang, idx=idx, total=s['total'])}\n"
+            f"<b>{q['ru']}</b>\n{task}.\n\n"
+            f"{t('q.typeHint', lang)}"
         )
         send_message(chat_id, text, {"remove_keyboard": True})
         return
@@ -443,26 +442,25 @@ def send_question(chat_id):
         "keyboard": keyboard_rows(q["options"], per_row=2),
         "one_time_keyboard": True,
     }
+    head = t("q.counter", lang, idx=idx, total=s["total"])
     if mode in ALPHABET_MODES:
         # Подсказка уже сформулирована как вопрос («буква א», «прочитай מָ»)
-        text = f"Вопрос {idx}/{s['total']}\n<b>{q['ru']}</b>?"
+        text = f"{head}\n<b>{q['ru']}</b>?"
     elif is_form:
-        text = f"Вопрос {idx}/{s['total']}\n<b>{q['ru']}</b>\nКакая это форма?"
+        text = f"{head}\n<b>{q['ru']}</b>\n{t('q.whichForm', lang)}"
     else:
-        text = f"Вопрос {idx}/{s['total']}\nКак будет «<b>{q['ru']}</b>»?"
+        text = f"{head}\n{t('q.howToSay', lang, ru=q['ru'])}"
     send_message(chat_id, text, keyboard)
 
 
-def start_round(chat_id, mode, cat=None, typing=False, anagram=False):
-    pool, label, modes = round_pool(chat_id, mode, cat)
+def start_round(chat_id, mode, cat=None, typing=False, anagram=False, lang="ru"):
+    pool, label, modes = round_pool(chat_id, mode, cat, lang)
     if len(pool) < 4:
         # Меньше четырёх карточек — не из чего собрать варианты ответа.
         send_message(
             chat_id,
-            "Пока нечего повторять: ошибок слишком мало. Это хорошая новость."
-            if mode == "weak" else
-            "В этой теме слишком мало слов для раунда.",
-            main_menu_keyboard(),
+            t("round.noWeak" if mode == "weak" else "round.tooSmall", lang),
+            main_menu_keyboard(lang),
         )
         return
     total = min(ROUND_LEN, len(pool))
@@ -490,6 +488,10 @@ def start_round(chat_id, mode, cat=None, typing=False, anagram=False):
         "anagram": anagram,
         "modes": modes,       # режим по карточке (только в «слабых местах»)
         "label": label,
+        # Язык кладём в сессию, а не спрашиваем базу на каждый вопрос:
+        # раунд идёт десять сообщений подряд, и менять язык посреди него
+        # человек всё равно не станет.
+        "lang": lang,
         "hints": 0,
         "streak": 0,          # верных подряд прямо сейчас
         "best_streak": 0,     # лучшая серия за раунд
@@ -498,16 +500,17 @@ def start_round(chat_id, mode, cat=None, typing=False, anagram=False):
         "reacted_msg": None,  # на какое сообщение уже повесили реакцию
     }
     due = sum(1 for v in priorities.values() if v >= 2)
-    hint = f" Из них на повторение: {min(due, total)}." if due else ""
+    hint = t("round.due", lang, n=min(due, total)) if due else ""
     if anagram:
-        how = " Собираешь слово из букв."
+        how = t("round.anagram", lang)
     elif typing:
-        how = " Пишешь ответ сам."
+        how = t("round.typing", lang)
     else:
         how = ""
     send_message(
         chat_id,
-        f"Начинаем! Раунд «{label}», {total} вопросов.{hint}{how}",
+        t("round.start", lang, label=label, total=total,
+          qw=plural(total, "n.question", lang), hint=hint, how=how),
     )
     send_question(chat_id)
 
@@ -550,11 +553,13 @@ def say_verdict(chat_id, s, outcome, answer, message_id=None, before=None,
     анаграмма отвечают по-разному, а звучать должны одинаково.
     """
     pool, sep = VERDICT_POOLS[outcome]
+    lang = s.get("lang", "ru")
     alive = lively(chat_id)
     # С выключенными реакциями поведение прежнее: одна и та же формулировка.
-    phrase = reactions.pick(pool, s["recent"], random) if alive else pool[0]
+    phrase = (reactions.pick(pool, s["recent"], random, lang) if alive
+              else (pool.get(lang) or pool["ru"])[0])
 
-    lines = [f"{phrase}{sep}{with_reading(answer, mode or s['mode'])}"]
+    lines = [f"{phrase}{sep}{with_reading(answer, mode or s['mode'], lang)}"]
     if extra:
         lines.append(extra)
 
@@ -566,12 +571,12 @@ def say_verdict(chat_id, s, outcome, answer, message_id=None, before=None,
 
     emoji = None
     if alive:
-        memory = reactions.memory_line(before, scored)
+        memory = reactions.memory_line(before, scored, lang)
         if memory and s["index"] - s["last_memory"] >= MEMORY_COOLDOWN:
             lines.append(f"<i>{memory}</i>")
             s["last_memory"] = s["index"]
 
-        event = reactions.streak_event(s["streak"]) if scored else None
+        event = reactions.streak_event(s["streak"], lang) if scored else None
         if event:
             line, emoji = event
             lines.append(line)
@@ -660,17 +665,13 @@ def maybe_send_voice(chat_id, answer, mode):
         print(f"[maybe_send_voice] {e}")
 
 
-SPEED_LABELS = {"normal": "обычная скорость", "slow": "помедленнее"}
+SPEED_LABELS = {"normal": "voice.normal", "slow": "voice.slow"}
 
 
-def ask_sample_speed(chat_id):
+def ask_sample_speed(chat_id, lang="ru"):
     """Спрашивает скорость: образцов много, слать все сразу — каша."""
     if not audio.voice_samples():
-        send_message(
-            chat_id,
-            "Образцы голосов ещё не сгенерированы.\n\n"
-            "На сервере: <code>venv/bin/python3 tools/voice_samples.py</code>",
-        )
+        send_message(chat_id, t("voice.missing", lang))
         return
 
     speeds = audio.sample_speeds()
@@ -681,72 +682,52 @@ def ask_sample_speed(chat_id):
 
     send_message(
         chat_id,
-        "🎧 <b>Сравнение озвучки</b>\n\n"
+        f"{t('voice.compare', lang)}\n\n"
         f"{audio.SAMPLE_TEXT}\n\n"
         f"<i>{audio.SAMPLE_TRANSLATION}</i>\n\n"
-        "На какой скорости прислать образцы?",
+        f"{t('voice.whichSpeed', lang)}",
         {"inline_keyboard": [[
-            {"text": f"🚶 {SPEED_LABELS[s]}" if s == "normal" else f"🐢 {SPEED_LABELS[s]}",
-             "callback_data": f"voices_{s}"}
-            for s in speeds
+            {"text": ("🚶 " if sp == "normal" else "🐢 ")
+                     + t(SPEED_LABELS[sp], lang),
+             "callback_data": f"voices_{sp}"}
+            for sp in speeds
         ]]},
     )
 
 
-def send_voice_samples(chat_id, speed=None):
+def send_voice_samples(chat_id, speed=None, lang="ru"):
     """Один и тот же текст в разных вариантах озвучки."""
     samples = audio.voice_samples(speed=speed)
     if not samples:
-        send_message(
-            chat_id,
-            "Образцы голосов ещё не сгенерированы.\n\n"
-            "На сервере: <code>venv/bin/python3 tools/voice_samples.py</code>",
-        )
+        send_message(chat_id, t("voice.missing", lang))
         return
 
     if speed:
-        send_message(
-            chat_id,
-            f"Вариант: <b>{SPEED_LABELS.get(speed, speed)}</b>. "
-            "Выбранный голос вписывается в .env как <code>TTS_VOICE</code>.",
-        )
+        name = t(SPEED_LABELS[speed], lang) if speed in SPEED_LABELS else speed
+        send_message(chat_id, t("voice.chosen", lang, speed=name))
     for name, path in samples:
         audio.send_voice_file(API_URL, chat_id, path, caption=name)
 
 
 
 
-def plural(n, one, few, many):
-    """«1 ошибка», «2 ошибки», «5 ошибок».
-
-    Мелочь, но «ошибок 1» — ровно та шероховатость, из-за которой текст
-    читается как вывод программы, а не как речь.
-    """
-    n = abs(n)
-    if n % 10 == 1 and n % 100 != 11:
-        return one
-    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
-        return few
-    return many
-
-
-def with_reading(answer, mode):
-    """Добавляет произношение кириллицей: «מִטְבָּח (митбах)».
+def with_reading(answer, mode, lang="ru"):
+    """Добавляет произношение: «מִטְבָּח (митбах)» или «(mitbakh)».
 
     В курсе алфавита не показываем — там ответ и так уже либо звук, либо
     название буквы, произношение было бы шумом.
     """
     if mode in ALPHABET_MODES:
         return answer
-    return f"{answer}{reading_suffix(answer, mode)}"
+    return f"{answer}{reading_suffix(answer, mode, lang)}"
 
 
-def reading_suffix(answer, mode):
+def reading_suffix(answer, mode, lang="ru"):
     """« (митбах)» — произношение в скобках, если его есть чем показать."""
     if mode in ALPHABET_MODES:
         return ""
-    reading = translit(answer)
-    return f" ({reading})" if reading else ""
+    said = reading(answer, lang)
+    return f" ({said})" if said else ""
 
 
 def finish_question(chat_id):
@@ -755,16 +736,19 @@ def finish_question(chat_id):
     s["index"] += 1
     if s["index"] >= s["total"]:
         db.award_for_round(chat_id, s["score"], s["total"])
+        lang = s.get("lang", "ru")
         pct = round(100 * s["score"] / s["total"])
         if lively(chat_id):
             head, emoji = reactions.round_summary(
-                s["score"], s["total"], s["best_streak"])
+                s["score"], s["total"], s["best_streak"], lang)
         else:
-            head, emoji = f"Итог раунда: {s['score']}/{s['total']} ({pct}%)", None
+            head = t("round.result", lang, score=s["score"],
+                     total=s["total"], pct=pct)
+            emoji = None
         send_message(
             chat_id,
-            f"{head}\n\nЖми /start, чтобы начать новый раунд.",
-            main_menu_keyboard(),
+            t("round.again", lang, head=head),
+            main_menu_keyboard(lang),
         )
         if emoji and s.get("last_msg") != s.get("reacted_msg"):
             set_reaction(chat_id, s.get("last_msg"), emoji)
@@ -783,10 +767,14 @@ def handle_typed_answer(chat_id, typed, message_id=None):
     # «?» — подсказка: показываем первые буквы, вопрос остаётся открытым
     if typed.strip() == "?":
         s["hints"] = s.get("hints", 0) + 1
-        send_message(chat_id, f"Подсказка: <code>{hint_for(q['correct'], s['hints'])}</code>")
+        send_message(chat_id, t("q.hint", s.get("lang", "ru"),
+                                hint=hint_for(q["correct"], s["hints"])))
         return
 
-    if typed.strip().lower() in ("/skip", "пропустить"):
+    # «пропустить» и «skip» словом — на случай, если человек напишет их
+    # вместо команды. Оба языка принимаем всегда: понять просьбу дешевле,
+    # чем заставлять вспоминать точное слово.
+    if typed.strip().lower() in ("/skip", "пропустить", "skip"):
         mode = card_mode(s, q)
         before = card_history(chat_id, q["id"], mode)
         try:
@@ -814,7 +802,7 @@ def handle_typed_answer(chat_id, typed, message_id=None):
         s["score"] += 1
     # Подсказка — это не провал, но и не чистое попадание: честнее сказать
     # вслух, что слово вернётся, чем молча подсунуть его снова.
-    extra = ("<i>(с подсказкой — повторим ещё раз)</i>"
+    extra = (t("q.hintUsed", s.get("lang", "ru"))
              if verdict == "exact" and s.get("hints") else None)
     say_verdict(chat_id, s, outcome, q["correct"], message_id, before, extra,
                 mode=mode)
@@ -825,14 +813,15 @@ def handle_typed_answer(chat_id, typed, message_id=None):
 
 # ---------- Слово дня ----------
 
-def send_word_of_day(chat_id, subscribe_hint=True):
+def send_word_of_day(chat_id, subscribe_hint=True, lang="ru"):
     """Слово дня: перевод, написание и кнопка потренироваться."""
     card = quiz.pick_daily_word(chat_id)
-    ru, he = card.ru, card.he
+    he = card.he
     try:
         # Отмечаем сразу, а не после отправки: даже если сообщение не
         # уйдёт, повторить это же слово завтра хуже, чем пропустить его.
-        db.record_daily_word(chat_id, ru)
+        # Ключ устойчивый: при смене языка слово не придёт повторно.
+        db.record_daily_word(chat_id, card.key())
     except Exception as e:
         print(f"[send_word_of_day] не удалось запомнить слово: {e}")
 
@@ -842,23 +831,18 @@ def send_word_of_day(chat_id, subscribe_hint=True):
         subscribed = False
 
     lines = [
-        "🗓 <b>Слово дня</b>",
+        t("word.title", lang),
         "",
-        f"<b>{he}</b> — {ru}",
-        f"<i>читается: {translit(he)}</i>",
+        f"<b>{he}</b> — {card.prompt(lang)}",
+        t("word.reading", lang, reading=reading(he, lang)),
     ]
     if subscribe_hint:
-        lines += [
-            "",
-            "<i>Присылать такое каждое утро — /daily_on, отключить — /daily_off.</i>"
-            if not subscribed
-            else "<i>Отключить ежедневную отправку — /daily_off.</i>",
-        ]
+        lines += ["", t("word.unsubscribe" if subscribed else "word.subscribe", lang)]
 
     keyboard = {
         "inline_keyboard": [
-            [{"text": "📖 Потренировать слова", "callback_data": "start_vocab"}],
-            [{"text": "‹ Меню", "callback_data": "main_menu"}],
+            [{"text": t("menu.trainWords", lang), "callback_data": "start_vocab"}],
+            [{"text": t("menu.toMenu", lang), "callback_data": "main_menu"}],
         ]
     }
     send_message(chat_id, "\n".join(lines), keyboard)
@@ -867,7 +851,7 @@ def send_word_of_day(chat_id, subscribe_hint=True):
 
 # ---------- Статистика ----------
 
-def send_stats(chat_id):
+def send_stats(chat_id, lang="ru"):
     """Сводка прогресса: точность, streak, что пора повторить, слабые места."""
     try:
         overall = db.overall_stats(chat_id)
@@ -877,61 +861,61 @@ def send_stats(chat_id):
         due = db.due_count(chat_id)
     except Exception as e:
         print(f"[send_stats] БД недоступна: {e}")
-        send_message(chat_id, "Статистика пока недоступна, попробуй позже.")
+        send_message(chat_id, t("stats.off", lang))
         return
 
     if not overall["total"]:
-        send_message(chat_id, "Ты ещё не отвечал ни на один вопрос. Жми /start!")
+        send_message(chat_id, t("stats.empty", lang))
         return
 
     pct = round(100 * overall["correct"] / overall["total"])
     lines = [
-        "📊 <b>Твоя статистика</b>",
+        t("stats.title", lang),
         "",
-        f"Всего ответов: {overall['total']}",
-        f"Правильных: {overall['correct']} ({pct}%)",
+        t("stats.total", lang, n=overall["total"]),
+        t("stats.correct", lang, n=overall["correct"], pct=pct),
     ]
     if streak:
-        lines.append(f"Занимаешься подряд: {streak} "
-                     f"{plural(streak, 'день', 'дня', 'дней')}")
+        lines.append(t("stats.streak", lang, n=streak,
+                       word=plural(streak, "n.day", lang)))
     if due:
-        lines.append(f"Ждут повторения: {due}")
+        lines.append(t("stats.due", lang, n=due))
 
     if by_mode:
-        lines += ["", "<b>По режимам:</b>"]
-        for mode, label in LABELS.items():
+        lines += ["", t("stats.byMode", lang)]
+        for mode in LABELS:
             st = by_mode.get(mode)
             if not st:
                 continue
             p = round(100 * st["correct"] / st["total"])
+            label = quiz.section_label(mode, lang=lang)
             lines.append(f"• {label}: {st['correct']}/{st['total']} ({p}%)")
 
     if weak:
-        lines += ["", "<b>Чаще всего ошибаешься:</b>"]
+        lines += ["", t("stats.weak", lang)]
         for w in weak:
             n = w["n_wrong"]
-            errors = f"{n} {plural(n, 'ошибка', 'ошибки', 'ошибок')}"
+            errors = f"{n} {plural(n, 'n.error', lang)}"
             card = quiz.find_card(w["mode"], w["card_id"])
-            if card:
-                # Ответ первым: глаз цепляется за то, что надо выучить,
-                # а не за русскую подсказку, которую и так знаешь.
-                lines.append(
-                    f"• <b>{card.he}</b>{reading_suffix(card.he, w['mode'])} — "
-                    f"{card.ru} · {errors}")
-            else:
-                # Слово убрали из словаря, а прогресс по нему остался.
-                # Показать ключ («food:לחם») нельзя — это машинная строка,
-                # человеку она ничего не говорит. Просто пропускаем.
+            # Слово убрали из словаря, а прогресс по нему остался.
+            # Показать ключ («food:לחם») нельзя — это машинная строка,
+            # человеку она ничего не говорит. Просто пропускаем.
+            if not card:
                 continue
+            # Ответ первым: глаз цепляется за то, что надо выучить,
+            # а не за подсказку, которую и так знаешь.
+            lines.append(
+                f"• <b>{card.he}</b>{reading_suffix(card.he, w['mode'], lang)} — "
+                f"{card.prompt(lang)} · {errors}")
         lines.append("")
-        lines.append("<i>Эти карточки бот будет показывать чаще.</i>")
+        lines.append(t("stats.weakNote", lang))
 
-    keyboard = main_menu_keyboard()
+    keyboard = main_menu_keyboard(lang)
     if weak:
         # Видеть свои ошибки мало — до сих пор, чтобы их проработать,
         # надо было запускать обычный раунд и надеяться, что они выпадут.
         keyboard["inline_keyboard"] = (
-            [[{"text": "⚡ Потренировать эти", "callback_data": "pick|weak|"}]]
+            [[{"text": t("menu.trainWeak", lang), "callback_data": "pick|weak|"}]]
             + keyboard["inline_keyboard"])
 
     send_message(chat_id, "\n".join(lines), keyboard)
@@ -949,7 +933,11 @@ def human_time(seconds):
 
 
 def send_admin_stats(chat_id):
-    """Сводка по всей аудитории. Только владельцу бота."""
+    """Сводка по всей аудитории. Только владельцу бота.
+
+    Намеренно остаётся по-русски и в messages.py не переносится: её
+    видит один человек — тот, чей chat_id стоит в ADMIN_CHAT_ID. Перевод
+    добавил бы полсотни строк в словарь ради читателя, которого нет."""
     if not ADMIN_CHAT_ID:
         send_message(
             chat_id,
@@ -1041,6 +1029,9 @@ def _handle_webhook_update():
         text = msg.get("text", "")
         message_id = msg.get("message_id")
 
+        # Язык определяем один раз на сообщение и передаём вниз. Иначе
+        # каждая функция ходила бы в базу за одним и тем же ответом.
+        lang = user_lang(chat_id, msg.get("from"))
         s = sessions.get(chat_id)
         if s is not None:
             # На это сообщение вешается реакция за серию, а в конце
@@ -1050,50 +1041,49 @@ def _handle_webhook_update():
 
         if text.startswith("/start"):
             first = (msg.get("from") or {}).get("first_name", "")
-            send_message(chat_id, welcome_text(hebrew_name.to_hebrew(first) or first),
-                         main_menu_keyboard())
+            send_message(chat_id,
+                         welcome_text(hebrew_name.to_hebrew(first) or first, lang),
+                         main_menu_keyboard(lang))
         elif text.startswith("/about") or text.startswith("/help"):
-            send_message(chat_id, about_text(), main_menu_keyboard())
+            send_message(chat_id, about_text(lang), main_menu_keyboard(lang))
         elif text.startswith("/quiz"):
-            send_message(chat_id, "Что тренируем сегодня?", main_menu_keyboard())
+            send_message(chat_id, t("ask.today", lang), main_menu_keyboard(lang))
         elif text.startswith("/stats"):
-            send_stats(chat_id)
+            send_stats(chat_id, lang)
         elif text.startswith("/admin"):
             send_admin_stats(chat_id)
         elif text.startswith("/word"):
-            send_word_of_day(chat_id)
+            send_word_of_day(chat_id, lang=lang)
         elif text.startswith("/daily_on"):
             db.set_daily_word(chat_id, True)
-            send_message(chat_id, "Готово, буду присылать слово дня каждое утро.")
+            send_message(chat_id, t("set.dailyOn", lang))
         elif text.startswith("/daily_off"):
             db.set_daily_word(chat_id, False)
-            send_message(chat_id, "Больше не присылаю слово дня. Вернуть — /daily_on.")
+            send_message(chat_id, t("set.dailyOff", lang))
+        elif text.startswith("/lang"):
+            # Переключатель языка есть в приложении, но человек, который
+            # живёт в чате, туда может и не заходить.
+            new = "en" if lang == "ru" else "ru"
+            db.set_lang(chat_id, new)
+            send_message(chat_id, welcome_text(lang=new), main_menu_keyboard(new))
         elif text.startswith("/voices"):
-            ask_sample_speed(chat_id)
+            ask_sample_speed(chat_id, lang)
         elif text.startswith("/voice_on"):
             db.set_voice(chat_id, True)
-            send_message(chat_id, "Буду присылать произношение голосом.")
+            send_message(chat_id, t("set.voiceOn", lang))
         elif text.startswith("/voice_off"):
             db.set_voice(chat_id, False)
-            send_message(chat_id, "Голосовые отключены. Вернуть — /voice_on.")
+            send_message(chat_id, t("set.voiceOff", lang))
         elif text.startswith("/reactions_on"):
             db.set_reactions(chat_id, True)
-            send_message(chat_id, "Живые реплики и отметки серий включены.")
+            send_message(chat_id, t("set.reactionsOn", lang))
         elif text.startswith("/reactions_off"):
             db.set_reactions(chat_id, False)
-            send_message(
-                chat_id,
-                "Оставляю только сухие «верно / неверно». Вернуть — /reactions_on.",
-            )
+            send_message(chat_id, t("set.reactionsOff", lang))
         elif text.startswith("/speed"):
             slow = not db.slow_voice(chat_id)
             db.set_slow_voice(chat_id, slow)
-            send_message(
-                chat_id,
-                "🐢 Озвучка помедленнее — легче разобрать по звукам."
-                if slow else
-                "🚶 Обычная скорость озвучки.",
-            )
+            send_message(chat_id, t("set.slow" if slow else "set.normal", lang))
         elif in_typing_round:
             # В режиме набора принимаем любой текст: это и есть ответ
             # (плюс «?» для подсказки и /skip для пропуска).
@@ -1110,48 +1100,47 @@ def _handle_webhook_update():
         chat_id = cq["message"]["chat"]["id"]
         data = cq.get("data", "")
         answer_callback(cq["id"])
+        lang = user_lang(chat_id, cq.get("from"))
 
         if data == "main_menu":
-            send_message(chat_id, "Что тренируем сегодня?", main_menu_keyboard())
+            send_message(chat_id, t("ask.today", lang), main_menu_keyboard(lang))
         elif data == "menu|words":
-            send_message(chat_id, "Что тренируем?", words_menu_keyboard())
+            send_message(chat_id, t("ask.what", lang), words_menu_keyboard(lang))
         elif data == "menu|topics":
-            send_message(chat_id, "Выбери тему:",
-                         category_keyboard(TOPIC_LABELS, "menu|words"))
+            send_message(chat_id, t("ask.topic", lang),
+                         category_keyboard(TOPIC_LABELS, "menu|words", lang))
         elif data == "menu|grammar":
-            send_message(chat_id, "Что из грамматики?",
-                         category_keyboard(GRAMMAR_LABELS, "menu|words"))
+            send_message(chat_id, t("ask.grammar", lang),
+                         category_keyboard(GRAMMAR_LABELS, "menu|words", lang))
         elif data == "menu|verbs":
-            send_message(chat_id, "Глаголы — что тренируем?",
-                         verbs_menu_keyboard())
+            send_message(chat_id, t("ask.verbs", lang), verbs_menu_keyboard(lang))
         elif data.startswith("pick|"):
             # Тема выбрана — остался формат ответа. Раньше формат был
             # отдельной веткой меню и дублировал весь список тем.
             _, mode, cat = data.split("|", 2)
-            send_message(chat_id, "Как отвечаем?", format_keyboard(mode, cat))
+            send_message(chat_id, t("ask.format", lang),
+                         format_keyboard(mode, cat, lang))
         elif data.startswith("go|"):
             _, fmt, mode, cat = data.split("|", 3)
             start_round(chat_id, mode, cat or None,
-                        typing=(fmt == "type"), anagram=(fmt == "anagram"))
+                        typing=(fmt == "type"), anagram=(fmt == "anagram"),
+                        lang=lang)
         elif data == "start_vocab":
             # Старая кнопка из «слова дня» — оставляем рабочей.
-            start_round(chat_id, "vocab")
+            start_round(chat_id, "vocab", lang=lang)
         elif data == "word_of_day":
-            send_word_of_day(chat_id)
+            send_word_of_day(chat_id, lang=lang)
         elif data == "alphabet_menu":
-            send_message(
-                chat_id,
-                "Курс алфавита. Начни с таблицы, если видишь буквы впервые.",
-                alphabet_menu_keyboard(),
-            )
+            send_message(chat_id, t("alef.intro", lang),
+                         alphabet_menu_keyboard(lang))
         elif data == "alef_table":
-            send_alphabet_table(chat_id)
+            send_alphabet_table(chat_id, lang)
         elif data.startswith("start_alef_"):
-            start_round(chat_id, data[len("start_"):])
+            start_round(chat_id, data[len("start_"):], lang=lang)
         elif data.startswith("voices_"):
-            send_voice_samples(chat_id, speed=data[len("voices_"):])
+            send_voice_samples(chat_id, speed=data[len("voices_"):], lang=lang)
         elif data == "show_stats":
-            send_stats(chat_id)
+            send_stats(chat_id, lang)
 
 
 @app.route("/")

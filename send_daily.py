@@ -27,7 +27,7 @@ def main():
     sent = failed = 0
     for chat_id in recipients:
         try:
-            bot.send_word_of_day(chat_id)
+            bot.send_word_of_day(chat_id, lang=db.resolve_lang(chat_id))
             db.mark_daily_word_sent(chat_id)
             sent += 1
         except Exception as e:
