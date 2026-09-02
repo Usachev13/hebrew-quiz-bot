@@ -105,6 +105,11 @@ app.register_blueprint(webapp_api)
 # раунда — его потерять не страшно.
 try:
     db.init_db()
+    # Разовый перевод прогресса со старых ключей (русская подсказка) на
+    # устойчивые. Должен идти сразу после init_db и ДО первого ответа
+    # пользователя, иначе часть строк ляжет в новом формате, а часть
+    # останется в старом, и человек увидит обнулённую коробку.
+    db.migrate_card_ids(quiz.id_migration_map())
 except Exception as e:
     print(f"ВНИМАНИЕ: не удалось открыть базу прогресса: {e}")
 
@@ -195,8 +200,8 @@ def _counts():
     """Считаем по фактическим пулам, а не пишем цифры руками: словарь
     пополняется, и захардкоженное число разойдётся с правдой молча."""
     cats = {}
-    for _, _, c in POOLS["vocab"]:
-        cats[c] = cats.get(c, 0) + 1
+    for card in POOLS["vocab"]:
+        cats[card.cat] = cats.get(card.cat, 0) + 1
     ph = phrases.stats()
     return {
         "say": ph["total"], "situations": ph["situations"],
@@ -389,7 +394,7 @@ def keyboard_rows(buttons, per_row=2):
 def send_question(chat_id):
     s = sessions[chat_id]
     q = build_question(s["pool"], s["used"], s.get("priorities"))
-    s["used"].add(q["ru"])
+    s["used"].add(q["id"])
     s["current"] = q
 
     # Нативная (reply) клавиатура вместо inline — кнопки растягиваются на
@@ -526,7 +531,7 @@ MEMORY_COOLDOWN = 3
 def card_mode(s, q):
     """Режим карточки. В обычном раунде он один на всех, в «слабых
     местах» — свой у каждой: они собраны из разных режимов."""
-    return s.get("modes", {}).get((q["ru"], q["correct"]), s["mode"])
+    return s.get("modes", {}).get(q["id"], s["mode"])
 
 
 def lively(chat_id):
@@ -604,12 +609,12 @@ def handle_answer(chat_id, question_idx, chosen_idx, message_id=None):
     # Историю читаем ДО записи ответа: record_answer обновит счётчики, и
     # «сколько раз ты на этом спотыкался» уже включит текущий раз.
     mode = card_mode(s, q)
-    before = card_history(chat_id, q["ru"], mode)
+    before = card_history(chat_id, q["id"], mode)
 
     # Записываем ответ в БД: отсюда берутся и статистика, и расписание
     # повторений. Сбой БД не должен ломать игру, поэтому не роняем раунд.
     try:
-        db.record_answer(chat_id, mode, q["ru"], is_correct)
+        db.record_answer(chat_id, mode, q["id"], is_correct)
         db.award_for_answer(chat_id, is_correct)
     except Exception as e:
         print(f"[handle_answer] не удалось записать ответ: {e}")
@@ -783,9 +788,9 @@ def handle_typed_answer(chat_id, typed, message_id=None):
 
     if typed.strip().lower() in ("/skip", "пропустить"):
         mode = card_mode(s, q)
-        before = card_history(chat_id, q["ru"], mode)
+        before = card_history(chat_id, q["id"], mode)
         try:
-            db.record_answer(chat_id, mode, q["ru"], False)
+            db.record_answer(chat_id, mode, q["id"], False)
         except Exception as e:
             print(f"[handle_typed_answer] не удалось записать пропуск: {e}")
         say_verdict(chat_id, s, "skip", q["correct"], message_id, before, mode=mode)
@@ -797,9 +802,9 @@ def handle_typed_answer(chat_id, typed, message_id=None):
     is_correct = verdict in ("exact", "typo") and not s.get("hints")
 
     mode = card_mode(s, q)
-    before = card_history(chat_id, q["ru"], mode)
+    before = card_history(chat_id, q["id"], mode)
     try:
-        db.record_answer(chat_id, mode, q["ru"], is_correct)
+        db.record_answer(chat_id, mode, q["id"], is_correct)
         db.award_for_answer(chat_id, is_correct)
     except Exception as e:
         print(f"[handle_typed_answer] не удалось записать ответ: {e}")
@@ -822,7 +827,8 @@ def handle_typed_answer(chat_id, typed, message_id=None):
 
 def send_word_of_day(chat_id, subscribe_hint=True):
     """Слово дня: перевод, написание и кнопка потренироваться."""
-    ru, he, _ = quiz.pick_daily_word(chat_id)
+    card = quiz.pick_daily_word(chat_id)
+    ru, he = card.ru, card.he
     try:
         # Отмечаем сразу, а не после отправки: даже если сообщение не
         # уйдёт, повторить это же слово завтра хуже, чем пропустить его.
@@ -905,18 +911,18 @@ def send_stats(chat_id):
         for w in weak:
             n = w["n_wrong"]
             errors = f"{n} {plural(n, 'ошибка', 'ошибки', 'ошибок')}"
-            found = ANSWERS.get(w["mode"], {}).get(w["card_id"])
-            he = found[0] if found else None
-            if he:
+            card = quiz.find_card(w["mode"], w["card_id"])
+            if card:
                 # Ответ первым: глаз цепляется за то, что надо выучить,
                 # а не за русскую подсказку, которую и так знаешь.
                 lines.append(
-                    f"• <b>{he}</b>{reading_suffix(he, w['mode'])} — "
-                    f"{w['card_id']} · {errors}")
+                    f"• <b>{card.he}</b>{reading_suffix(card.he, w['mode'])} — "
+                    f"{card.ru} · {errors}")
             else:
-                # Карточки из старых версий словаря: подсказка в базе
-                # осталась, а слова уже нет — показываем что есть.
-                lines.append(f"• {w['card_id']} · {errors}")
+                # Слово убрали из словаря, а прогресс по нему остался.
+                # Показать ключ («food:לחם») нельзя — это машинная строка,
+                # человеку она ничего не говорит. Просто пропускаем.
+                continue
         lines.append("")
         lines.append("<i>Эти карточки бот будет показывать чаще.</i>")
 

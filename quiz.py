@@ -14,7 +14,10 @@
 import random
 
 import alphabet
+import cards
 import db
+import words_en
+from cards import Card
 from matching import accepted_forms
 from words import VOCAB, VERBS
 from conjugations import (
@@ -32,21 +35,30 @@ ROUND_LEN = 10
 ANAGRAM_MODES = {"vocab", "weak"}
 
 
-def flatten(bank):
-    """Превращает {категория: [(ru, he), ...]} в плоский список (ru, he, категория)."""
+def flatten(bank, en=None):
+    """Превращает {категория: [(ru, he), ...]} в плоский список карточек.
+
+    `en` — словарь переводов подсказки, ключ `cid`. Отсутствующий перевод
+    не ошибка на этом уровне: карточка просто останется с русской
+    подсказкой, а недостачу поимённо назовёт tools/check_i18n.py. Падать
+    здесь нельзя — импорт quiz.py поднимает и бота, и приложение.
+    """
+    en = en or {}
     items = []
     for category, words in bank.items():
         for ru, he in words:
-            items.append((ru, he, category))
+            cid = cards.vocab_cid(category, he)
+            items.append(Card(ru, he, category, cid=cid, en=en.get(cid, "")))
     return items
 
 
-def flatten_tense(conj, tense, slots, labels):
+def flatten_tense(conj, tense, slots, labels, en_labels=None):
     """Одно время из CONJUGATIONS -> плоский список (подсказка, форма, группа).
 
     Группа = глагол+время: дистракторы берутся из форм ТОГО ЖЕ глагола в
     том же времени, поэтому тренируется именно лицо/род/число, а не
     угадывание по внешнему виду разных корней."""
+    en_labels = en_labels or {}
     items = []
     for root, data in conj.items():
         for slot in slots:
@@ -54,15 +66,22 @@ def flatten_tense(conj, tense, slots, labels):
             if not he:
                 continue
             prompt = f"{data['ru']} ({data['inf']}) — {labels[slot]}"
-            items.append((prompt, he, f"{root}_{tense}"))
+            meaning = words_en.ROOT_MEANINGS.get(root)
+            label_en = en_labels.get(slot)
+            en = f"{meaning} ({data['inf']}) — {label_en}" if meaning and label_en else ""
+            items.append(Card(prompt, he, f"{root}_{tense}",
+                              cid=cards.form_cid(root, slot), en=en))
     return items
 
 
-VOCAB_FLAT = flatten(VOCAB)
-VERBS_FLAT = flatten(VERBS)
-PAST_FLAT = flatten_tense(CONJUGATIONS, "past", PAST_PERSONS, PAST_LABELS)
-PRESENT_FLAT = flatten_tense(CONJUGATIONS, "present", PRESENT_SLOTS, PRESENT_LABELS)
-FUTURE_FLAT = flatten_tense(CONJUGATIONS, "future", FUTURE_SLOTS, FUTURE_LABELS)
+VOCAB_FLAT = flatten(VOCAB, words_en.WORDS)
+VERBS_FLAT = flatten(VERBS, words_en.VERBS)
+PAST_FLAT = flatten_tense(CONJUGATIONS, "past", PAST_PERSONS, PAST_LABELS,
+                          words_en.PAST_LABELS)
+PRESENT_FLAT = flatten_tense(CONJUGATIONS, "present", PRESENT_SLOTS, PRESENT_LABELS,
+                             words_en.PRESENT_LABELS)
+FUTURE_FLAT = flatten_tense(CONJUGATIONS, "future", FUTURE_SLOTS, FUTURE_LABELS,
+                            words_en.FUTURE_LABELS)
 
 
 def pick_card(remaining, priorities):
@@ -74,7 +93,7 @@ def pick_card(remaining, priorities):
     """
     if not priorities:
         return random.choice(remaining)
-    rank = lambda w: priorities.get(w[0], db.PRIORITY_NEW)
+    rank = lambda w: priorities.get(w.key(), db.PRIORITY_NEW)
     best = max(rank(w) for w in remaining)
     return random.choice([w for w in remaining if rank(w) == best])
 
@@ -98,12 +117,12 @@ def intro_cards(chat_id, mode, pool):
     except Exception as e:
         print(f"[intro_cards] БД недоступна: {e}")
         return []
-    fresh = [w for w in pool if w[0] not in seen]
+    fresh = [w for w in pool if w.key() not in seen]
     random.shuffle(fresh)
     return fresh[:INTRO_LEN]
 
 
-def build_question(pool, used, priorities=None, pick_from=None):
+def build_question(pool, used, priorities=None, pick_from=None, lang="ru"):
     """Выбирает карточку (ещё не заданную в этом раунде) и 3 дистрактора
     из той же категории/группы биньяна — так угадать наугад сложнее.
 
@@ -113,32 +132,33 @@ def build_question(pool, used, priorities=None, pick_from=None):
     только из шести новых и ответ вычислялся бы по исключению.
     """
     source = pick_from if pick_from else pool
-    remaining = [w for w in source if w[0] not in used]
+    remaining = [w for w in source if w.key() not in used]
     if not remaining:
         remaining = source
     correct = pick_card(remaining, priorities or {})
-    ru, he, cat = correct
+    answer = correct.answer(lang)
 
     # Дистракторы обязаны отличаться не только от верного ответа, но и
     # друг от друга: в некоторых пулах разные карточки дают одинаковый
     # ответ (патах и камац оба читаются как «а»), и без этой проверки в
     # вопросе появлялись два одинаковых варианта.
-    seen = {he}
+    seen = {answer}
 
     def take(candidates, need):
         random.shuffle(candidates)
         for w in candidates:
             if len(seen) > need:
                 break
-            if w[1] not in seen:
-                seen.add(w[1])
+            if w.answer(lang) not in seen:
+                seen.add(w.answer(lang))
 
-    take([w for w in pool if w[2] == cat], 3)      # сначала из той же темы
-    take([w for w in pool if w[2] != cat], 3)      # если не хватило — из любой
+    take([w for w in pool if w.cat == correct.cat], 3)   # сначала из той же темы
+    take([w for w in pool if w.cat != correct.cat], 3)   # не хватило — из любой
 
     options = list(seen)
     random.shuffle(options)
-    return {"ru": ru, "correct": he, "options": options}
+    return {"id": correct.key(), "ru": correct.prompt(lang),
+            "correct": answer, "options": options}
 
 
 POOLS = {
@@ -191,6 +211,58 @@ GRAMMAR_LABELS = {
     "place_prepositions": "Предлоги места",
 }
 
+# Те же подписи по-английски. Держим рядом с русскими, а не в общем
+# словаре интерфейса: это названия разделов учебного материала, они
+# меняются вместе с самим материалом, а не с оформлением приложения.
+LABELS_EN = {
+    "vocab": "words",
+    "verbs": "verbs",
+    "past": "past tense",
+    "present": "present tense",
+    "future": "future tense",
+    "alef_names": "letter names",
+    "alef_sounds": "letter sounds",
+    "alef_by_name": "find the letter by name",
+    "alef_finals": "final forms",
+    "alef_niqqud": "vowel signs",
+    "alef_syllables": "reading syllables",
+    "alef_dotted": "the dot changes the sound",
+}
+TOPIC_LABELS_EN = {
+    "greetings": "Greetings", "family": "Family", "food": "Food",
+    "home": "Home", "city": "City", "transport": "Transport",
+    "time": "Time", "weather": "Weather", "health": "Health",
+    "shopping": "Shopping", "work_study": "Work and study",
+    "clothes": "Clothes", "emotions": "Emotions",
+}
+GRAMMAR_LABELS_EN = {
+    "adjectives": "Adjectives", "adverbs": "Adverbs",
+    "personal_pronouns": "Pronouns (I, you…)",
+    "object_pronouns": "Pronouns (me, him…)",
+    "cardinals": "Numbers", "ordinals": "Ordinal numbers",
+    "question_words": "Question words", "particles": "Particles",
+    "place_prepositions": "Prepositions of place",
+}
+
+WEAK_LABEL = {"ru": "мои слабые места", "en": "my weak spots"}
+
+
+def section_label(mode, cat=None, lang="ru"):
+    """Название раздела: тема, если она задана, иначе сам режим.
+
+    Возвращает None, когда режим неизвестен: вызывающий по этому
+    отличает «нечего продолжать» от пустой строки.
+    """
+    if lang == "en":
+        topics, grammar, modes = TOPIC_LABELS_EN, GRAMMAR_LABELS_EN, LABELS_EN
+    else:
+        topics, grammar, modes = TOPIC_LABELS, GRAMMAR_LABELS, LABELS
+    if mode == "weak":
+        return WEAK_LABEL.get(lang, WEAK_LABEL["ru"])
+    if cat:
+        return topics.get(cat) or grammar.get(cat) or modes.get(mode)
+    return modes.get(mode)
+
 # Режимы курса алфавита: вопрос формулируется иначе, чем «как будет…»
 ALPHABET_MODES = {m for m in LABELS if m.startswith("alef_")}
 
@@ -210,16 +282,56 @@ ALPHABET_ORDER = (
 )
 assert set(ALPHABET_ORDER) == ALPHABET_MODES, "порядок разошёлся с режимами"
 
-# Обратный поиск: по card_id (подсказке, с которой карточка легла в базу)
-# найти сам ответ. Нужен статистике: список слабых мест без ивритского
-# слова только перечисляет промахи, а с ним — повторяет материал.
-ANSWERS = {mode: {ru: (he, cat) for ru, he, cat in pool}
-           for mode, pool in POOLS.items()}
+# Обратный поиск: по ключу карточки найти её саму. Нужен и проверке
+# ответа, и статистике: список слабых мест без ивритского слова только
+# перечисляет промахи, а с карточкой — повторяет материал.
+#
+# Раньше здесь лежала пара (ответ, категория), а ключом была русская
+# подсказка. Теперь ключ устойчивый, а значение — вся карточка: ответ у
+# алфавита зависит от языка («алеф» или «alef»), и обрезанное значение
+# пришлось бы доставать заново.
+ANSWERS = {mode: {c.key(): c for c in pool} for mode, pool in POOLS.items()}
+
+# Тот же поиск по ПОДСКАЗКЕ, а не по ключу. Нужен на время перехода:
+# старая версия приложения присылает обратно текст вопроса, потому что
+# раньше он и был ключом. Пока у людей в телефонах живёт та версия,
+# ответы должны доходить.
+#
+# Английские подсказки здесь обязательны, и это не запас на будущее.
+# Язык определяется из настроек Telegram сразу после выкладки: человек с
+# английским телефоном получит вопрос «bread» ещё старым приложением и
+# пришлёт обратно именно «bread». Без этой строки его ответ вернулся бы
+# ошибкой «unknown card», и раунд встал бы намертво.
+LEGACY_ANSWERS = {
+    mode: {p: c for c in pool for p in (c.ru, c.en) if p}
+    for mode, pool in POOLS.items()
+}
+
+
+def find_card(mode, card_id):
+    """Карточка по ключу — новому или старому."""
+    by_mode = ANSWERS.get(mode, {})
+    return by_mode.get(card_id) or LEGACY_ANSWERS.get(mode, {}).get(card_id)
+
+
+def id_migration_map():
+    """{режим: {старая русская подсказка: новый ключ}} для db.migrate_card_ids.
+
+    Старый ключ — ровно то, что раньше клалось в базу: `Card.ru`. Новый
+    лежит в `cid`. Пары строятся из тех же карточек, что показываются
+    сейчас, поэтому карта не может разойтись с данными: слово, которого
+    в словаре больше нет, и переносить некуда.
+    """
+    return {mode: {c.ru: c.cid for c in pool if c.cid and c.cid != c.ru}
+            for mode, pool in POOLS.items()}
+
 
 # Все допустимые написания каждого пула. Нужны, чтобы отличить описку от
 # случая «набрал другое существующее слово» (см. matching.check_answer).
+# Берём ивритское поле, а не язык интерфейса: набором проверяются только
+# словарь и глаголы, где ответ на иврите при любом языке.
 KNOWN_FORMS = {
-    mode: set().union(*(accepted_forms(he) for _, he, _ in pool)) if pool else set()
+    mode: set().union(*(accepted_forms(c.he) for c in pool)) if pool else set()
     for mode, pool in POOLS.items()
 }
 # Раунд «слабые места» смешанный, поэтому описку в нём сверяем по всему
@@ -242,27 +354,25 @@ def weak_pool(chat_id, limit=30):
 
     pool, modes = [], {}
     for w in weak:
-        found = ANSWERS.get(w["mode"], {}).get(w["card_id"])
-        if not found:
+        card = ANSWERS.get(w["mode"], {}).get(w["card_id"])
+        if not card:
             continue          # карточка из старой версии словаря
-        he, cat = found
-        pool.append((w["card_id"], he, cat))
-        modes[(w["card_id"], he)] = w["mode"]
+        pool.append(card)
+        modes[card.key()] = w["mode"]
     return pool, modes
 
 
-def round_pool(chat_id, mode, cat):
+def round_pool(chat_id, mode, cat, lang="ru"):
     """Пул раунда, подпись к нему и карта режимов по карточкам."""
     if mode == "weak":
         pool, modes = weak_pool(chat_id)
-        return pool, "мои слабые места", modes
+        return pool, section_label("weak", lang=lang), modes
 
     pool = POOLS[mode]
     if cat:
-        pool = [w for w in pool if w[2] == cat]
-        label = TOPIC_LABELS.get(cat) or GRAMMAR_LABELS.get(cat) or LABELS[mode]
-        return pool, label.lower(), {}
-    return pool, LABELS[mode], {}
+        pool = [w for w in pool if w.cat == cat]
+        return pool, section_label(mode, cat, lang).lower(), {}
+    return pool, section_label(mode, lang=lang), {}
 
 
 # ---------- слово дня ----------
@@ -285,12 +395,12 @@ def pick_daily_word(chat_id):
         print(f"[pick_daily_word] БД недоступна: {e}")
         return random.choice(VOCAB_FLAT)
 
-    never_sent = [w for w in VOCAB_FLAT if w[0] not in sent]
-    unseen = [w for w in never_sent if w[0] not in seen]
+    never_sent = [w for w in VOCAB_FLAT if w.key() not in sent]
+    unseen = [w for w in never_sent if w.key() not in seen]
     if unseen:
         return random.choice(unseen)
     if never_sent:
         return random.choice(never_sent)
 
     oldest = min(sent.values())
-    return random.choice([w for w in VOCAB_FLAT if sent.get(w[0]) == oldest])
+    return random.choice([w for w in VOCAB_FLAT if sent.get(w.key()) == oldest])

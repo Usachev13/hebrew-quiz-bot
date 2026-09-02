@@ -116,8 +116,12 @@ PHRASES = {
          "slot": None},
         {"ru": "Можно повторить?", "he": "אֶפְשָׁר לַחֲזֹר עַל זֶה?",
          "he_f": None, "slot": None},
+        # Единственная фраза, где от языка интерфейса зависит САМ ИВРИТ,
+        # а не подпись к нему: «רוּסִית» — это «по-русски», и англичанину
+        # такая фраза не поможет. См. поле he_en в шапке файла.
         {"ru": "Кто-нибудь говорит по-русски?",
-         "he": "מִישֶׁהוּ מְדַבֵּר רוּסִית?", "he_f": None, "slot": None},
+         "he": "מִישֶׁהוּ מְדַבֵּר רוּסִית?",
+         "he_en": "מִישֶׁהוּ מְדַבֵּר אַנְגְּלִית?", "he_f": None, "slot": None},
         {"ru": "Я новый репатриант", "he": "אֲנִי עוֹלֶה חָדָשׁ",
          "he_f": "אֲנִי עוֹלָה חֲדָשָׁה", "slot": None},
         {"ru": "Какие документы нужны?", "he": "אֵילוּ מִסְמָכִים צְרִיכִים?",
@@ -229,13 +233,21 @@ def by_id(cid):
         return None
 
 
-def text(phrase, female=False):
-    """Ивритский текст с учётом пола ГОВОРЯЩЕГО.
+def text(phrase, female=False, lang="ru"):
+    """Ивритский текст с учётом пола ГОВОРЯЩЕГО и языка интерфейса.
 
     Пол собеседника сюда не входит: он неизвестен заранее, и подставлять
     его наугад — значит учить неверной форме. Такие фразы отдаются
     обеими вариантами, см. listener_forms().
+
+    `he_en` — редкий случай, когда от языка зависит сам иврит, а не
+    подпись. «Кто-нибудь говорит по-русски?» англоязычному бесполезно:
+    ему нужно спросить про английский, а это другое слово в самой фразе.
+    Такие фразы по построению не зависят от пола говорящего (проверяется
+    в tools/check_i18n.py), поэтому he_en смотрим первым.
     """
+    if lang == "en" and phrase.get("he_en"):
+        return phrase["he_en"]
     return phrase["he_f"] if (female and phrase.get("he_f")) else phrase["he"]
 
 
@@ -263,7 +275,7 @@ def _norm(t):
     return t.strip(" ,")
 
 
-def spoken(phrase, female=False, listener_female=False):
+def spoken(phrase, female=False, listener_female=False, lang="ru"):
     """Текст, который произносит диктор, — он же ключ звукового файла.
 
     Одна функция на все места нарочно. Генератор озвучки и приложение
@@ -280,7 +292,7 @@ def spoken(phrase, female=False, listener_female=False):
         return _norm(ex["he_f"] if (female and ex.get("he_f")) else ex["he"])
     if listener_female and phrase.get("to_f"):
         return _norm(phrase["to_f"])
-    return _norm(text(phrase, female))
+    return _norm(text(phrase, female, lang))
 
 
 def stats():

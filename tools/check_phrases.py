@@ -30,7 +30,7 @@ CYR = re.compile(r"[а-яА-ЯёЁ]")
 
 def check():
     problems = []
-    cats = {c for _, _, c in quiz.POOLS["vocab"]}
+    cats = {c.cat for c in quiz.POOLS["vocab"]}
 
     for sit, items in phrases.PHRASES.items():
         if sit not in phrases.SITUATIONS:

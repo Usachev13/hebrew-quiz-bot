@@ -24,15 +24,17 @@ import time
 import urllib.parse
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request, send_file
+from flask import Blueprint, g, jsonify, request, send_file
 
 import audio
 import db
 import hebrew_name
 import phrases
+import phrases_en
 import quiz
+import word_art
 from matching import check_answer, scramble
-from translit import translit
+from translit import reading, translit
 
 api = Blueprint("webapp", __name__)
 
@@ -120,9 +122,21 @@ def guarded(fn):
         user = current_user()
         if not user:
             return jsonify({"error": "unauthorized"}), 401
+        # Язык берём из ПРОВЕРЕННЫХ данных Telegram, а не из тела
+        # запроса. Разница не косметическая: подпись покрывает поле
+        # language_code, а присланное клиентом можно написать любое.
+        # Сам по себе выбор языка безобиден, но правило простое —
+        # то, что влияет на ответ сервера, приходит только из
+        # подписанного источника.
+        g.lang = db.resolve_lang(user["id"], user.get("language_code"))
         return fn(str(user["id"]), request.get_json(silent=True) or {}, *a, **kw)
     wrapper.__name__ = fn.__name__
     return wrapper
+
+
+def req_lang():
+    """Язык текущего запроса. Вне запроса — русский."""
+    return getattr(g, "lang", db.DEFAULT_LANG)
 
 
 # ---------- страница ----------
@@ -167,22 +181,28 @@ def menu(chat_id, payload):
     except Exception as e:
         print(f"[menu] {e}")
         due, weak = 0, 0
+    lang = req_lang()
     counts = {m: len(p) for m, p in quiz.POOLS.items()}
     by_cat = {}
-    for _, _, cat in quiz.POOLS["vocab"]:
-        by_cat[cat] = by_cat.get(cat, 0) + 1
+    for card in quiz.POOLS["vocab"]:
+        by_cat[card.cat] = by_cat.get(card.cat, 0) + 1
+    name = lambda m, cat=None: quiz.section_label(m, cat, lang)
     return jsonify({
-        "topics": [{"key": k, "name": n, "count": by_cat.get(k, 0)}
-                   for k, n in quiz.TOPIC_LABELS.items()],
-        "grammar": [{"key": k, "name": n, "count": by_cat.get(k, 0)}
-                    for k, n in quiz.GRAMMAR_LABELS.items()],
-        "verbs": [{"key": m, "name": quiz.LABELS[m], "count": counts[m]}
+        "topics": [{"key": k, "name": name("vocab", k), "count": by_cat.get(k, 0)}
+                   for k in quiz.TOPIC_LABELS],
+        "grammar": [{"key": k, "name": name("vocab", k), "count": by_cat.get(k, 0)}
+                    for k in quiz.GRAMMAR_LABELS],
+        "verbs": [{"key": m, "name": name(m), "count": counts[m]}
                   for m in ("verbs", "past", "present", "future")],
-        "alphabet": [{"key": m, "name": quiz.LABELS[m], "count": counts[m]}
+        "alphabet": [{"key": m, "name": name(m), "count": counts[m]}
                      for m in quiz.ALPHABET_ORDER],
         "due": due,
         "weak": weak,
         "anagram_modes": sorted(quiz.ANAGRAM_MODES),
+        # Язык отдаём с первым же ответом: страница до этого показывает
+        # заставку и ничего не подписывает, а свой список «каким странам
+        # какой язык» ей заводить незачем — он один и лежит здесь.
+        "lang": lang,
     })
 
 
@@ -221,20 +241,26 @@ def _heb_name():
 HEB_RUN = re.compile(r"[\u0590-\u05FF][\u0590-\u05FF]*")
 
 
-def _intro_card(ru, he, cat, mode):
+def _intro_card(card, mode, lang="ru"):
     """Карточка знакомства: что показать крупно, как это читается и что
     оно значит."""
+    ru, he = card.prompt(lang), card.answer(lang)
     if HEB_RUN.search(he):
         main, gloss = he, ru
     else:
         m = HEB_RUN.search(ru)
         main, gloss = (m.group(0) if m else ru), he
     return {
+        "id": card.key(),
         "ru": ru,
         "main": main,
         "gloss": gloss,
-        "cat": cat,
-        "reading": translit(main) if mode not in quiz.ALPHABET_MODES else "",
+        "cat": card.cat,
+        # Номер рисунка к слову. Отдаём с карточкой, а не ищем на
+        # клиенте: карта соответствий не должна лежать в странице и не
+        # должна зависеть от языка подсказки.
+        "art": word_art.ART.get(card.key()),
+        "reading": reading(main, lang) if mode not in quiz.ALPHABET_MODES else "",
         "audio": audio.audio_key(main) if audio.has_audio(main) else None,
     }
 
@@ -249,7 +275,8 @@ def round_(chat_id, payload):
     if mode not in quiz.POOLS and mode != "weak":
         return jsonify({"error": "unknown mode"}), 400
 
-    pool, label, modes = quiz.round_pool(chat_id, mode, cat)
+    lang = req_lang()
+    pool, label, modes = quiz.round_pool(chat_id, mode, cat, lang)
     if len(pool) < 4:
         return jsonify({"error": "too_small", "label": label}), 409
 
@@ -272,10 +299,13 @@ def round_(chat_id, payload):
     used, questions = set(), []
     for i in range(count):
         pick = intro if (intro and i < len(intro)) else None
-        q = quiz.build_question(pool, used, priorities, pick_from=pick)
-        used.add(q["ru"])
-        card_mode = modes.get((q["ru"], q["correct"]), mode)
-        item = {"ru": q["ru"], "mode": card_mode}
+        q = quiz.build_question(pool, used, priorities, pick_from=pick, lang=lang)
+        used.add(q["id"])
+        card_mode = modes.get(q["id"], mode)
+        # `id` — устойчивый ключ, по нему сервер и узнает карточку в
+        # /api/answer. `ru` остаётся текстом вопроса: клиент его только
+        # показывает. Раньше это было одно поле, и оно же служило ключом.
+        item = {"id": q["id"], "ru": q["ru"], "mode": card_mode}
         if fmt == "choice":
             item["options"] = q["options"]
         elif fmt == "anagram":
@@ -284,7 +314,7 @@ def round_(chat_id, payload):
 
     return jsonify({
         "label": label, "format": fmt, "questions": questions,
-        "intro": [_intro_card(ru, he, cat, mode) for ru, he, cat in intro],
+        "intro": [_intro_card(c, mode, lang) for c in intro],
     })
 
 
@@ -293,14 +323,19 @@ def round_(chat_id, payload):
 def answer(chat_id, payload):
     """Судит сервер: клиент присылает то, что выбрал или набрал."""
     mode = payload.get("mode", "vocab")
-    card_id = payload.get("ru", "")
+    # `id` — устойчивый ключ. `ru` принимаем как запасной вариант: у
+    # человека, открывшего приложение до выкладки, в памяти телефона
+    # остался старый раунд, и его последние ответы не должны пропасть.
+    card_id = payload.get("id") or payload.get("ru", "")
     given = payload.get("answer", "")
     skipped = bool(payload.get("skip"))
+    lang = req_lang()
 
-    found = quiz.ANSWERS.get(mode, {}).get(card_id)
-    if not found:
+    card = quiz.find_card(mode, card_id)
+    if not card:
         return jsonify({"error": "unknown card"}), 400
-    expected, _cat = found
+    card_id = card.key()
+    expected = card.answer(lang)
 
     if skipped:
         verdict = "skip"
@@ -318,13 +353,18 @@ def answer(chat_id, payload):
         print(f"[answer] {e}")
         before = None
 
-    reading = "" if mode in quiz.ALPHABET_MODES else translit(expected)
+    # Чтение — на языке интерфейса: «лехем» или «lekhem».
+    read = "" if mode in quiz.ALPHABET_MODES else reading(expected, lang)
+    # Озвучка привязана к ивриту, а не к языку интерфейса: у карточек
+    # алфавита ответ переводится («далет» / «dalet»), и искать запись по
+    # переведённому тексту значило бы терять её при смене языка.
+    voice = card.he
     return jsonify({
         "verdict": verdict,
         "correct": correct,
         "expected": expected,
-        "reading": reading,
-        "audio": audio.audio_key(expected) if audio.has_audio(expected) else None,
+        "reading": read,
+        "audio": audio.audio_key(voice) if audio.has_audio(voice) else None,
         "memory": _memory_line(before, correct),
     })
 
@@ -341,6 +381,7 @@ def _memory_line(before, correct):
 def home(chat_id, payload):
     """Всё для главного экрана одним запросом: профиль, «продолжить»,
     прогресс по темам."""
+    lang = req_lang()
     try:
         db.touch_user(chat_id)
         xp = db.total_xp(chat_id)
@@ -359,33 +400,34 @@ def home(chat_id, payload):
     # три верных ответа с растущими промежутками. Считать пройденным по
     # одному верному ответу было бы приятнее и неправдой.
     topics = []
-    for key, name in quiz.TOPIC_LABELS.items():
-        cards = [ru for ru, _, cat in quiz.POOLS["vocab"] if cat == key]
-        learned = sum(1 for ru in cards if boxes.get(ru, 0) >= 4)
-        seen = sum(1 for ru in cards if ru in boxes)
-        topics.append({"key": key, "name": name, "total": len(cards),
-                       "learned": learned, "seen": seen})
+    for key in quiz.TOPIC_LABELS:
+        ids = [c.key() for c in quiz.POOLS["vocab"] if c.cat == key]
+        learned = sum(1 for i in ids if boxes.get(i, 0) >= 4)
+        seen = sum(1 for i in ids if i in boxes)
+        topics.append({"key": key, "name": quiz.section_label("vocab", key, lang),
+                       "total": len(ids), "learned": learned, "seen": seen})
 
     resume = None
     if last:
         mode = last["mode"]
-        found = quiz.ANSWERS.get(mode, {}).get(last["card_id"])
-        cat = found[1] if found and mode == "vocab" else None
-        label = (quiz.TOPIC_LABELS.get(cat) or quiz.GRAMMAR_LABELS.get(cat)
-                 or quiz.LABELS.get(mode))
+        found = quiz.find_card(mode, last["card_id"])
+        cat = found.cat if found and mode == "vocab" else None
+        label = quiz.section_label(mode, cat, lang)
         if label:
             resume = {"mode": mode, "cat": cat, "label": label}
             # Показываем то самое слово, которое выпадет первым: ярлык
             # темы не говорит, ради чего нажимать.
             try:
-                pool, _, _ = quiz.round_pool(chat_id, mode, cat)
+                pool, _, _ = quiz.round_pool(chat_id, mode, cat, lang)
                 prio = db.card_priorities(chat_id, mode)
                 if pool:
-                    ru, he, _c = quiz.pick_card(pool, prio)
+                    card = quiz.pick_card(pool, prio)
+                    he = card.answer(lang)
                     resume.update({
-                        "ru": ru, "he": he,
-                        "reading": "" if mode in quiz.ALPHABET_MODES else translit(he),
-                        "audio": audio.audio_key(he) if audio.has_audio(he) else None,
+                        "ru": card.prompt(lang), "he": he,
+                        "reading": "" if mode in quiz.ALPHABET_MODES else reading(he, lang),
+                        "audio": (audio.audio_key(card.he)
+                                  if audio.has_audio(card.he) else None),
                     })
             except Exception as e:
                 print(f"[home] превью не собралось: {e}")
@@ -403,9 +445,9 @@ def home(chat_id, payload):
 
     # Слово дня — то же, что присылает бот по утрам, теми же правилами.
     try:
-        wru, whe, _wc = quiz.pick_daily_word(chat_id)
-        word = {"ru": wru, "he": whe, "reading": translit(whe),
-                "audio": audio.audio_key(whe) if audio.has_audio(whe) else None}
+        c = quiz.pick_daily_word(chat_id)
+        word = {"ru": c.prompt(lang), "he": c.he, "reading": reading(c.he, lang),
+                "audio": audio.audio_key(c.he) if audio.has_audio(c.he) else None}
     except Exception as e:
         print(f"[home] слово дня не собралось: {e}")
         word = None
@@ -461,18 +503,21 @@ def words(chat_id, payload):
         print(f"[words] {e}")
         boxes, favs = {}, set()
 
+    lang = req_lang()
     items = []
-    for ru, he, cat in quiz.POOLS["vocab"]:
-        box = boxes.get(ru, 0)
+    for c in quiz.POOLS["vocab"]:
+        box = boxes.get(c.key(), 0)
         items.append({
-            "ru": ru, "he": he, "reading": translit(he), "cat": cat,
-            "topic": quiz.TOPIC_LABELS.get(cat) or quiz.GRAMMAR_LABELS.get(cat, ""),
+            "id": c.key(),
+            "ru": c.prompt(lang), "he": c.he, "reading": reading(c.he, lang),
+            "cat": c.cat,
+            "topic": quiz.section_label("vocab", c.cat, lang),
             # Саму коробку клиенту не отдаём: ему нужно состояние, а не
             # внутренняя механика Лейтнера. На 273 словах экономия
             # заметна, а показывать «коробка 3» человеку незачем.
             "state": "learned" if box >= LEARNED_BOX else "learning" if box else "new",
-            "fav": ru in favs,
-            "audio": audio.audio_key(he) if audio.has_audio(he) else None,
+            "fav": c.key() in favs,
+            "audio": audio.audio_key(c.he) if audio.has_audio(c.he) else None,
         })
     return jsonify({"words": items, "learned_box": LEARNED_BOX})
 
@@ -480,16 +525,16 @@ def words(chat_id, payload):
 @api.route("/api/favourite", methods=["POST"])
 @guarded
 def favourite(chat_id, payload):
-    ru = payload.get("ru", "")
-    if ru not in quiz.ANSWERS.get("vocab", {}):
+    card = quiz.find_card("vocab", payload.get("id") or payload.get("ru", ""))
+    if not card:
         return jsonify({"error": "unknown card"}), 400
     on = bool(payload.get("on"))
     try:
-        db.set_favourite(chat_id, ru, on)
+        db.set_favourite(chat_id, card.key(), on)
     except Exception as e:
         print(f"[favourite] {e}")
         return jsonify({"error": "db"}), 503
-    return jsonify({"ru": ru, "fav": on})
+    return jsonify({"id": card.key(), "fav": on})
 
 
 @api.route("/api/know", methods=["POST"])
@@ -497,17 +542,20 @@ def favourite(chat_id, payload):
 def know(chat_id, payload):
     """«Я уже знаю это»: карточка уходит в последнюю коробку."""
     mode = payload.get("mode", "vocab")
-    ru = payload.get("ru", "")
-    found = quiz.ANSWERS.get(mode, {}).get(ru)
-    if not found:
+    lang = req_lang()
+    card = quiz.find_card(mode, payload.get("id") or payload.get("ru", ""))
+    if not card:
         return jsonify({"error": "unknown card"}), 400
     try:
-        db.mark_known(chat_id, ru, mode)
+        db.mark_known(chat_id, card.key(), mode)
     except Exception as e:
         print(f"[know] {e}")
         return jsonify({"error": "db"}), 503
-    return jsonify({"ru": ru, "expected": found[0],
-                    "reading": translit(found[0]) if mode not in quiz.ALPHABET_MODES else ""})
+    expected = card.answer(lang)
+    return jsonify({
+        "id": card.key(), "expected": expected,
+        "reading": "" if mode in quiz.ALPHABET_MODES else reading(expected, lang),
+    })
 
 
 # ---------- разговорные модели ----------
@@ -516,21 +564,29 @@ SAY_MODE = "say"        # отдельный режим для интервал�
 SAY_LEN = 8             # длина подхода: больше — и голос устаёт
 
 
-def _say_card(cid, ph, female):
+def _say_card(cid, ph, female, lang="ru", where=None):
     """Одна модель для показа. Слот не заполняем: подставлять слово —
-    отдельное упражнение, а здесь задача произнести каркас."""
-    he = phrases.text(ph, female)
+    отдельное упражнение, а здесь задача произнести каркас.
+
+    `where` — пара (ситуация, номер): по ней берётся английская подпись.
+    """
+    he = phrases.text(ph, female, lang)
     # Показываем со слотом-многоточием, а озвучиваем и ищем звук по той
     # же строке, что записал генератор, — иначе ключи разойдутся.
     shown = he.replace(phrases.SLOT, "…")
-    voice = phrases.spoken(ph, female)
+    voice = phrases.spoken(ph, female, lang=lang)
+    if lang == "en" and where:
+        label = phrases_en.phrase_text(where[0], where[1], ph["ru"]) or ph["ru"]
+        note = phrases_en.note(*where) or None
+    else:
+        label, note = ph["ru"], ph.get("note")
     card = {
         "id": cid,
-        "ru": ph["ru"].replace(phrases.SLOT, "…"),
+        "ru": label.replace(phrases.SLOT, "…"),
         "he": shown,
-        "reading": translit(voice),
+        "reading": reading(voice, lang),
         "audio": audio.audio_key(voice) if audio.has_audio(voice) else None,
-        "note": ph.get("note"),
+        "note": note,
         "slot": ph.get("slot"),
     }
     # Фразы, зависящие от пола собеседника, отдаём обеими формами.
@@ -541,10 +597,10 @@ def _say_card(cid, ph, female):
         def side(to_female):
             # Ключ звука — только через spoken(). Раньше здесь стояла
             # сырая строка, и совпадало это по случайности.
-            v = phrases.spoken(ph, listener_female=to_female)
+            v = phrases.spoken(ph, listener_female=to_female, lang=lang)
             raw = pair["to_f"] if to_female else pair["to_m"]
             return {"he": raw.replace(phrases.SLOT, "…"),
-                    "reading": translit(v),
+                    "reading": reading(v, lang),
                     "audio": audio.audio_key(v) if audio.has_audio(v) else None}
         card["to"] = {"m": side(False), "f": side(True)}
 
@@ -580,7 +636,7 @@ def say(chat_id, payload):
         print(f"[say] {e}")
         priorities = {}
 
-    pool = [(phrases.card_id(s, i), p)
+    pool = [(phrases.card_id(s, i), p, (s, i))
             for s, items in phrases.PHRASES.items()
             for i, p in enumerate(items)
             if not situation or s == situation]
@@ -593,11 +649,15 @@ def say(chat_id, payload):
     take = pool[:SAY_LEN]
     random.shuffle(take)
 
+    lang = req_lang()
+    names = phrases_en.SITUATIONS_EN if lang == "en" else phrases.SITUATIONS
+    fallback = "conversation" if lang == "en" else "разговор"
     return jsonify({
-        "label": phrases.SITUATIONS.get(situation, "разговор"),
+        "label": names.get(situation, fallback),
         "female": female,
         "gender_set": bool(db.gender(chat_id)) if priorities is not None else False,
-        "cards": [_say_card(cid, ph, female) for cid, ph in take],
+        "cards": [_say_card(cid, ph, female, lang, where)
+                  for cid, ph, where in take],
     })
 
 
@@ -631,11 +691,13 @@ def situations(chat_id, payload):
     except Exception as e:
         print(f"[situations] {e}")
         boxes = {}
+    lang = req_lang()
+    names = phrases_en.SITUATIONS_EN if lang == "en" else phrases.SITUATIONS
     out = []
-    for key, name in phrases.SITUATIONS.items():
+    for key in phrases.SITUATIONS:
         ids = [phrases.card_id(key, i) for i in range(len(phrases.PHRASES[key]))]
         out.append({
-            "key": key, "name": name, "total": len(ids),
+            "key": key, "name": names.get(key, ""), "total": len(ids),
             "seen": sum(1 for c in ids if c in boxes),
             "learned": sum(1 for c in ids if boxes.get(c, 0) >= LEARNED_BOX),
         })
@@ -666,6 +728,16 @@ def profile(chat_id, payload):
             print(f"[profile] пол: {e}")
             return jsonify({"error": "db"}), 503
 
+    # Язык интерфейса. Выбранный руками сильнее того, что стоит в
+    # Telegram: человек мог держать телефон на английском и всё равно
+    # хотеть учиться по-русски.
+    if "lang" in payload:
+        try:
+            g.lang = db.set_lang(chat_id, payload["lang"]) or req_lang()
+        except Exception as e:
+            print(f"[profile] язык: {e}")
+            return jsonify({"error": "db"}), 503
+
     if "set" in payload:
         what, value = payload["set"], bool(payload.get("value"))
         try:
@@ -686,6 +758,8 @@ def profile(chat_id, payload):
             "streak": db.streak_days(chat_id),
             "name": _heb_name(),
             "gender": db.gender(chat_id),
+            "lang": req_lang(),
+            "langs": list(db.LANGS),
             "answers": overall["total"], "correct": overall["correct"],
             "learned": sum(1 for b in db.word_boxes(chat_id).values() if b >= LEARNED_BOX),
             "favourites": len(db.favourites(chat_id)),
@@ -702,6 +776,7 @@ def profile(chat_id, payload):
 @api.route("/api/stats", methods=["POST"])
 @guarded
 def stats(chat_id, payload):
+    lang = req_lang()
     try:
         overall = db.overall_stats(chat_id)
         by_mode = db.stats_by_mode(chat_id)
@@ -714,17 +789,22 @@ def stats(chat_id, payload):
 
     rows = []
     for w in weak:
-        found = quiz.ANSWERS.get(w["mode"], {}).get(w["card_id"])
-        he = found[0] if found else None
+        card = quiz.find_card(w["mode"], w["card_id"])
+        # Ключ карточки больше не человеческий текст: показывать его
+        # нельзя, иначе в списке слабых мест окажется «food:לחם».
+        # Карточки может не быть — слово могли убрать из словаря.
+        if not card:
+            continue
+        he = card.answer(lang)
         rows.append({
-            "ru": w["card_id"], "he": he,
-            "reading": translit(he) if he and w["mode"] not in quiz.ALPHABET_MODES else "",
+            "ru": card.prompt(lang), "he": he,
+            "reading": "" if w["mode"] in quiz.ALPHABET_MODES else reading(he, lang),
             "wrong": w["n_wrong"], "mode": w["mode"],
         })
     return jsonify({
         "total": overall["total"], "correct": overall["correct"],
         "streak": streak, "due": due,
-        "by_mode": [{"mode": m, "name": quiz.LABELS[m], **s}
+        "by_mode": [{"mode": m, "name": quiz.section_label(m, lang=lang), **s}
                     for m, s in by_mode.items() if m in quiz.LABELS],
         "weak": rows,
     })

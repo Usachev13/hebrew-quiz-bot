@@ -101,27 +101,70 @@ SYLLABLES = [
 FINALS = [(base, final) for base, _, _, final in LETTERS if final]
 
 
+# Курс алфавита — единственная часть приложения, где ПЕРЕВОДИТСЯ И
+# ОТВЕТ. В словаре ответ всегда иврит и от языка интерфейса не зависит;
+# здесь ответ — название буквы или её звук, то есть обычный текст:
+# «алеф» для русского и «alef» для английского. Поэтому карточки этих
+# пулов заполняют и `en` (вопрос), и `en_ans` (ответ).
+#
+# Звуки записаны так, как их слышит носитель языка интерфейса, а не
+# по единой системе: для русского «х горловое», для английского
+# «guttural kh». Международный алфавит (IPA) здесь был бы точнее и
+# бесполезнее — человек на первом уроке его не читает.
+
+from alphabet_en import (
+    LETTER_NAMES_EN, LETTER_SOUNDS_EN, DOTTED_EN, NIQQUD_EN, SYLLABLES_EN,
+    P_LETTER, P_SOUND, P_LOOKS, P_FINAL, P_NIQQUD, P_READ,
+)
+from cards import Card, letter_cid
+
+
+def _en(table, key, template=None):
+    """Английский текст или пустая строка, если перевода нет.
+
+    Обращаться к таблицам через квадратные скобки нельзя: пропущенный
+    перевод одной буквы уронил бы импорт этого модуля, а его тянет
+    quiz.py, который тянут и бот, и приложение. Забытый перевод — повод
+    для tools/check_i18n.py, а не для падения всего сервиса.
+
+    Пустая строка при этом обязательна: собрать «what does «» look like»
+    было бы хуже молчания — проверка сочла бы перевод существующим.
+    """
+    value = table.get(key)
+    if not value:
+        return ""
+    return template.format(value) if template else value
+
+
 def pool_names():
     """Буква -> название."""
-    return [(f"буква {ltr}", name, "alef_names") for ltr, name, _, _ in LETTERS]
+    return [Card(f"буква {ltr}", name, "alef_names", cid=letter_cid(ltr),
+                 en=P_LETTER.format(ltr), en_ans=_en(LETTER_NAMES_EN, ltr))
+            for ltr, name, _, _ in LETTERS]
 
 
 def pool_sounds():
     """Буква -> звук."""
-    return [(f"звук буквы {ltr}", snd, "alef_sounds") for ltr, _, snd, _ in LETTERS]
+    return [Card(f"звук буквы {ltr}", snd, "alef_sounds", cid=letter_cid(ltr),
+                 en=P_SOUND.format(ltr), en_ans=_en(LETTER_SOUNDS_EN, ltr))
+            for ltr, _, snd, _ in LETTERS]
 
 
 def pool_by_name():
-    """Название -> буква (обратное направление, сложнее)."""
-    return [(f"как выглядит «{name}»", ltr, "alef_by_name") for ltr, name, _, _ in LETTERS]
+    """Название -> буква (обратное направление, сложнее).
+
+    Ответ здесь — сама буква, поэтому `en_ans` не нужен: буква одна
+    для всех языков. Переводится только вопрос."""
+    return [Card(f"как выглядит «{name}»", ltr, "alef_by_name",
+                 cid=letter_cid(ltr), en=_en(LETTER_NAMES_EN, ltr, P_LOOKS))
+            for ltr, name, _, _ in LETTERS]
 
 
 def pool_finals():
     """Обычная буква -> её конечная форма."""
-    return [
-        (f"конечная форма буквы {base}", final, "alef_finals")
-        for base, final in FINALS
-    ]
+    return [Card(f"конечная форма буквы {base}", final, "alef_finals",
+                 cid=letter_cid(base), en=P_FINAL.format(base))
+            for base, final in FINALS]
 
 
 def pool_niqqud():
@@ -132,15 +175,21 @@ def pool_niqqud():
     называется. Патах и камац оба дают «а» — это не ошибка данных,
     а особенность современного иврита.
     """
-    return [(f"огласовка {shown} — какой звук", snd, "alef_niqqud")
+    return [Card(f"огласовка {shown} — какой звук", snd, "alef_niqqud",
+                 cid=letter_cid(shown), en=P_NIQQUD.format(shown),
+                 en_ans=_en(NIQQUD_EN, shown))
             for shown, _, snd in NIQQUD]
 
 
 def pool_dotted():
     """Буква с точкой и без -> какой звук. Частая ошибка при чтении."""
-    return [(f"звук буквы {ltr}", snd, "alef_dotted") for ltr, _, snd in DOTTED]
+    return [Card(f"звук буквы {ltr}", snd, "alef_dotted", cid=letter_cid(ltr),
+                 en=P_SOUND.format(ltr), en_ans=_en(DOTTED_EN, ltr))
+            for ltr, _, snd in DOTTED]
 
 
 def pool_syllables():
     """Слог с огласовкой -> чтение."""
-    return [(f"прочитай {syl}", read, "alef_syllables") for syl, read in SYLLABLES]
+    return [Card(f"прочитай {syl}", read, "alef_syllables", cid=letter_cid(syl),
+                 en=P_READ.format(syl), en_ans=_en(SYLLABLES_EN, syl))
+            for syl, read in SYLLABLES]

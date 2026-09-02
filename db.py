@@ -145,6 +145,12 @@ LATER_COLUMNS = [
     # и «אני רוצה» с другой огласовкой у женщины. Выдать женщине мужскую
     # форму значит научить её говорить неправильно.
     ("prefs", "gender", "TEXT"),
+    # Язык интерфейса: 'ru', 'en' или NULL. NULL значит «человек не
+    # выбирал сам» — тогда язык берётся из настроек Telegram при каждом
+    # входе. Как только выбор сделан руками, он записывается сюда и
+    # больше не переопределяется: человек мог поставить в телефоне
+    # английский, а учиться хотеть по-русски.
+    ("prefs", "lang", "TEXT"),
 ]
 
 # Интервалы системы Лейтнера: сколько дней ждать до следующего показа.
@@ -201,6 +207,88 @@ def _migrate_card_state_key(conn):
             ON card_state(chat_id, mode, due_date);
     """)
     print("[db] card_state пересобрана: режим добавлен в первичный ключ")
+
+
+def _flag(conn, name):
+    """Одноразовые пометки о выполненных миграциях."""
+    conn.execute("CREATE TABLE IF NOT EXISTS meta "
+                 "(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    row = conn.execute("SELECT value FROM meta WHERE key = ?", (name,)).fetchone()
+    return row["value"] if row else None
+
+
+def _set_flag(conn, name, value="done"):
+    conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)",
+                 (name, value))
+
+
+def migrate_card_ids(mapping):
+    """Переводит прогресс со старых ключей на устойчивые.
+
+    Раньше ключом карточки была русская подсказка: в базе лежало
+    `card_id = 'хороший'`. С появлением английского интерфейса такой
+    ключ стал непригоден — подсказка «good» опознавалась бы как другая
+    карточка, и весь прогресс человека остался бы висеть на невидимой
+    русской строке.
+
+    `mapping` — {режим: {старый ключ: новый}}. Строит его quiz.py: там
+    лежат сами карточки и обе формы ключа.
+
+    Почему это отдельная функция, а не часть init_db
+    ------------------------------------------------
+    db.py ничего не знает о карточках и знать не должен: quiz.py уже
+    импортирует db, и обратный импорт замкнул бы круг. Поэтому таблицу
+    соответствий приносят снаружи.
+
+    Идемпотентность
+    ---------------
+    Пометка в `meta` не даёт прогонять миграцию каждый запуск. Но и без
+    неё повтор был бы безвреден: старые ключи (русский текст) и новые
+    (`category:скелет`) — непересекающиеся множества, второй проход
+    просто ничего не найдёт.
+
+    Столкновения
+    ------------
+    `UPDATE OR REPLACE` нужен на случай, когда у человека уже есть
+    строка с новым ключом: такое возможно, если он успел позаниматься
+    между выкладкой кода и миграцией. Свежая строка тогда вытесняет
+    старую — это верный выбор, она описывает те же ответы, но позже.
+    """
+    conn = get_conn()
+    if _flag(conn, "card_ids_v2"):
+        return 0
+
+    # Считаем заранее одним запросом, а не по rowcount: при столкновении
+    # `UPDATE OR REPLACE` учитывает и вытесненную строку, и в лог попадало
+    # больше карточек, чем перенесено на самом деле.
+    moved = sum(1 for r in conn.execute("SELECT mode, card_id FROM card_state")
+                if r["card_id"] in mapping.get(r["mode"], {}))
+
+    for mode, pairs in mapping.items():
+        for old, new in pairs.items():
+            if old == new:
+                continue
+            conn.execute(
+                "UPDATE OR REPLACE card_state SET card_id = ? "
+                "WHERE card_id = ? AND mode = ?", (new, old, mode))
+            conn.execute(
+                "UPDATE answers SET card_id = ? WHERE card_id = ? AND mode = ?",
+                (new, old, mode))
+            # У избранного и «слова дня» режима в ключе нет: обе таблицы
+            # заполняются только из словаря. Переносим их один раз, на
+            # проходе по vocab, иначе одна и та же строка переписывалась
+            # бы двенадцать раз подряд.
+            if mode == "vocab":
+                conn.execute("UPDATE OR REPLACE favourites SET card_id = ? "
+                             "WHERE card_id = ?", (new, old))
+                conn.execute("UPDATE OR REPLACE daily_sent SET card_id = ? "
+                             "WHERE card_id = ?", (new, old))
+
+    _set_flag(conn, "card_ids_v2")
+    conn.commit()
+    if moved:
+        print(f"[db] прогресс переведён на устойчивые ключи: {moved} карточек")
+    return moved
 
 
 def init_db():
@@ -433,6 +521,87 @@ def gender(chat_id):
         "SELECT gender FROM prefs WHERE chat_id = ?", (str(chat_id),)
     ).fetchone()
     return (row["gender"] or None) if row else None
+
+
+# Языки, на которых говорит приложение. Русский первый не по старшинству,
+# а потому что он запасной: незнакомый код языка сводится к нему.
+LANGS = ("ru", "en")
+DEFAULT_LANG = "ru"
+
+# Коды языков, при которых человеку сперва показываем русский. Это не
+# утверждение о том, на каком языке он говорит дома, а ставка на то, что
+# он прочтёт быстрее: репатриант из Киева, Алматы или Еревана почти
+# наверняка читает по-русски свободнее, чем по-английски, а переключиться
+# на любой из двух языков можно в профиле в одно касание.
+RU_READING_CODES = {
+    "ru",       # русский
+    "uk",       # украинский
+    "be",       # белорусский
+    "kk",       # казахский
+    "ky",       # киргизский
+    "uz",       # узбекский
+    "tg",       # таджикский
+    "hy",       # армянский
+    "ka",       # грузинский
+    "az",       # азербайджанский
+    "mo", "ro",  # молдавский и румынский
+    "lv", "lt", "et",  # Прибалтика
+}
+
+
+def set_lang(chat_id, lang):
+    """Язык интерфейса, выбранный человеком руками.
+
+    Записанный сюда язык сильнее настроек Telegram: человек мог держать
+    телефон на английском и всё равно хотеть учиться по-русски.
+    """
+    lang = lang if lang in LANGS else None
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO prefs (chat_id, lang) VALUES (?, ?) "
+        "ON CONFLICT(chat_id) DO UPDATE SET lang = excluded.lang",
+        (str(chat_id), lang),
+    )
+    conn.commit()
+    return lang
+
+
+def lang(chat_id):
+    """Выбранный язык или None, если человек его не трогал."""
+    try:
+        row = get_conn().execute(
+            "SELECT lang FROM prefs WHERE chat_id = ?", (str(chat_id),)
+        ).fetchone()
+    except Exception as e:
+        print(f"[lang] {e}")
+        return None
+    return (row["lang"] or None) if row else None
+
+
+def resolve_lang(chat_id, telegram_code=None):
+    """Каким языком говорить с этим человеком.
+
+    Сначала собственный выбор, потом подсказка Telegram, потом русский.
+
+    Telegram присылает код вида 'ru', 'en', 'en-GB', иногда 'pt-br'.
+    Берём то, что до дефиса.
+
+    Русский показываем не только при коде 'ru', но и при языках стран,
+    откуда едут русскоязычные репатрианты (см. RU_READING_CODES). Это
+    догадка, а не знание: человек с украинским телефоном может не хотеть
+    русского. Поэтому она обратима одним касанием в профиле, а сделанный
+    руками выбор перекрывает её навсегда.
+
+    Всё остальное ведёт на английский: репатрианту из Франции или
+    Аргентины английский хотя бы даст прочесть интерфейс.
+    """
+    chosen = lang(chat_id)
+    if chosen in LANGS:
+        return chosen
+    code = (telegram_code or "").split("-")[0].lower()
+    if not code:
+        return DEFAULT_LANG
+    return "ru" if code in RU_READING_CODES else "en"
 
 
 def set_heb_name(chat_id, name):
