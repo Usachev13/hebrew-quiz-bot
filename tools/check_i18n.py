@@ -271,7 +271,40 @@ def check_reactions():
     return "живые реплики не на всех языках", bad
 
 
-CHECKS = [check_cards, check_answers, check_ids, check_labels,
+def check_audio_coverage():
+    """Генератор озвучки обязан собирать всё, что попросит приложение.
+
+    Ошибка здесь не падает и не пишется в журнал: приложение ищет файл
+    по тексту фразы, не находит и просто не показывает кнопку звука.
+    Человек решает, что озвучки для этой фразы нет.
+
+    Так уже случилось: поле he_en добавили в phrases.py, а generate_audio
+    по-прежнему звал spoken() без языка. Генератор отрапортовал «всё уже
+    озвучено», и это было правдой — про те строки, которые он знал.
+
+    Сверяем не файлы (их тут нет, они на сервере), а СПИСКИ СТРОК: всё,
+    что может вернуть spoken() при любом сочетании языка и рода, должно
+    попасть в набор генератора.
+    """
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import generate_audio                                    # noqa: E402
+
+    collected = set(generate_audio.collect("phrases"))
+    bad = []
+    for sit, item in phrases.all_phrases():
+        wanted = set()
+        for lang in phrases.LANGS:
+            wanted.add(phrases.spoken(item, female=False, lang=lang))
+            if item.get("he_f"):
+                wanted.add(phrases.spoken(item, female=True, lang=lang))
+            if item.get("to_f"):
+                wanted.add(phrases.spoken(item, listener_female=True, lang=lang))
+        for text in wanted - collected:
+            bad.append(f"{sit}: «{text}» — приложение попросит, генератор не запишет")
+    return "озвучка соберётся не для всех фраз", bad
+
+
+CHECKS = [check_audio_coverage, check_cards, check_answers, check_ids, check_labels,
           check_vocab_topics, check_phrase_alignment, check_situations,
           check_he_en, check_catalogue_parity, check_keys_used,
           check_bot_messages, check_plural_forms, check_reactions]
