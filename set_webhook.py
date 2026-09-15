@@ -33,9 +33,27 @@ webhook_url = f"https://{BOT_DOMAIN}/webhook/{TELEGRAM_TOKEN}"
 
 API = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
+
+def safe(text):
+    """Прячет токен в том, что уходит на экран.
+
+    Токен намеренно стоит в пути вебхука: так сервер отличает запросы от
+    Telegram от чужих. Но печатать этот адрес целиком нельзя.
+
+    Причина не теоретическая. Скрипт запускают по SSH, вывод остаётся в
+    прокрутке терминала, а терминал фотографируют и пересылают — именно
+    так и выглядит обычная жизнь. Один скриншот этой строки отдаёт токен
+    так же полно, как публичный репозиторий, из-за которого бота уже
+    однажды переименовали в чужую рекламу.
+    """
+    if not TELEGRAM_TOKEN or len(TELEGRAM_TOKEN) < 12:
+        return text
+    return text.replace(TELEGRAM_TOKEN, TELEGRAM_TOKEN[:6] + "…скрыто")
+
+
 resp = requests.post(API + "/setWebhook", json={"url": webhook_url}, timeout=10)
-print("Webhook URL:", webhook_url)
-print("Ответ Telegram:", resp.json())
+print("Webhook URL:", safe(webhook_url))
+print("Ответ Telegram:", safe(str(resp.json())))
 
 # Кнопка Mini App рядом с полем ввода. Ставится один раз на бота, а не на
 # чат, поэтому живёт здесь, а не в самом боте: дёргать этот вызов на
