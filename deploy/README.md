@@ -114,5 +114,15 @@ systemctl status hebrew-quiz-bot          # запущен ли сам бот
 journalctl -u hebrew-quiz-bot -n 50       # логи бота (traceback, если падает)
 systemctl status caddy                    # жив ли Caddy
 journalctl -u caddy -n 50                 # логи Caddy (проблемы с сертификатом и т.п.)
-curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"   # что видит Telegram
+
+# Что видит Telegram: адрес вебхука, очередь, ошибки доставки
+sudo -u botuser venv/bin/python3 tools/webhook_info.py
 ```
+
+> **Почему скрипт, а не `curl .../getWebhookInfo`.** Токен намеренно
+> стоит в пути вебхука — так сервер отличает запросы Telegram от чужих.
+> Поэтому сырой `curl` печатает токен целиком, и команда, которой
+> проверяют «всё ли цело после утечки», сама выкладывает его в прокрутку
+> терминала. Ровно так второй токен этого бота сгорел через двадцать
+> минут после первого: вывод попал в скриншот. `webhook_info.py` делает
+> тот же запрос и закрывает токен во всех полях, включая текст ошибки.
