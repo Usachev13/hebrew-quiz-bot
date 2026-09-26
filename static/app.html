@@ -360,6 +360,11 @@ input[type=text]:focus{outline:0;border-color:var(--primary)}
 .gr-block{margin-top:var(--s5)}
 .gr-block h2{font-size:16px;margin:0 0 var(--s2)}
 .gr-block p{margin:0;color:var(--muted);line-height:1.6;white-space:pre-line}
+.gr-table{margin-top:var(--s4)}
+.gr-table .stat b{font-size:18px;font-weight:600}
+.gr-pairs{margin-top:var(--s4)}
+.gr-pairs .stat span{color:var(--muted);font-size:13px}
+.gr-pairs .stat b{font-size:17px;font-weight:600}
 .gr-forms{display:flex;gap:var(--s4);flex-wrap:wrap;margin-top:var(--s2)}
 .gr-forms span{display:flex;flex-direction:column;gap:2px}
 .gr-forms b{font-size:19px;font-weight:600}
@@ -2251,6 +2256,25 @@ async function openGrammar(id){
   $("gr-lead").textContent = p.lead;
   $("gr-body").innerHTML = p.blocks.map(b =>
     `<div class="gr-block"><h2>${b.head}</h2><p>${b.body}</p></div>`).join("");
+
+  /* Страницы бывают трёх видов: у биньяна пример спряжения, у
+     предлога таблица склонения, у смихута список пар из словаря.
+     Общего у них — заголовок и разделы, поэтому низ страницы
+     собирается отдельно под каждый. */
+  if (p.table){
+    $("gr-example").innerHTML = `<div class="gr-table">` + p.table.map(r =>
+      `<div class="stat"><span>${r.who}</span><b>${r.form}</b></div>`).join("") + `</div>`;
+    $("gr-train").hidden = true;
+    return;
+  }
+  if (p.smichut){
+    $("gr-example").innerHTML = `<div class="gr-pairs">` + p.smichut.map(r =>
+      `<div class="stat"><b>${r.whole}</b><span>${r.base} — ${r.gloss}</span></div>`
+    ).join("") + `</div>`;
+    $("gr-train").hidden = true;
+    return;
+  }
+  $("gr-train").hidden = false;
 
   const e = p.example;
   $("gr-example").innerHTML = e ? `

@@ -33,6 +33,7 @@ import re
 
 from alphabet import CONFUSABLE, DOTTED, LETTERS
 import grammar
+import hebrew_meta
 from conjugations import CONJUGATIONS, PAST_LABELS, PRESENT_LABELS, FUTURE_LABELS
 from translit import to_ipa
 
@@ -105,6 +106,20 @@ T = {
     # различить их по написанию мы не умеем. Утверждать «это
     # сеголатное» означало бы уверенно сказать неправду в части
     # случаев. Говорим факт, который верен всегда.
+    "smichut": {
+        "ru": "Это смихут — два существительных подряд. Первое меняет "
+              "форму: «{base}» ({gloss}) превращается в «{head}». "
+              "Артикль ставится ко второму слову, а не к первому.",
+        "en": "This is smichut — two nouns in a row. The first one "
+              "changes shape: «{base}» ({gloss}) becomes «{head}». "
+              "The article goes with the second word, not the first.",
+    },
+    "prep": {
+        "ru": "Это предлог «{base}» с местоименным окончанием. "
+              "В иврите предлоги склоняются, как глаголы по лицам.",
+        "en": "This is the preposition «{base}» with a pronoun ending. "
+              "In Hebrew prepositions decline, much like verbs do.",
+    },
     "stress": {
         "ru": "Ударение здесь на первом слоге. В иврите оно обычно на "
               "последнем, поэтому такие слова легко прочитать неверно — "
@@ -210,6 +225,19 @@ def _letter_by_answer(mode, given, lang):
     return None
 
 
+def _vocab(card, lang):
+    """Разбор словарного слова: смихут, предлог или ударение."""
+    sm = hebrew_meta.smichut_of(card.he, lang)
+    if sm:
+        base, gloss = sm
+        return [_t("smichut", lang, base=base, gloss=gloss,
+                   head=card.he.split()[0])]
+    prep = hebrew_meta.preposition_of(card.he)
+    if prep:
+        return [_t("prep", lang, base=hebrew_meta.PREPOSITIONS[prep]["base"])]
+    return _stress(card, lang)
+
+
 def _stress(card, lang):
     """Слово с ударением не на последнем слоге стоит отметить."""
     he = card.he
@@ -231,10 +259,17 @@ def page_for(card, mode):
     устройство биньяна — это страница, а «настоящее не различает лицо» —
     строка, и отдельной страницы ей не надо.
     """
-    root = _root_of(card.cat) if card else None
-    if not root:
+    if not card:
         return None
-    return grammar.page_for_binyan(CONJUGATIONS[root]["binyan"])
+    root = _root_of(card.cat)
+    if root:
+        return grammar.page_for_binyan(CONJUGATIONS[root]["binyan"])
+    if hebrew_meta.smichut_of(card.he):
+        return "smichut"
+    prep = hebrew_meta.preposition_of(card.he)
+    if prep:
+        return "prep." + prep
+    return None
 
 
 def explain(card, mode, given=None, lang="ru"):
@@ -255,6 +290,6 @@ def explain(card, mode, given=None, lang="ru"):
     elif mode.startswith("alef_"):
         lines += _alphabet(card, mode, given, lang)
     elif mode == "vocab":
-        lines += _stress(card, lang)
+        lines += _vocab(card, lang)
 
     return lines or None

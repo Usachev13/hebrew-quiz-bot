@@ -34,6 +34,7 @@
 
 import collections
 
+import hebrew_meta
 from conjugations import CONJUGATIONS
 
 # Какая страница открывается для какой пометки биньяна. Вариантов
@@ -339,8 +340,91 @@ def check_samples():
                    if text["sample"] not in CONJUGATIONS})
 
 
+def _smichut_page(lang):
+    """Смихут. Примеры берём из словаря — там их тринадцать."""
+    ru = lang != "en"
+    rows = [{"whole": whole, "base": base,
+              "gloss": (en if lang == "en" else ru)}
+            for whole, (base, ru, en) in hebrew_meta.SMICHUT.items()]
+    return {
+        "id": "smichut",
+        "title": "Смихут — два существительных подряд" if ru
+                 else "Smichut — two nouns in a row",
+        "lead": ("Так в иврите строятся составные названия: не «дом для "
+                 "книг», а «дом-книг». Второе слово уточняет первое, а "
+                 "предлога между ними нет." if ru else
+                 "This is how Hebrew builds compound names: not «a house "
+                 "for books» but «house-of books». The second word "
+                 "specifies the first, with no preposition between them."),
+        "blocks": [
+            {"head": "Первое слово меняется" if ru else "The first word changes",
+             "body": ("Оно переходит в особую форму — сопряжённую. "
+                      "בַּיִת становится בֵּית, אֲרוּחָה становится "
+                      "אֲרוּחַת, קֻפָּה становится קֻפַּת. Второе слово "
+                      "остаётся как есть."
+                      if ru else
+                      "It moves into a special form — the construct "
+                      "state. בַּיִת becomes בֵּית, אֲרוּחָה becomes "
+                      "אֲרוּחַת, קֻפָּה becomes קֻפַּת. The second word "
+                      "stays as it is.")},
+            {"head": "Артикль — ко второму" if ru else "The article goes second",
+             "body": ("Это главная ловушка. «Школа» — בֵּית סֵפֶר, "
+                      "«эта школа» — בֵּית הַסֵּפֶר, а не הַבֵּית סֵפֶר. "
+                      "Определённость всей связки задаёт второе слово."
+                      if ru else
+                      "This is the main trap. «A school» is בֵּית סֵפֶר, "
+                      "«the school» is בֵּית הַסֵּפֶר, not הַבֵּית סֵפֶר. "
+                      "The second word makes the whole pair definite.")},
+            {"head": "Род — по первому" if ru else "Gender comes from the first",
+             "body": ("Род всей связки задаёт первое слово, а не "
+                      "последнее: אֲרוּחַת בֹּקֶר женского рода, потому "
+                      "что אֲרוּחָה женского, хотя בֹּקֶר мужского."
+                      if ru else
+                      "The gender of the pair comes from the first word, "
+                      "not the last: אֲרוּחַת בֹּקֶר is feminine because "
+                      "אֲרוּחָה is, even though בֹּקֶר is masculine.")},
+        ],
+        "example": None,
+        "smichut": rows,
+        "count": len(rows),
+    }
+
+
+def _prep_page(key, lang):
+    t = hebrew_meta.table(key, lang)
+    if not t:
+        return None
+    ru = lang != "en"
+    return {
+        "id": "prep." + key,
+        "title": f"{t['base']} — {t['title']}",
+        "lead": t["note"],
+        "blocks": [{
+            "head": "Почему это важно" if ru else "Why it matters",
+            "body": ("В русском предлог не меняется: «мне», «тебе», «ему» "
+                     "— это меняется местоимение. В иврите наоборот: "
+                     "местоимение прирастает к предлогу, и получается "
+                     "одно слово. Выучив таблицу, вы перестаёте "
+                     "собирать эти формы по кусочкам."
+                     if ru else
+                     "In English the preposition stays put and the "
+                     "pronoun changes: «to me», «to him». In Hebrew the "
+                     "pronoun fuses with the preposition into a single "
+                     "word. Learn the table and you stop assembling "
+                     "these forms piece by piece.")},
+        ],
+        "example": None,
+        "table": t["rows"],
+        "count": len(t["rows"]),
+    }
+
+
 def page(page_id, lang="ru"):
     """Страница целиком, с живым примером из наших спряжений."""
+    if page_id == "smichut":
+        return _smichut_page(lang)
+    if page_id.startswith("prep."):
+        return _prep_page(page_id[5:], lang)
     item = PAGES.get(page_id)
     if not item:
         return None
