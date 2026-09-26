@@ -28,6 +28,7 @@ from flask import Blueprint, g, jsonify, request, send_file
 
 import audio
 import db
+import explain
 import hebrew_name
 import phrases
 import phrases_en
@@ -262,6 +263,9 @@ def _intro_card(card, mode, lang="ru"):
         # клиенте: карта соответствий не должна лежать в странице и не
         # должна зависеть от языка подсказки.
         "art": word_art.ART.get(card.key()),
+        # «Что тут важно» — показываем сразу при знакомстве, пока слово
+        # ещё не заучено неправильно.
+        "why": explain.explain(card, mode, lang=lang),
         "reading": reading(main, lang) if mode not in quiz.ALPHABET_MODES else "",
         "audio": audio.audio_key(main) if audio.has_audio(main) else None,
     }
@@ -365,6 +369,11 @@ def answer(chat_id, payload):
         "verdict": verdict,
         "correct": correct,
         "expected": expected,
+        # Разбор. Передаём выбранный ответ: только зная его, можно
+        # объяснить не вообще, а именно эту ошибку — например, чем
+        # отличаются на письме две спутанные буквы.
+        "why": explain.explain(card, mode, given=(None if correct else given),
+                               lang=lang),
         "reading": read,
         "audio": audio.audio_key(voice) if audio.has_audio(voice) else None,
         "memory": _memory_line(before, correct),
@@ -706,6 +715,22 @@ def situations(chat_id, payload):
             "learned": sum(1 for c in ids if boxes.get(c, 0) >= LEARNED_BOX),
         })
     return jsonify({"situations": out, "gender": db.gender(chat_id)})
+
+
+@api.route("/api/why", methods=["POST"])
+@guarded
+def why(chat_id, payload):
+    """Разбор карточки по требованию — кнопка «почему?».
+
+    Отдельным запросом, а не вместе с вопросом раунда: разбор нужен
+    меньшинству вопросов, а раунд отдаётся целиком одним ответом, и
+    тащить в него десять разборов ради одного нажатия расточительно.
+    """
+    lang = req_lang()
+    card = quiz.find_card(payload.get("mode", ""), payload.get("id", ""))
+    if not card:
+        return jsonify({"error": "unknown card"}), 400
+    return jsonify({"why": explain.explain(card, payload.get("mode"), lang=lang)})
 
 
 # ---------- тест уровня ----------

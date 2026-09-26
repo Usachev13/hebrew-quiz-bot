@@ -22,6 +22,7 @@ from flask import Flask, request, jsonify
 import alphabet
 import audio
 import db
+import explain
 import hebrew_name
 import phrases
 import quiz
@@ -30,7 +31,7 @@ from messages import t, plural
 from quiz import (
     POOLS, LABELS, TOPIC_LABELS, GRAMMAR_LABELS, ALPHABET_MODES,
     ANSWERS, KNOWN_FORMS, ANAGRAM_MODES, GAP_MODES, ROUND_LEN, VOCAB_FLAT,
-    build_question, round_pool,
+    build_question, round_pool, find_card,
 )
 from matching import check_answer, accepted_forms, hint_for, scramble
 from translit import reading, translit
@@ -551,7 +552,7 @@ def lively(chat_id):
 
 
 def say_verdict(chat_id, s, outcome, answer, message_id=None, before=None,
-                extra=None, mode=None):
+                extra=None, mode=None, card=None, given=None):
     """Ответ на попытку: реплика, память о слове, отметка серии.
 
     Собрано в одном месте, потому что выбор с кнопок, набор руками и
@@ -567,6 +568,16 @@ def say_verdict(chat_id, s, outcome, answer, message_id=None, before=None,
     lines = [f"{phrase}{sep}{with_reading(answer, mode or s['mode'], lang)}"]
     if extra:
         lines.append(extra)
+
+    # Разбор: почему ответ такой. В чате он нужен не меньше, чем в
+    # приложении — человек, занимающийся перепиской, других объяснений
+    # не увидит вовсе.
+    why = explain.explain(card, mode or s["mode"],
+                          given=(None if outcome == "correct" else given),
+                          lang=lang) if card else None
+    if why:
+        lines.append("")
+        lines += [f"<i>{w}</i>" for w in why]
 
     # Серия. Описку засчитываем как верный ответ: слово вспомнил,
     # промахнулся по буквам — серию за это обрывать несправедливо.
@@ -632,7 +643,8 @@ def handle_answer(chat_id, question_idx, chosen_idx, message_id=None):
     if is_correct:
         s["score"] += 1
     say_verdict(chat_id, s, "correct" if is_correct else "wrong",
-                q["correct"], message_id, before, mode=mode)
+                q["correct"], message_id, before, mode=mode,
+                card=find_card(mode, q["id"]), given=chosen)
     maybe_send_voice(chat_id, q["correct"], mode)
 
     finish_question(chat_id)
@@ -786,7 +798,8 @@ def handle_typed_answer(chat_id, typed, message_id=None):
             db.record_answer(chat_id, mode, q["id"], False)
         except Exception as e:
             print(f"[handle_typed_answer] не удалось записать пропуск: {e}")
-        say_verdict(chat_id, s, "skip", q["correct"], message_id, before, mode=mode)
+        say_verdict(chat_id, s, "skip", q["correct"], message_id, before, mode=mode,
+                    card=find_card(mode, q["id"]))
         finish_question(chat_id)
         return
 
@@ -810,7 +823,7 @@ def handle_typed_answer(chat_id, typed, message_id=None):
     extra = (t("q.hintUsed", s.get("lang", "ru"))
              if verdict == "exact" and s.get("hints") else None)
     say_verdict(chat_id, s, outcome, q["correct"], message_id, before, extra,
-                mode=mode)
+                mode=mode, card=find_card(mode, q["id"]), given=typed)
     maybe_send_voice(chat_id, q["correct"], mode)
 
     finish_question(chat_id)

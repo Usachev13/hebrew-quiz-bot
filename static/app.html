@@ -354,6 +354,18 @@ input[type=text]:focus{outline:0;border-color:var(--primary)}
 .verdict.ok{background:var(--ok-soft);border-color:var(--ok)}
 .verdict.bad{background:var(--bad-soft);border-color:var(--bad)}
 .verdict.typo{background:var(--warn-soft);border-color:var(--warn)}
+/* Разбор: почему ответ такой. Тон спокойнее вердикта — это не оценка,
+   а объяснение, и кричать ему незачем. Слева полоска цвета темы:
+   отделяет разбор от ответа, не разрывая карточку рамкой. */
+.why{margin-top:var(--s3);padding:var(--s3) 0 var(--s3) var(--s3);
+     border-left:2px solid var(--line);color:var(--muted);
+     font-size:14px;line-height:1.5}
+.why div{margin-top:4px}
+.why div:first-child{margin-top:0}
+.why .he,.why b{color:var(--text)}
+.why-btn{background:none;border:0;color:var(--muted);font:inherit;
+         font-size:13px;text-decoration:underline;padding:var(--s2) 0;
+         cursor:pointer}
 .verdict .head{display:flex;align-items:center;gap:var(--s2);font-weight:650;font-size:15px}
 .verdict.ok .head{color:var(--ok)} .verdict.bad .head{color:var(--bad)}
 .verdict.typo .head{color:var(--warn)}
@@ -804,6 +816,7 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
       <span class="he xl" id="intro-he"></span>
       <span class="tr" id="intro-tr"></span>
       <span class="gloss" id="intro-gloss"></span>
+      <div id="intro-why"></div>
       <button class="snd" id="intro-snd" data-t-aria="ui.listen"></button>
     </span>
   </div>
@@ -1018,6 +1031,8 @@ ru: {
   "q.wrong": "Не то",
   "q.answer": "Правильный ответ",
   "q.listen": "Послушать",
+  "q.why": "почему так?",
+  "q.whyHead": "Разбор",
 
   "res.score": "{score} из {total}",
   "res.perfect": "Идеально — весь раунд без единой ошибки.",
@@ -1175,6 +1190,8 @@ en: {
   "q.wrong": "Not quite",
   "q.answer": "The right answer",
   "q.listen": "Listen",
+  "q.why": "why is that?",
+  "q.whyHead": "How it works",
 
   "res.score": "{score} of {total}",
   "res.perfect": "Perfect — the whole round without a single mistake.",
@@ -1976,6 +1993,9 @@ function renderIntro(){
   $("intro-tr").textContent = c.reading || "";
   $("intro-tr").hidden = !c.reading;
   $("intro-gloss").textContent = c.gloss;
+  // Разбор при первой встрече: объяснить, пока человек не заучил
+  // неправильно. Нечего сказать — блок пуст, место не занимает.
+  $("intro-why").innerHTML = whyBlock(c.why);
   const snd = $("intro-snd");
   snd.innerHTML = icon("sound", 24);
   snd.disabled = !c.audio;
@@ -2075,13 +2095,23 @@ async function sendAnswer(given, btn, skip = false){
                  wrong:"q.wrong", skip:"q.answer" }[res.verdict];
   $("verdict").innerHTML =
     `<div class="verdict ${kind}">
-       <div class="head">${icon(res.correct ? "check" : "cross", 18)}<span>${head}</span></div>
+       <div class="head">${icon(res.correct ? "check" : "cross", 18)}<span>${t(head)}</span></div>
        <div class="he sm">${res.expected}</div>
        ${res.reading ? `<div class="reading">${res.reading}</div>` : ""}
        ${res.memory ? `<div class="memory">${res.memory}</div>` : ""}
        ${res.audio ? `<button class="play" id="play">${icon("sound",18)}${t("q.listen")}</button>` : ""}
+       ${whyBlock(res.why)}
      </div>`;
   if (res.audio) $("play").onclick = () => new Audio("/api/audio/" + res.audio).play();
+  /* Ответил верно — разбор не навязываем, но даём спросить. Угадать из
+     четырёх кнопок можно и не поняв, и человек это про себя знает. */
+  if (res.correct && !res.why){
+    const btn = document.createElement("button");
+    btn.className = "why-btn";
+    btn.textContent = t("q.why");
+    btn.onclick = () => { tap(); askWhy(q.mode, q.id, btn); };
+    $("verdict").firstElementChild.appendChild(btn);
+  }
   $("know").hidden = true;
   $("next").hidden = false;
 }
@@ -2158,6 +2188,25 @@ const place = { steps: [], idx: 0, answers: [] };
 /* Строка без знака ударения — для поиска и сравнения. Показываем
    «ле́хем», ищем по «лехем». */
 const bare = s => (s || "").replace(/\u0301/g, "");
+
+/* Разбор карточки. Пустой — не рисуем ничего: заглушка «это надо
+   запомнить» занимает место и приучает не читать подсказки вовсе. */
+function whyBlock(lines){
+  if (!lines || !lines.length) return "";
+  return `<div class="why">${lines.map(l => `<div>${l}</div>`).join("")}</div>`;
+}
+
+/* Кнопка «почему?» — для тех, кто ответил верно, но наугад. Разбор
+   тянем отдельным запросом: он нужен меньшинству вопросов, а раунд
+   приходит целиком, и класть в него десять разборов ради одного
+   нажатия расточительно. */
+async function askWhy(mode, id, host){
+  host.textContent = "…";
+  let r;
+  try { r = await api("/api/why", { mode, id }); }
+  catch(e){ host.remove(); return; }
+  host.outerHTML = whyBlock(r.why) || "";
+}
 
 function openPlacement(){
   show("place-intro");

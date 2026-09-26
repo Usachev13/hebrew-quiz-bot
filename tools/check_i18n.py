@@ -304,7 +304,42 @@ def check_audio_coverage():
     return "озвучка соберётся не для всех фраз", bad
 
 
+def check_keys_shown_raw():
+    """Ключ не должен попадать на экран вместо перевода.
+
+    Ловится случай, которого прежняя проверка не видела: строка-ключ
+    лежит в переменной и подставляется в разметку напрямую, минуя t().
+    check_keys_used смотрела только на t("ключ") и такое пропускала.
+
+    Так и случилось: после перевода интерфейса вердикт собирался как
+    `{exact:"q.right", ...}[res.verdict]`, а в шапку шло `${head}` без
+    t() — и человек после каждого ответа видел «q.right» вместо «Верно».
+    Прожило это две недели: машина молчала, а я рендеринга не вижу.
+
+    Правило простое: если в подстановку `${...}` попадает переменная,
+    которой присвоен известный ключ словаря, — это ошибка.
+    """
+    page = _page()
+    cat = _catalogues(page)
+    known = set().union(*cat.values()) if cat else set()
+    script = re.sub(r"/\*.*?\*/", "", page[page.rindex("<script>"):], flags=re.S)
+
+    bad = []
+    # переменные, которым присваивают ключ словаря
+    for m in re.finditer(r"\b(?:const|let|var)\s+(\w+)\s*=\s*\{[^}]*?\}\s*\[", script):
+        name = m.group(1)
+        block = script[m.start():m.start() + 400]
+        keys = re.findall(r'"([a-zA-Z0-9._]+)"', block)
+        if not any(k in known for k in keys):
+            continue
+        # используется ли она где-то без t()
+        for use in re.finditer(r"\$\{" + re.escape(name) + r"\}", script):
+            bad.append(f"переменная «{name}» с ключом словаря подставляется без t()")
+    return "ключ показывается вместо перевода", sorted(set(bad))
+
+
 CHECKS = [check_audio_coverage, check_cards, check_answers, check_ids, check_labels,
+          check_keys_shown_raw,
           check_vocab_topics, check_phrase_alignment, check_situations,
           check_he_en, check_catalogue_parity, check_keys_used,
           check_bot_messages, check_plural_forms, check_reactions]
