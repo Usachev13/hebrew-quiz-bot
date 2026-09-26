@@ -73,7 +73,15 @@ TITLES = [
 ]
 
 
-MARK = {"book": "в пособии", "male": "в пособии (ктив мале)", "": "—"}
+def mark(plural):
+    """Чем форма подтверждена. Словарь весомее: он даёт и гласные."""
+    out = []
+    if nouns.iris_checked(plural):
+        out.append("ИРИС")
+    k = nouns.skeleton_checked(plural)
+    if k:
+        out.append("пособие" + (" (ктив мале)" if k == "male" else ""))
+    return ", ".join(out) or "—"
 
 
 def table(rows):
@@ -83,29 +91,38 @@ def table(rows):
     только до середины таблицы, проверено окажется именно то, где я
     остался единственным источником.
     """
-    out = ["| единственное | множественное | род | перевод | скелет | верно? |",
+    out = ["| единственное | множественное | род | перевод | проверено | верно? |",
            "|---|---|---|---|---|---|"]
-    rows = sorted(rows, key=lambda r: (nouns.skeleton_checked(r[1]) != "", r[3]))
+    rows = sorted(rows, key=lambda r: (mark(r[1]) != "—", r[3]))
     for he, plural, gender, ru in rows:
-        out.append(f"| {he} | {plural} | {gender} | {ru} | "
-                   f"{MARK[nouns.skeleton_checked(plural)]} |  |")
+        out.append(f"| {he} | {plural} | {gender} | {ru} | {mark(plural)} |  |")
     return "\n".join(out)
 
 
 def render():
     g = groups()
     total = sum(len(v) for v in g.values())
-    checked = sum(1 for v in g.values() for r in v
-                  if nouns.skeleton_checked(r[1]))
+    rows_all = [r for v in g.values() for r in v]
+    iris = sum(1 for r in rows_all if nouns.iris_checked(r[1]))
+    book = sum(1 for r in rows_all if nouns.skeleton_checked(r[1]))
+    either = sum(1 for r in rows_all
+                 if nouns.iris_checked(r[1]) or nouns.skeleton_checked(r[1]))
     parts = [
         f"Всего форм: **{total}**. Подтверждено носителем: **0**.",
         "",
-        f"У **{checked}** из них согласный скелет совпал с рабочей "
-        f"тетрадью «מפה לשם 1» — то есть корень и окончание там такие "
-        f"же. Огласовки тетрадь не подтверждает: она написана без них, "
-        f"как все израильские учебники. Остальные "
-        f"**{total - checked}** форм не подтверждены ничем, кроме моей "
-        f"памяти, и в каждой таблице они идут первыми.",
+        f"Машинная сверка с двумя источниками:",
+        "",
+        f"- **ИРИС** (иврит-русский словарь Подольского) — **{iris}** "
+        f"форм сошлись по всем трём признакам: род статьи, согласный "
+        f"скелет и гласные по русской транскрипции словаря.",
+        f"- **Рабочая тетрадь «מפה לשם 1»** — **{book}** форм совпали "
+        f"согласным скелетом. Огласовки она не подтверждает: написана "
+        f"без них.",
+        "",
+        f"Итого чем-то подтверждено **{either}**, не подтверждено ничем "
+        f"**{total - either}**. Непроверенные идут первыми в каждой "
+        f"таблице — если дойдёте только до половины, проверено окажется "
+        f"именно то, где я остался единственным источником.",
         "",
     ]
     for key, title, note in TITLES:

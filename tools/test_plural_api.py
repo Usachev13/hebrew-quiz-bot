@@ -41,7 +41,7 @@ m = post("/api/menu")
 item = next((i for i in m["grammar"] if i["key"] == "plural"), None)
 ok(item is not None, "число есть в разделе «Грамматика»")
 ok(item and item.get("mode") == "plural", f"режим приезжает отдельным полем: {item and item.get('mode')}")
-ok(item and item["count"] == 117, f"карточек: {item and item.get('count')}")
+ok(item and item["count"] == 119, f"карточек: {item and item.get('count')}")
 
 print("раунд")
 r = post("/api/round", mode="plural", cat="", format="choice")
