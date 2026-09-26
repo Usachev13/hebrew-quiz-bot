@@ -5,7 +5,7 @@ import hashlib, hmac, json, os, tempfile, time, urllib.parse, sys
 TOKEN = "123:TEST"
 os.environ["TELEGRAM_TOKEN"] = TOKEN
 os.environ["BOT_DB_PATH"] = tempfile.mkstemp(suffix=".db")[1]
-sys.path.insert(0, ".")
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 import webapp, quiz, db, grammar
 
@@ -41,7 +41,7 @@ m = post("/api/menu")
 item = next((i for i in m["grammar"] if i["key"] == "plural"), None)
 ok(item is not None, "число есть в разделе «Грамматика»")
 ok(item and item.get("mode") == "plural", f"режим приезжает отдельным полем: {item and item.get('mode')}")
-ok(item and item["count"] == 117, f"карточек {item and item[chr(39)+chr(99)+chr(111)+chr(117)+chr(110)+chr(116)+chr(39)]}")
+ok(item and item["count"] == 117, f"карточек: {item and item.get('count')}")
 
 print("раунд")
 r = post("/api/round", mode="plural", cat="", format="choice")
