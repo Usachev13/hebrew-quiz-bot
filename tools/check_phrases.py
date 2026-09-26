@@ -9,6 +9,7 @@
 """
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -34,6 +35,21 @@ YOU_M_RE = re.compile(r"אַתָּה|ְךָ$|ָ?תָּ$")
 # Женское: אַתְּ, окончание ־ָךְ, ־ִי у повелительного и будущего,
 # ־ְתְּ у прошедшего.
 YOU_F_RE = re.compile(r"אַתְּ|ָ?ךְ$|ִי$|ְתְּ$")
+
+
+def _bare(word):
+    return "".join(c for c in word if not unicodedata.combining(c))
+
+
+def _norm(word):
+    """Огласовки при букве в одном порядке: у нас и у словаря он разный."""
+    out = []
+    for ch in word:
+        if unicodedata.combining(ch):
+            out[-1] += ch
+        else:
+            out.append(ch)
+    return "".join(g[0] + "".join(sorted(g[1:])) for g in out)
 
 
 def _words(text):
@@ -175,6 +191,28 @@ def check():
                     problems.append(f"{where}: чтение вышло пустым")
             except Exception as e:
                 problems.append(f"{where}: чтение падает — {e}")
+
+    # 9. Подтверждённые словарём огласовки не должны разъехаться.
+    #    Сверку машинно не повторить — она шла через браузер, — поэтому
+    #    результат закреплён в phrases.NIQQUD_CONFIRMED. Если кто-то (я
+    #    же) поправит огласовку в подтверждённом слове, это всплывёт
+    #    здесь, и не придётся выяснять заново, что было верно.
+    #    Приставку допускаем: בְּאַשְׁרַאי — то же אַשְׁרַאי.
+    for sit, items in phrases.PHRASES.items():
+        for i, p_ in enumerate(items):
+            texts = [p_.get(k) for k in ("he", "he_f", "to_f", "he_en")]
+            ex = p_.get("example")
+            if isinstance(ex, dict):
+                texts.append(ex.get("he"))
+            for text in [t for t in texts if isinstance(t, str)]:
+                for word in re.findall(r"[\u0590-\u05ff]+", text):
+                    plain = _bare(word)
+                    right = phrases.NIQQUD_CONFIRMED.get(plain)
+                    if right is None and len(plain) > 1:
+                        right = phrases.NIQQUD_CONFIRMED.get(plain[1:])
+                    if right and _norm(right) not in _norm(word):
+                        problems.append(
+                            f"{sit}[{i}]: «{word}» — словарь подтвердил «{right}»")
 
     return problems
 
