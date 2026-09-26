@@ -17,6 +17,7 @@ from datetime import date
 import alphabet
 import cards
 import db
+import frames
 import words_en
 from cards import Card
 from matching import accepted_forms
@@ -74,6 +75,9 @@ def flatten_tense(conj, tense, slots, labels, en_labels=None):
                               cid=cards.form_cid(root, slot), en=en))
     return items
 
+
+GAP_FLAT = frames.verb_cards(words_en.ROOT_MEANINGS)
+WHO_FLAT = frames.who_cards(words_en.ROOT_MEANINGS)
 
 VOCAB_FLAT = flatten(VOCAB, words_en.WORDS)
 VERBS_FLAT = flatten(VERBS, words_en.VERBS)
@@ -183,6 +187,11 @@ POOLS = {
     "past": PAST_FLAT,
     "present": PRESENT_FLAT,
     "future": FUTURE_FLAT,
+    # Фразы с пропуском. Отличие от трёх режимов выше не в оформлении:
+    # там лицо и время названы прямо («писать — я»), здесь спрятаны в
+    # самой фразе, и их надо услышать. См. frames.py.
+    "gap_verb": GAP_FLAT,
+    "gap_who": WHO_FLAT,
     # Курс алфавита (уровень 0)
     "alef_names": alphabet.pool_names(),
     "alef_sounds": alphabet.pool_sounds(),
@@ -198,6 +207,8 @@ LABELS = {
     "past": "прошедшее время",
     "present": "настоящее время",
     "future": "будущее время",
+    "gap_verb": "поставь глагол во фразу",
+    "gap_who": "кто это делает",
     "alef_names": "названия букв",
     "alef_sounds": "звуки букв",
     "alef_by_name": "узнать букву по названию",
@@ -236,6 +247,8 @@ LABELS_EN = {
     "past": "past tense",
     "present": "present tense",
     "future": "future tense",
+    "gap_verb": "put the verb into the sentence",
+    "gap_who": "who is doing it",
     "alef_names": "letter names",
     "alef_sounds": "letter sounds",
     "alef_by_name": "find the letter by name",
@@ -278,6 +291,10 @@ def section_label(mode, cat=None, lang="ru"):
     if cat:
         return topics.get(cat) or grammar.get(cat) or modes.get(mode)
     return modes.get(mode)
+
+# Режимы с пропуском: подсказка уже сама себе вопрос («אֶתְמוֹל אֲנִי ___»),
+# спрашивать сверху «как будет…» нечего.
+GAP_MODES = {"gap_verb", "gap_who"}
 
 # Режимы курса алфавита: вопрос формулируется иначе, чем «как будет…»
 ALPHABET_MODES = {m for m in LABELS if m.startswith("alef_")}

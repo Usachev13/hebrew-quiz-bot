@@ -947,6 +947,7 @@ ru: {
 
   "q.next": "Дальше",                "q.check": "Проверим",
   "q.ask.alef": "что это",
+  "q.ask.gap": "заполни пропуск",
   "q.ask.form": "какая это форма",
   "q.ask.word": "как будет",
   "q.right": "Верно",
@@ -1090,6 +1091,7 @@ en: {
 
   "q.next": "Next",                  "q.check": "Let's check",
   "q.ask.alef": "what is this",
+  "q.ask.gap": "fill the gap",
   "q.ask.form": "which form is this",
   "q.ask.word": "how do you say",
   "q.right": "Correct",
@@ -1592,7 +1594,12 @@ function renderTopics(topics){
    рассвет. Стрелки различали направление, но три вида одной местности
    читаются шкалой, а не набором знаков. Инфинитивам достались ворота:
    начальная форма как вход. */
-const VERB_BG = { verbs:"inf", past:"past", present:"present", future:"future" };
+/* Фразам с пропуском отдана сцена времени, к которому относится
+   упражнение: отдельного рисунка у них нет, а пустая плитка выглядит
+   недоделкой. gap_verb тренирует все три времени сразу — ему достаётся
+   инфинитивная арка, как общему входу. */
+const VERB_BG = { verbs:"inf", past:"past", present:"present", future:"future",
+                  gap_verb:"inf", gap_who:"present" };
 
 /* ── разговорные модели ── */
 
@@ -1936,7 +1943,12 @@ function renderQuestion(){
 
   const isForm = ["past","present","future"].includes(q.mode);
   const isAlef = q.mode.startsWith("alef_");
-  $("ask").textContent = t(isAlef ? "q.ask.alef" : isForm ? "q.ask.form" : "q.ask.word");
+  // У фраз с пропуском подсказка уже сама себе задание: в ней стоит
+  // «___». Спрашивать сверху «как будет» значило бы задать два вопроса.
+  const isGap  = q.mode.startsWith("gap_");
+  $("ask").textContent = t(isGap ? "q.ask.gap"
+                         : isAlef ? "q.ask.alef"
+                         : isForm ? "q.ask.form" : "q.ask.word");
   $("word").textContent = q.ru;
   $("options").innerHTML = ""; $("typed").hidden = true; $("letters").hidden = true;
 

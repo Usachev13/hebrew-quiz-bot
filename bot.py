@@ -29,7 +29,7 @@ import reactions
 from messages import t, plural
 from quiz import (
     POOLS, LABELS, TOPIC_LABELS, GRAMMAR_LABELS, ALPHABET_MODES,
-    ANSWERS, KNOWN_FORMS, ANAGRAM_MODES, ROUND_LEN, VOCAB_FLAT,
+    ANSWERS, KNOWN_FORMS, ANAGRAM_MODES, GAP_MODES, ROUND_LEN, VOCAB_FLAT,
     build_question, round_pool,
 )
 from matching import check_answer, accepted_forms, hint_for, scramble
@@ -314,6 +314,8 @@ def verbs_menu_keyboard(lang="ru"):
             [{"text": t("menu.past", lang), "callback_data": "pick|past|"},
              {"text": t("menu.present", lang), "callback_data": "pick|present|"}],
             [{"text": t("menu.future", lang), "callback_data": "pick|future|"}],
+            [{"text": t("menu.gapVerb", lang), "callback_data": "pick|gap_verb|"}],
+            [{"text": t("menu.gapWho", lang), "callback_data": "pick|gap_who|"}],
             [{"text": t("menu.back", lang), "callback_data": "menu|words"}],
         ]
     }
@@ -443,7 +445,10 @@ def send_question(chat_id):
         "one_time_keyboard": True,
     }
     head = t("q.counter", lang, idx=idx, total=s["total"])
-    if mode in ALPHABET_MODES:
+    if mode in GAP_MODES:
+        # Подсказка уже содержит пропуск — она и есть задание.
+        text = f"{head}\n<b>{q['ru']}</b>"
+    elif mode in ALPHABET_MODES:
         # Подсказка уже сформулирована как вопрос («буква א», «прочитай מָ»)
         text = f"{head}\n<b>{q['ru']}</b>?"
     elif is_form:

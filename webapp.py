@@ -193,7 +193,8 @@ def menu(chat_id, payload):
         "grammar": [{"key": k, "name": name("vocab", k), "count": by_cat.get(k, 0)}
                     for k in quiz.GRAMMAR_LABELS],
         "verbs": [{"key": m, "name": name(m), "count": counts[m]}
-                  for m in ("verbs", "past", "present", "future")],
+                  for m in ("verbs", "past", "present", "future",
+                            "gap_verb", "gap_who")],
         "alphabet": [{"key": m, "name": name(m), "count": counts[m]}
                      for m in quiz.ALPHABET_ORDER],
         "due": due,
