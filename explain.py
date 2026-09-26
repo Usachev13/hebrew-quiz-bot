@@ -139,6 +139,13 @@ T = {
         "en": "This is the dual, ending ־ַיִם. It's used for things that "
               "naturally come in pairs: hands, legs, eyes, shoes.",
     },
+    "plural_spoken": {
+        "ru": "В речи можно услышать «{spoken}», но нормативная форма "
+              "другая — её и спрашиваем: по ней написаны учебники.",
+        "en": "In speech you may hear «{spoken}», but the standard form "
+              "is the other one — that's what we ask for, and what "
+              "textbooks use.",
+    },
     "plural_odd": {
         "ru": "Окончание не совпадает с родом — это исключение, таких "
               "слов немного, и их запоминают.",
@@ -260,11 +267,23 @@ def _plural(card, lang):
     gender = nouns.gender_of(singular)
     if pl.endswith("ַיִם"):
         return [_t("plural_dual", lang)]
+    spoken = SPOKEN_PLURAL.get(singular)
+    if spoken:
+        return [_t("plural_spoken", lang, spoken=spoken)]
     if singular in nouns.EXCEPTIONS:
         return [_t("plural_odd", lang)]
     key = "plural_f" if gender == nouns.F else "plural_m"
     naive = singular + ("ִים" if gender == nouns.M else "וֹת")
     return [_t(key, lang, sg=singular, pl=pl, naive=naive)]
+
+
+# Разговорные формы, которые человек услышит на улице, хотя правильная
+# другая. Молчать об этом нельзя: он решит, что мы ошиблись.
+SPOKEN_PLURAL = {
+    "אַבָּא": "אַבָּאִים",
+    "סַבָּא": "סַבָּאִים",
+    "סָבְתָא": "סָבְתוֹת",
+}
 
 
 def _vocab_by_cid():

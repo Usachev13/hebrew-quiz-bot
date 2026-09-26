@@ -73,7 +73,8 @@ TITLES = [
 ]
 
 
-NAMES = {"hebrewerry": "hebrewerry (с огласовками)",
+NAMES = {"academy": "**Академия языка**",
+         "hebrewerry": "hebrewerry (с огласовками)",
          "iris": "ИРИС (с гласными)",
          "book": "пособие (только скелет)",
          "male": "пособие (скелет, ктив мале)",
@@ -104,6 +105,7 @@ def render():
     g = groups()
     total = sum(len(v) for v in g.values())
     rows_all = [r for v in g.values() for r in v]
+    acad = sum(1 for r in rows_all if nouns.best_check(r[1]) == "academy")
     hw = sum(1 for r in rows_all if nouns.best_check(r[1]) == "hebrewerry")
     iris = sum(1 for r in rows_all if nouns.iris_checked(r[1]))
     book = sum(1 for r in rows_all if nouns.skeleton_checked(r[1]))
@@ -111,8 +113,11 @@ def render():
     parts = [
         f"Всего форм: **{total}**. Подтверждено носителем: **0**.",
         "",
-        f"Машинная сверка с тремя источниками:",
+        f"Сверка с четырьмя источниками:",
         "",
+        f"- **Академия языка иврита** — **{acad}** форм, прямым ответом "
+        f"на её сайте. Высшая инстанция: словари дают и разговорные "
+        f"формы, Академия говорит, какая нормативна.",
         f"- **hebrewerry.com** — **{hw}** форм сошлись буква в букву, "
         f"вместе с огласовками. У этого словаря на каждое слово таблица "
         f"форм, и абсолютное состояние в ней отделено от сопряжённого.",
