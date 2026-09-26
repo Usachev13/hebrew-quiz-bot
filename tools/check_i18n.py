@@ -338,7 +338,24 @@ def check_keys_shown_raw():
     return "ключ показывается вместо перевода", sorted(set(bad))
 
 
-CHECKS = [check_audio_coverage, check_cards, check_answers, check_ids, check_labels,
+def check_audio_plural():
+    """Формы множественного должны попадать в озвучку.
+
+    Тот же молчаливый провал, что и с фразами: приложение ищет файл по
+    тексту слова, не находит — и просто не рисует кнопку звука. Для
+    числа это обиднее всего: «-ím» и «-áyim» различаются одной
+    огласовкой, глазами это почти не видно, а ухом слышно сразу.
+    """
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import generate_audio                                    # noqa: E402
+    import quiz                                              # noqa: E402
+
+    collected = set(generate_audio.collect("words"))
+    bad = [c.he for c in quiz.POOLS["plural"] if c.he not in collected]
+    return "форма множественного не попадёт в озвучку", bad
+
+
+CHECKS = [check_audio_coverage, check_audio_plural, check_cards, check_answers, check_ids, check_labels,
           check_keys_shown_raw,
           check_vocab_topics, check_phrase_alignment, check_situations,
           check_he_en, check_catalogue_parity, check_keys_used,

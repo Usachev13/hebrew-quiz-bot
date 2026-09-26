@@ -117,6 +117,12 @@ def collect(scope):
         for cat, pairs in VERBS.items():
             for ru, he in pairs:
                 items.append(he)
+        # Формы множественного числа. Именно в них вся разница слышна:
+        # «-ím» против «-áyim» на письме отличается одной огласовкой, а
+        # на слух — сразу. Без записи упражнение учит глазами.
+        import quiz
+        for card in quiz.POOLS["plural"]:
+            items.append(card.he)
     sections = [s for s in ("present", "past", "future")
                 if scope in ("all", "forms", s)]
     if sections:

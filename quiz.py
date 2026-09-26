@@ -18,6 +18,7 @@ import alphabet
 import cards
 import db
 import frames
+import nouns
 import words_en
 from cards import Card
 from matching import accepted_forms
@@ -76,11 +77,37 @@ def flatten_tense(conj, tense, slots, labels, en_labels=None):
     return items
 
 
+def plural_cards():
+    """«один — много»: показываем единственное, спрашиваем множественное.
+
+    Берём только те слова, у которых множественное вообще есть: у «хлеба»
+    и «соли» его в обиходе нет, и спрашивать о нём — учить тому, чего не
+    говорят. Список размечен в nouns.py.
+    """
+    out = []
+    for c in VOCAB_FLAT:
+        pl = nouns.plural_of(c.he)
+        if not pl:
+            continue
+        # Подпись как у форм глагола: «писать (לִכְתּוֹב) — я».
+        # Единственное показываем на иврите — его и надо преобразовать,
+        # а перевод нужен, чтобы человек понимал, о чём речь.
+        out.append(Card(
+            ru=f"{c.ru} ({c.he}) — много",
+            he=pl,
+            cat=c.cat,
+            cid=f"plural:{c.cid}",
+            en=f"{c.en} ({c.he}) — plural" if c.en else "",
+        ))
+    return out
+
+
 GAP_FLAT = frames.verb_cards(words_en.ROOT_MEANINGS)
 WHO_FLAT = frames.who_cards(words_en.ROOT_MEANINGS)
 
 VOCAB_FLAT = flatten(VOCAB, words_en.WORDS)
 VERBS_FLAT = flatten(VERBS, words_en.VERBS)
+PLURAL_FLAT = plural_cards()
 PAST_FLAT = flatten_tense(CONJUGATIONS, "past", PAST_PERSONS, PAST_LABELS,
                           words_en.PAST_LABELS)
 PRESENT_FLAT = flatten_tense(CONJUGATIONS, "present", PRESENT_SLOTS, PRESENT_LABELS,
@@ -192,6 +219,7 @@ POOLS = {
     # самой фразе, и их надо услышать. См. frames.py.
     "gap_verb": GAP_FLAT,
     "gap_who": WHO_FLAT,
+    "plural": PLURAL_FLAT,
     # Курс алфавита (уровень 0)
     "alef_names": alphabet.pool_names(),
     "alef_sounds": alphabet.pool_sounds(),
@@ -209,6 +237,7 @@ LABELS = {
     "future": "будущее время",
     "gap_verb": "поставь глагол во фразу",
     "gap_who": "кто это делает",
+    "plural": "один и много",
     "alef_names": "названия букв",
     "alef_sounds": "звуки букв",
     "alef_by_name": "узнать букву по названию",
@@ -249,6 +278,7 @@ LABELS_EN = {
     "future": "future tense",
     "gap_verb": "put the verb into the sentence",
     "gap_who": "who is doing it",
+    "plural": "one and many",
     "alef_names": "letter names",
     "alef_sounds": "letter sounds",
     "alef_by_name": "find the letter by name",
@@ -294,6 +324,13 @@ def section_label(mode, cat=None, lang="ru"):
 
 # Режимы с пропуском: подсказка уже сама себе вопрос («אֶתְמוֹל אֲנִי ___»),
 # спрашивать сверху «как будет…» нечего.
+# Раздел «Грамматика» в приложении: темы словаря плюс режимы, которые
+# темой не являются. Список лежит здесь, а не в webapp, чтобы проверка
+# страницы могла сверить его с набросками плиток: ключ плитки и id
+# рисунка обязаны совпасть, а найти расхождение в браузере я не могу.
+GRAMMAR_SECTIONS = ([(key, None) for key in GRAMMAR_LABELS]
+                    + [("plural", "plural")])
+
 GAP_MODES = {"gap_verb", "gap_who"}
 
 # Приставка в поле «категория», означающая «глаголы такого-то биньяна».

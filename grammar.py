@@ -35,6 +35,7 @@
 import collections
 
 import hebrew_meta
+import nouns
 from conjugations import CONJUGATIONS
 
 # Какая страница открывается для какой пометки биньяна. Вариантов
@@ -419,10 +420,120 @@ def _prep_page(key, lang):
     }
 
 
+def _plural_row(he, lang):
+    """Строка «единственное → множественное» с переводом из словаря."""
+    ru, en = _gloss().get(he, ("", ""))
+    return {"whole": nouns.plural_of(he), "base": he,
+            "gloss": (en or ru) if lang == "en" else ru}
+
+
+_GLOSS = None
+
+
+def _gloss():
+    """Переводы берём из готовых карточек, а не пишем заново.
+
+    Иначе на странице и в упражнении одно слово окажется переведено
+    по-разному, и это никто не заметит до жалобы. Загружаем при первом
+    обращении: quiz подтягивает grammar, и импорт на уровне модуля
+    замкнул бы их друг на друга.
+    """
+    global _GLOSS
+    if _GLOSS is None:
+        import quiz
+        _GLOSS = {c.he: (c.ru, c.en) for c in quiz.VOCAB_FLAT}
+    return _GLOSS
+
+
+# Примеры для страницы отбираются ИЗ ДАННЫХ, а не переписываются рядом.
+# Если форму в nouns.py поправят, страница поправится вместе с ней —
+# иначе справочник начнёт учить одному, а упражнение спрашивать другое.
+_PLURAL_SHOW = {
+    "m": ["סֵפֶר", "יֶלֶד", "חֶדֶר", "רְחוֹב"],
+    "f": ["מִשְׁפָּחָה", "מַחְבֶּרֶת", "דֶּלֶת"],
+    "dual": ["יָד", "רֶגֶל", "עַיִן", "אֹזֶן"],
+    "odd": ["שֻׁלְחָן", "אִשָּׁה", "בַּיִת", "עִיר", "יוֹם"],
+}
+
+
+def _plural_page(lang):
+    """Число. Правило простое, а основа при нём почти всегда меняется."""
+    ru = lang != "en"
+    rows = [_plural_row(he, lang)
+            for group in ("m", "f", "dual", "odd")
+            for he in _PLURAL_SHOW[group]]
+    return {
+        "id": "plural",
+        "title": "Один и много" if ru else "One and many",
+        "lead": ("Множественное число в иврите строится двумя "
+                 "окончаниями, и выбирают их по роду. Трудность не в "
+                 "окончании, а в том, что основа слова при нём почти "
+                 "всегда меняется."
+                 if ru else
+                 "Hebrew builds the plural with two endings, chosen by "
+                 "gender. The ending is the easy part; the hard part is "
+                 "that the stem of the word almost always changes with "
+                 "it."),
+        "blocks": [
+            {"head": "Мужской род — ־ִים" if ru else "Masculine — ־ִים",
+             "body": ("יֶלֶד — יְלָדִים, סֵפֶר — סְפָרִים. Обратите "
+                      "внимание: не «יֶלֶדִים». Гласные внутри слова "
+                      "переставились, потому что ударение ушло на "
+                      "окончание, и то, что было под ударением, "
+                      "сократилось."
+                      if ru else
+                      "יֶלֶד — יְלָדִים, סֵפֶר — סְפָרִים. Note: not "
+                      "«יֶלֶדִים». The vowels inside the word shifted "
+                      "because the stress moved onto the ending, and what "
+                      "used to be stressed got reduced.")},
+            {"head": "Женский род — ־וֹת" if ru else "Feminine — ־וֹת",
+             "body": ("מִשְׁפָּחָה — מִשְׁפָּחוֹת. Окончание ־ָה "
+                      "единственного при этом пропадает: его место и "
+                      "занимает ־וֹת. Поэтому «מִשְׁפָּחָהוֹת» — "
+                      "невозможное слово."
+                      if ru else
+                      "מִשְׁפָּחָה — מִשְׁפָּחוֹת. The ־ָה of the "
+                      "singular drops: ־וֹת takes its place. That is why "
+                      "«מִשְׁפָּחָהוֹת» is an impossible word.")},
+            {"head": "Парные — ־ַיִם" if ru else "Pairs — ־ַיִם",
+             "body": ("Части тела и предметы, которые по природе идут "
+                      "парами, берут особое окончание: יָד — יָדַיִם, "
+                      "עַיִן — עֵינַיִם. Оно похоже на мужское ־ִים, но "
+                      "перед ним другая огласовка, и на слух это «-áйим» "
+                      "против «-ím»."
+                      if ru else
+                      "Body parts and things that naturally come in "
+                      "pairs take a special ending: יָד — יָדַיִם, עַיִן "
+                      "— עֵינַיִם. It looks close to the masculine ־ִים, "
+                      "but the vowel before it differs, and by ear it is "
+                      "«-áyim» against «-ím».")},
+            {"head": "Окончание не всегда по роду"
+                     if ru else "The ending doesn't always follow gender",
+             "body": ("Таких слов немного, но они самые частые. "
+                      "שֻׁלְחָן мужского рода, а множественное "
+                      "שֻׁלְחָנוֹת с женским окончанием. אִשָּׁה "
+                      "женского — а множественное נָשִׁים. Правило их не "
+                      "выводит, их запоминают."
+                      if ru else
+                      "There are only a few such words, but they are the "
+                      "commonest ones. שֻׁלְחָן is masculine, yet its "
+                      "plural שֻׁלְחָנוֹת takes the feminine ending. "
+                      "אִשָּׁה is feminine — and its plural is נָשִׁים. "
+                      "No rule derives these; they are learned.")},
+        ],
+        "example": None,
+        "smichut": rows,
+        "train": {"mode": "plural", "cat": "",
+                  "unit": "gr.words", "count": len(nouns.countable())},
+    }
+
+
 def page(page_id, lang="ru"):
     """Страница целиком, с живым примером из наших спряжений."""
     if page_id == "smichut":
         return _smichut_page(lang)
+    if page_id == "plural":
+        return _plural_page(lang)
     if page_id.startswith("prep."):
         return _prep_page(page_id[5:], lang)
     item = PAGES.get(page_id)
@@ -436,6 +547,11 @@ def page(page_id, lang="ru"):
         "blocks": [{"head": h, "body": b} for h, b in text["blocks"]],
         "example": _example(text["sample"]),
         "count": _count(page_id),
+        # Куда ведёт кнопка «потренировать» — решает страница, а не
+        # вёрстка. До числа таких страниц было только два вида, и
+        # переход был вписан в шаблон намертво.
+        "train": {"mode": "present", "cat": "binyan:" + page_id,
+                  "unit": "gr.verbs", "count": _count(page_id)},
     }
 
 

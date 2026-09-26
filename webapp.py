@@ -193,8 +193,13 @@ def menu(chat_id, payload):
     return jsonify({
         "topics": [{"key": k, "name": name("vocab", k), "count": by_cat.get(k, 0)}
                    for k in quiz.TOPIC_LABELS],
-        "grammar": [{"key": k, "name": name("vocab", k), "count": by_cat.get(k, 0)}
-                    for k in quiz.GRAMMAR_LABELS],
+        # У числа ключ — это РЕЖИМ, а не тема словаря, поэтому он и
+        # приезжает отдельным полем. Раньше раздел «Грамматика» состоял
+        # только из тем, и страница считала это само собой разумеющимся.
+        "grammar": [{"key": k, "mode": m,
+                      "name": name(m or "vocab", None if m else k),
+                      "count": counts[m] if m else by_cat.get(k, 0)}
+                    for k, m in quiz.GRAMMAR_SECTIONS],
         "verbs": [{"key": m, "name": name(m), "count": counts[m]}
                   for m in ("verbs", "past", "present", "future",
                             "gap_verb", "gap_who")],

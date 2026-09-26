@@ -230,6 +230,8 @@ M = {
 "ask.today": {"ru": "Что тренируем сегодня?", "en": "What shall we practise today?"},
 "ask.what": {"ru": "Что тренируем?", "en": "What shall we practise?"},
 "ask.topic": {"ru": "Выбери тему:", "en": "Pick a topic:"},
+"menu.plural": {"ru": "🔢 Один и много",
+                "en": "🔢 One and many"},
 "ask.grammar": {"ru": "Что из грамматики?", "en": "Which part of grammar?"},
 "ask.verbs": {"ru": "Глаголы — что тренируем?", "en": "Verbs — what shall we practise?"},
 "ask.format": {"ru": "Как отвечаем?", "en": "How do we answer?"},

@@ -101,6 +101,21 @@ def check(html):
     if not sketches:
         problems.append("наброски тем потерялись")
 
+    # 5б. У каждой плитки должен найтись свой набросок. Ключ плитки
+    #     приезжает с сервера, а рисунок лежит в разметке — связь между
+    #     ними нигде не объявлена, и разойтись они могут молча: плитка
+    #     просто выйдет пустой. Так и случилось с числом: раздел
+    #     появился раньше рисунка.
+    need = set()
+    try:
+        sys.path.insert(0, str(PAGE.parent.parent))
+        import quiz
+        need = set(quiz.TOPIC_LABELS) | {k for k, _m in quiz.GRAMMAR_SECTIONS}
+    except Exception as exc:                       # noqa: BLE001
+        problems.append(f"не удалось прочитать список разделов: {exc}")
+    if need - sketches:
+        problems.append(f"плитка без рисунка: {sorted(need - sketches)}")
+
     # 6. Эмодзи вместо значков — правило оформления, легко нарушить правкой.
     emoji = re.findall(r"[\U0001F300-\U0001FAFF]", html)
     if emoji:

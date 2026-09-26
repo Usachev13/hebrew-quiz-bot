@@ -34,6 +34,7 @@ import re
 from alphabet import CONFUSABLE, DOTTED, LETTERS
 import grammar
 import hebrew_meta
+import nouns
 from conjugations import CONJUGATIONS, PAST_LABELS, PRESENT_LABELS, FUTURE_LABELS
 from translit import to_ipa
 
@@ -119,6 +120,30 @@ T = {
               "В иврите предлоги склоняются, как глаголы по лицам.",
         "en": "This is the preposition «{base}» with a pronoun ending. "
               "In Hebrew prepositions decline, much like verbs do.",
+    },
+    "plural_m": {
+        "ru": "Мужской род — окончание ־ִים. Основа при этом часто "
+              "меняется: {sg} даёт {pl}, а не «{naive}».",
+        "en": "Masculine takes ־ִים. The stem often changes with it: "
+              "{sg} gives {pl}, not «{naive}».",
+    },
+    "plural_f": {
+        "ru": "Женский род — окончание ־וֹת, и ־ָה единственного при "
+              "этом пропадает: {sg} даёт {pl}.",
+        "en": "Feminine takes ־וֹת, and the ־ָה of the singular drops: "
+              "{sg} gives {pl}.",
+    },
+    "plural_dual": {
+        "ru": "Это парное число, окончание ־ַיִם. Его берут предметы, "
+              "которые по природе идут парами: руки, ноги, глаза, обувь.",
+        "en": "This is the dual, ending ־ַיִם. It's used for things that "
+              "naturally come in pairs: hands, legs, eyes, shoes.",
+    },
+    "plural_odd": {
+        "ru": "Окончание не совпадает с родом — это исключение, таких "
+              "слов немного, и их запоминают.",
+        "en": "The ending doesn't match the gender — this is one of a "
+              "small set of exceptions, learned by heart.",
     },
     "stress": {
         "ru": "Ударение здесь на первом слоге. В иврите оно обычно на "
@@ -225,6 +250,37 @@ def _letter_by_answer(mode, given, lang):
     return None
 
 
+def _plural(card, lang):
+    """Разбор множественного: какое окончание и почему."""
+    sg = card.cid.split(":", 1)[1] if ":" in card.cid else None
+    singular = next((c.he for c in _vocab_by_cid().get(sg, [])), None)
+    pl = card.he
+    if not singular:
+        return []
+    gender = nouns.gender_of(singular)
+    if pl.endswith("ַיִם"):
+        return [_t("plural_dual", lang)]
+    if singular in nouns.EXCEPTIONS:
+        return [_t("plural_odd", lang)]
+    key = "plural_f" if gender == nouns.F else "plural_m"
+    naive = singular + ("ִים" if gender == nouns.M else "וֹת")
+    return [_t(key, lang, sg=singular, pl=pl, naive=naive)]
+
+
+def _vocab_by_cid():
+    """Словарные карточки по ключу — чтобы найти исходное слово."""
+    import quiz
+    global _BY_CID
+    if _BY_CID is None:
+        _BY_CID = {}
+        for c in quiz.POOLS["vocab"]:
+            _BY_CID.setdefault(c.cid, []).append(c)
+    return _BY_CID
+
+
+_BY_CID = None
+
+
 def _vocab(card, lang):
     """Разбор словарного слова: смихут, предлог или ударение."""
     sm = hebrew_meta.smichut_of(card.he, lang)
@@ -264,6 +320,8 @@ def page_for(card, mode):
     root = _root_of(card.cat)
     if root:
         return grammar.page_for_binyan(CONJUGATIONS[root]["binyan"])
+    if mode == "plural":
+        return "plural"
     if hebrew_meta.smichut_of(card.he):
         return "smichut"
     prep = hebrew_meta.preposition_of(card.he)
@@ -291,5 +349,7 @@ def explain(card, mode, given=None, lang="ru"):
         lines += _alphabet(card, mode, given, lang)
     elif mode == "vocab":
         lines += _vocab(card, lang)
+    elif mode == "plural":
+        lines += _plural(card, lang)
 
     return lines or None
