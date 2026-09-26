@@ -849,6 +849,56 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
   </div>
 </div>
 
+<!-- Предисловие к тесту. Нужно не для красоты: от того, как объяснена
+     цель, зависит, станет ли человек отвечать честно. Если он думает,
+     что его оценивают, он будет тыкать наугад в надежде на балл — и
+     тест расставит коробки по словам, которых человек не знает. -->
+<div id="s-place-intro" class="screen">
+  <div class="card">
+    <h1 style="margin-top:0" data-t="pl.title">С чего начать?</h1>
+    <p class="lead" data-t="pl.lead"></p>
+  </div>
+  <div style="margin-top:var(--s5)">
+    <button class="primary" id="pl-begin" data-t="pl.start">Начать тест</button>
+    <button class="ghost" data-go="home" data-t="pl.later">Потом</button>
+  </div>
+</div>
+
+<!-- Тест уровня. Отдельный экран, а не раунд викторины: во время
+     проверки нельзя показывать, верно ли ответил. Иначе человек
+     подстраивается по ходу, и мерить становится нечего. -->
+<div id="s-place" class="screen">
+  <div class="lesson-head">
+    <span class="cap" data-t="pl.cap">Тест уровня</span>
+    <span class="of" id="pl-of"></span>
+  </div>
+  <div class="bar"><i id="pl-bar"></i></div>
+  <div class="prompt">
+    <span class="inner">
+      <div class="ask" id="pl-ask"></div>
+      <div class="qword" id="pl-word"></div>
+    </span>
+  </div>
+  <div id="pl-options"></div>
+</div>
+
+<div id="s-place-done" class="screen">
+  <div class="card" style="text-align:center">
+    <h1 id="pl-title" style="margin-top:0"></h1>
+    <p class="lead" id="pl-note"></p>
+    <div class="stat"><span data-t="pl.answered">Ответов верно</span>
+      <b id="pl-score"></b></div>
+    <div class="stat" id="pl-seeded-row" hidden>
+      <span data-t="pl.seeded">Отложено знакомых слов</span>
+      <b id="pl-seeded"></b></div>
+  </div>
+  <p class="lead" id="pl-seeded-note" hidden data-t="pl.seededNote"></p>
+  <div style="margin-top:var(--s5)">
+    <button class="primary" id="pl-go"></button>
+    <button class="ghost" data-go="home" data-t="ui.toMenu">В меню</button>
+  </div>
+</div>
+
 <div id="s-words" class="screen">
   <h1 data-t="ui.words">Слова</h1>
   <input type="search" id="wsearch" class="search" data-t-ph="ui.find"
@@ -937,6 +987,19 @@ ru: {
   "me.gender.m": "муж.",
   "me.gender.f": "жен.",
   "me.moreStats": "Подробная статистика",
+  "me.level": "Уровень",
+  "me.takeTest": "Пройти тест уровня",
+  "me.retakeTest": "Пройти тест заново",
+  "pl.cap": "Тест уровня",
+  "pl.title": "С чего начать?",
+  "pl.lead": "Пятнадцать вопросов, минуты три. Отвечайте честно: цель не набрать балл, а не заставлять вас заново учить то, что вы уже знаете.",
+  "pl.start": "Начать тест",
+  "pl.later": "Потом",
+  "pl.answered": "Ответов верно",
+  "pl.seeded": "Отложено знакомых слов",
+  "pl.seededNote": "Эти слова я убрал из очереди новых — они вернутся на проверку через день-другой. Если промахнулся и слово вам незнакомо, оно само придёт обратно.",
+  "pl.dunno": "Не знаю",
+  "err.place": "Не получилось собрать тест.",
   "ui.save": "Сохранить",
   "ui.cancel": "Отмена",
 
@@ -1081,6 +1144,19 @@ en: {
   "me.gender.m": "m.",
   "me.gender.f": "f.",
   "me.moreStats": "Detailed statistics",
+  "me.level": "Level",
+  "me.takeTest": "Take the placement test",
+  "me.retakeTest": "Take the test again",
+  "pl.cap": "Placement test",
+  "pl.title": "Where should you start?",
+  "pl.lead": "Fifteen questions, about three minutes. Answer honestly: the point isn't a score, it's not making you relearn what you already know.",
+  "pl.start": "Start the test",
+  "pl.later": "Later",
+  "pl.answered": "Correct answers",
+  "pl.seeded": "Familiar words set aside",
+  "pl.seededNote": "I've taken these out of the queue of new words — they'll come back for a check in a day or two. If I guessed wrong and a word is unfamiliar, it will return on its own.",
+  "pl.dunno": "No idea",
+  "err.place": "Couldn't put the test together.",
   "ui.save": "Save",
   "ui.cancel": "Cancel",
 
@@ -1544,6 +1620,11 @@ async function renderHome(){
         <img src="/static/mascot/waiting.webp" alt="" aria-hidden="true">
         <p>${t("home.empty")}</p>
         <button class="primary" id="first-round">${t("home.start")}</button>
+        <!-- Тест предлагаем только тому, кто ещё не занимался: взрослый
+             оле часто знает половину словаря, и без теста он потратит
+             недели на «мама» и «спасибо». Тому, кто уже втянулся, это
+             предложение только мешает — он найдёт тест в профиле. -->
+        <button class="ghost" id="first-place">${t("me.takeTest")}</button>
       </div>`;
     $("first-round").onclick = () => { tap(); goTab("learn"); };
     return;
@@ -1554,6 +1635,8 @@ async function renderHome(){
   const due = $("q-due"), weak = $("q-weak"), wod = $("wod");
   if (due && h.due) due.onclick = () => { tap();
     state.mode = "vocab"; state.cat = null; openFormat(t("sec.repeat")); };
+  const fp = $("first-place");
+  if (fp) fp.onclick = () => { tap(); openPlacement(); };
   if (weak && h.weak) weak.onclick = () => { tap();
     state.mode = "weak"; state.cat = null; openFormat(t("sec.weak.title")); };
   if (wod && h.word?.audio) wod.onclick = () =>
@@ -2064,6 +2147,93 @@ async function finish(){
 }
 $("again").onclick = () => startRound(state.fmt);
 
+// ---------- тест уровня ----------
+
+/* Отдельный поток, а не раунд викторины. Разница не в оформлении:
+   во время проверки нельзя показывать, верно ли ответил, — иначе
+   человек подстраивается по ходу и мерить становится нечего.
+   Поэтому здесь нет ни разбора ответа, ни звука, ни очков. */
+const place = { steps: [], idx: 0, answers: [] };
+
+function openPlacement(){
+  show("place-intro");
+  $("pl-begin").onclick = () => { tap(); startPlacement(); };
+}
+
+async function startPlacement(){
+  show("place");
+  $("pl-options").innerHTML = "<div class='skeleton'></div>".repeat(3);
+  let r;
+  try { r = await api("/api/placement"); }
+  catch(e){ return fail(t("err.place")); }
+  if (!r.steps || !r.steps.length) return fail(t("err.place"));
+  place.steps = r.steps; place.idx = 0; place.answers = [];
+  renderPlacement();
+}
+
+function renderPlacement(){
+  const q = place.steps[place.idx];
+  const total = place.steps.length;
+  $("pl-of").textContent = `${place.idx + 1} / ${total}`;
+  $("pl-bar").style.width = (place.idx / total * 100) + "%";
+  $("pl-ask").textContent = t(q.mode.startsWith("alef_") ? "q.ask.alef"
+                            : ["past","present","future"].includes(q.mode) ? "q.ask.form"
+                            : "q.ask.word");
+  $("pl-word").textContent = q.ru;
+
+  const host = $("pl-options");
+  host.innerHTML = "";
+  q.options.forEach(opt => {
+    const b = document.createElement("button");
+    b.className = "opt";
+    b.textContent = opt;
+    b.onclick = () => answerPlacement(opt);
+    host.appendChild(b);
+  });
+  /* «Не знаю» — не поддавка, а точность измерения. Без неё человек
+     тычет наугад, один ответ из четырёх попадает, и тест решает, что
+     тему он знает. Дальше эта тема уедет в отложенные, и слово,
+     которого он не видел, всплывёт в викторине без знакомства. */
+  const skip = document.createElement("button");
+  skip.className = "ghost";
+  skip.style.marginTop = "var(--s3)";
+  skip.textContent = t("pl.dunno");
+  skip.onclick = () => answerPlacement(null);
+  host.appendChild(skip);
+}
+
+function answerPlacement(choice){
+  tap();
+  const q = place.steps[place.idx];
+  place.answers.push({ id: q.id, mode: q.mode, stage: q.stage,
+                       topic: q.topic, answer: choice });
+  place.idx++;
+  if (place.idx < place.steps.length) renderPlacement();
+  else finishPlacement();
+}
+
+async function finishPlacement(){
+  $("pl-options").innerHTML = "<div class='skeleton'></div>";
+  let r;
+  try { r = await api("/api/placement_done", { answers: place.answers }); }
+  catch(e){ return fail(t("err.place")); }
+
+  show("place-done");
+  $("pl-title").textContent = r.title;
+  $("pl-note").textContent = r.note;
+  $("pl-score").textContent = `${r.correct} / ${r.total}`;
+  $("pl-seeded-row").hidden = !r.seeded;
+  $("pl-seeded-note").hidden = !r.seeded;
+  if (r.seeded) $("pl-seeded").textContent = r.seeded;
+
+  const go = $("pl-go");
+  go.textContent = t("sec." + (r.go === "topics" ? "topics" : r.go));
+  go.onclick = () => { tap(); openList(r.go); };
+
+  // Меню и главная держат цифры, которые тест только что изменил.
+  try { state.menu = await api("/api/menu"); buildLearn(); } catch(e){}
+}
+
 // ---------- словарь ----------
 
 const WORD_FILTERS = [
@@ -2176,7 +2346,10 @@ async function openProfile(){
       ${line(t("me.learned"), p.learned)}
       ${line(t("me.fav"), p.favourites)}
       ${line(t("me.answers"), t("me.answers.val", {n: p.answers, pct: pct}))}
+      ${p.level_name ? line(t("me.level"), p.level_name) : ""}
     </div>
+    <button class="ghost" id="to-place">${
+      t(p.level_name ? "me.retakeTest" : "me.takeTest")}</button>
     <h2>${t("me.settings")}</h2>
     <div class="card settings">
       <div class="stat"><span>${t("me.lang")}</span>
@@ -2264,6 +2437,7 @@ async function openProfile(){
     await api("/api/profile", { set: b.dataset.set, value: on });
   });
   $("to-progress").onclick = openStats;
+  $("to-place").onclick = () => { tap(); openPlacement(); };
 }
 
 // ---------- прогресс ----------

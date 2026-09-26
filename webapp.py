@@ -31,6 +31,7 @@ import db
 import hebrew_name
 import phrases
 import phrases_en
+import placement
 import quiz
 import word_art
 from matching import check_answer, scramble
@@ -707,6 +708,63 @@ def situations(chat_id, payload):
     return jsonify({"situations": out, "gender": db.gender(chat_id)})
 
 
+# ---------- тест уровня ----------
+
+@api.route("/api/placement", methods=["POST"])
+@guarded
+def placement_start(chat_id, payload):
+    """Вопросы теста. Верные ответы, как и в раунде, остаются на сервере."""
+    lang = req_lang()
+    steps = placement.build(chat_id, lang)
+    return jsonify({
+        "steps": [{k: v for k, v in s.items() if k != "answer"} for s in steps],
+        "total": len(steps),
+    })
+
+
+@api.route("/api/placement_done", methods=["POST"])
+@guarded
+def placement_done(chat_id, payload):
+    """Итог теста: уровень и расстановка коробок.
+
+    Ответы судим здесь заново, а не верим присланному «correct»: клиент
+    волен написать что угодно, а на кону — запись в прогресс.
+    """
+    lang = req_lang()
+    given = payload.get("answers") or []
+    if not isinstance(given, list) or len(given) > 40:
+        return jsonify({"error": "bad answers"}), 400
+
+    checked = []
+    for a in given:
+        card = quiz.find_card(a.get("mode", ""), a.get("id", ""))
+        if not card:
+            continue
+        checked.append({
+            "id": card.key(),
+            "mode": a.get("mode"),
+            "stage": a.get("stage"),
+            "topic": a.get("topic"),
+            "correct": a.get("answer") == card.answer(lang),
+        })
+
+    level = placement.verdict(checked)
+    seeded = 0
+    try:
+        for cid, mode, box in placement.seeding(checked):
+            if db.seed_box(chat_id, cid, mode, box):
+                seeded += 1
+        db.set_level(chat_id, level)
+    except Exception as e:
+        print(f"[placement] {e}")
+
+    out = placement.result(level, lang)
+    out["seeded"] = seeded
+    out["correct"] = sum(1 for c in checked if c["correct"])
+    out["total"] = len(checked)
+    return jsonify(out)
+
+
 # ---------- профиль ----------
 
 @api.route("/api/profile", methods=["POST"])
@@ -763,6 +821,8 @@ def profile(chat_id, payload):
             "gender": db.gender(chat_id),
             "lang": req_lang(),
             "langs": list(db.LANGS),
+            "level_name": (placement.result(db.level(chat_id), req_lang())["title"]
+                           if db.level(chat_id) in placement.LEVELS else None),
             "answers": overall["total"], "correct": overall["correct"],
             "learned": sum(1 for b in db.word_boxes(chat_id).values() if b >= LEARNED_BOX),
             "favourites": len(db.favourites(chat_id)),

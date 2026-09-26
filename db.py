@@ -157,6 +157,10 @@ LATER_COLUMNS = [
     # утренняя рассылка «слова дня» идёт из таймера, без входящего
     # сообщения, и без этой отметки уходила бы всем по-русски.
     ("prefs", "tg_lang", "TEXT"),
+    # Итог теста уровня: 'zero' / 'alef_start' / 'alef' / 'bet' или NULL,
+    # если тест не проходили. Хранится, чтобы не звать проходить его
+    # каждый раз и чтобы показать результат в профиле.
+    ("prefs", "level", "TEXT"),
 ]
 
 # Интервалы системы Лейтнера: сколько дней ждать до следующего показа.
@@ -751,6 +755,66 @@ def mark_known(chat_id, card_id, mode):
     conn.commit()
 
 
+def seed_box(chat_id, card_id, mode, box):
+    """Ставит карточке коробку по итогам теста уровня — но НИКОГДА не ниже.
+
+    Почему не ниже
+    --------------
+    Тест проходят не только новички. Человек может открыть его из
+    любопытства, отзанимавшись месяц, и провалить слово, которое на
+    самом деле знает: не выспался, промахнулся по кнопке. Если бы тест
+    ставил коробку как есть, один такой промах обнулил бы недели работы.
+
+    Поэтому берём максимум из того, что было, и того, что предлагает
+    тест. Тест умеет только двигать вверх — это ставит его в один ряд
+    с «я уже знаю это», а не над обычными занятиями.
+
+    Чем это отличается от mark_known
+    --------------------------------
+    Тот ставит последнюю коробку: человек сам сказал, что знает слово.
+    Здесь вывод сделан за него и по одному ответу, поэтому и коробка
+    скромнее — см. placement.py, где выбираются значения.
+    """
+    box = max(1, min(int(box), MAX_BOX))
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT box FROM card_state WHERE chat_id = ? AND card_id = ? AND mode = ?",
+        (str(chat_id), card_id, mode)).fetchone()
+    if row and row["box"] >= box:
+        return False                      # уже выше — не трогаем
+    due = (date.today() + timedelta(days=BOX_INTERVALS[box])).isoformat()
+    conn.execute(
+        "INSERT INTO card_state (chat_id, card_id, mode, box, due_date, "
+        "                        n_correct, n_wrong) VALUES (?, ?, ?, ?, ?, 0, 0) "
+        "ON CONFLICT(chat_id, card_id, mode) DO UPDATE SET "
+        "  box = ?, due_date = excluded.due_date",
+        (str(chat_id), card_id, mode, box, due, box))
+    conn.commit()
+    return True
+
+
+def set_level(chat_id, level):
+    """Итог теста уровня. Пусто — тест не проходили."""
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO prefs (chat_id, level) VALUES (?, ?) "
+        "ON CONFLICT(chat_id) DO UPDATE SET level = excluded.level",
+        (str(chat_id), level))
+    conn.commit()
+    return level
+
+
+def level(chat_id):
+    try:
+        row = get_conn().execute(
+            "SELECT level FROM prefs WHERE chat_id = ?", (str(chat_id),)
+        ).fetchone()
+    except Exception as e:
+        print(f"[level] {e}")
+        return None
+    return (row["level"] or None) if row else None
+
+
 def word_boxes(chat_id, mode="vocab"):
     rows = get_conn().execute(
         "SELECT card_id, box FROM card_state WHERE chat_id = ? AND mode = ?",
@@ -1054,9 +1118,28 @@ def mark_daily_word_sent(chat_id):
 
 
 def seen_cards(chat_id, mode):
-    """Карточки, которые пользователь уже видел (для выбора нового слова)."""
+    """Карточки, на которые человек уже ОТВЕЧАЛ.
+
+    Именно отвечал, а не просто имеет строку в базе. Разница появилась
+    вместе с тестом уровня: он расставляет коробки наперёд (seed_box) и
+    создаёт строки для слов, которых человек в глаза не видел.
+
+    Если считать такие карточки виденными, они молча проскочат экран
+    знакомства — тот самый, где показывают написание, чтение, перевод и
+    картинку. А вывод о теме сделан по одному-двум ответам и вполне
+    может быть неверным: тогда человек получит в викторине слово, с
+    которым его никто не знакомил, и справедливо решит, что приложение
+    сломано.
+
+    Поэтому условие — хотя бы один ответ. Для данных, накопленных до
+    теста уровня, это ничего не меняет: строки туда попадали только
+    через record_answer, а он всегда увеличивает один из счётчиков.
+    «Я уже знаю это» тоже остаётся виденным — там решение принял сам
+    человек, и знакомить его заново незачем.
+    """
     rows = get_conn().execute(
-        "SELECT card_id FROM card_state WHERE chat_id = ? AND mode = ?",
+        "SELECT card_id FROM card_state WHERE chat_id = ? AND mode = ? "
+        "  AND n_correct + n_wrong > 0",
         (str(chat_id), mode),
     ).fetchall()
     return {r["card_id"] for r in rows}
