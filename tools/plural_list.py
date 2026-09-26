@@ -73,18 +73,41 @@ TITLES = [
 ]
 
 
+MARK = {"book": "в пособии", "male": "в пособии (ктив мале)", "": "—"}
+
+
 def table(rows):
-    out = ["| единственное | множественное | род | перевод | верно? |",
-           "|---|---|---|---|---|"]
-    for he, plural, gender, ru in sorted(rows, key=lambda r: r[3]):
-        out.append(f"| {he} | {plural} | {gender} | {ru} |  |")
+    """Сперва то, что подтвердить было нечем.
+
+    Сортировка по этому признаку, а не по алфавиту: если Вадим дойдёт
+    только до середины таблицы, проверено окажется именно то, где я
+    остался единственным источником.
+    """
+    out = ["| единственное | множественное | род | перевод | скелет | верно? |",
+           "|---|---|---|---|---|---|"]
+    rows = sorted(rows, key=lambda r: (nouns.skeleton_checked(r[1]) != "", r[3]))
+    for he, plural, gender, ru in rows:
+        out.append(f"| {he} | {plural} | {gender} | {ru} | "
+                   f"{MARK[nouns.skeleton_checked(plural)]} |  |")
     return "\n".join(out)
 
 
 def render():
     g = groups()
     total = sum(len(v) for v in g.values())
-    parts = [f"Всего форм: **{total}**. Подтверждено: **0**.", ""]
+    checked = sum(1 for v in g.values() for r in v
+                  if nouns.skeleton_checked(r[1]))
+    parts = [
+        f"Всего форм: **{total}**. Подтверждено носителем: **0**.",
+        "",
+        f"У **{checked}** из них согласный скелет совпал с рабочей "
+        f"тетрадью «מפה לשם 1» — то есть корень и окончание там такие "
+        f"же. Огласовки тетрадь не подтверждает: она написана без них, "
+        f"как все израильские учебники. Остальные "
+        f"**{total - checked}** форм не подтверждены ничем, кроме моей "
+        f"памяти, и в каждой таблице они идут первыми.",
+        "",
+    ]
     for key, title, note in TITLES:
         rows = g[key]
         if not rows:
