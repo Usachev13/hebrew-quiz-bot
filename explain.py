@@ -32,6 +32,7 @@
 import re
 
 from alphabet import CONFUSABLE, DOTTED, LETTERS
+import grammar
 from conjugations import CONJUGATIONS, PAST_LABELS, PRESENT_LABELS, FUTURE_LABELS
 from translit import to_ipa
 
@@ -221,6 +222,19 @@ def _stress(card, lang):
     if syllables[0].startswith("ˈ"):
         return [_t("stress", lang)]
     return []
+
+
+def page_for(card, mode):
+    """Страница грамматики, к которой ведёт эта карточка. None — нет.
+
+    Ссылка нужна там, где объяснение не помещается в три строки:
+    устройство биньяна — это страница, а «настоящее не различает лицо» —
+    строка, и отдельной страницы ей не надо.
+    """
+    root = _root_of(card.cat) if card else None
+    if not root:
+        return None
+    return grammar.page_for_binyan(CONJUGATIONS[root]["binyan"])
 
 
 def explain(card, mode, given=None, lang="ru"):

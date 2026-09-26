@@ -357,6 +357,13 @@ input[type=text]:focus{outline:0;border-color:var(--primary)}
 /* Разбор: почему ответ такой. Тон спокойнее вердикта — это не оценка,
    а объяснение, и кричать ему незачем. Слева полоска цвета темы:
    отделяет разбор от ответа, не разрывая карточку рамкой. */
+.gr-block{margin-top:var(--s5)}
+.gr-block h2{font-size:16px;margin:0 0 var(--s2)}
+.gr-block p{margin:0;color:var(--muted);line-height:1.6;white-space:pre-line}
+.gr-forms{display:flex;gap:var(--s4);flex-wrap:wrap;margin-top:var(--s2)}
+.gr-forms span{display:flex;flex-direction:column;gap:2px}
+.gr-forms b{font-size:19px;font-weight:600}
+.gr-forms i{font-style:normal;font-size:12px;color:var(--muted)}
 .why{margin-top:var(--s3);padding:var(--s3) 0 var(--s3) var(--s3);
      border-left:2px solid var(--line);color:var(--muted);
      font-size:14px;line-height:1.5}
@@ -912,6 +919,19 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
   </div>
 </div>
 
+<!-- Страница грамматики. Входа из меню у неё нет и не будет: она
+     открывается только по ссылке из разбора карточки, то есть тогда,
+     когда у человека уже возник вопрос. Справочник, в который заходят
+     по своей воле, лежит без дела — это в проекте уже проверено. -->
+<div id="s-grammar" class="screen">
+  <h1 id="gr-title"></h1>
+  <p class="lead" id="gr-lead"></p>
+  <div id="gr-body"></div>
+  <div class="card" id="gr-example"></div>
+  <button class="primary" id="gr-train"></button>
+  <button class="ghost" data-go="home" data-t="ui.toMenu">В меню</button>
+</div>
+
 <div id="s-words" class="screen">
   <h1 data-t="ui.words">Слова</h1>
   <input type="search" id="wsearch" class="search" data-t-ph="ui.find"
@@ -1033,6 +1053,11 @@ ru: {
   "q.listen": "Послушать",
   "q.why": "почему так?",
   "q.whyHead": "Разбор",
+  "gr.more": "подробнее",
+  "gr.verbs": "{n} глаголов этой модели",
+  "gr.train": "Потренировать эту модель",
+  "gr.example": "Пример",
+  "gr.past": "прошедшее", "gr.present": "настоящее", "gr.future": "будущее",
 
   "res.score": "{score} из {total}",
   "res.perfect": "Идеально — весь раунд без единой ошибки.",
@@ -1192,6 +1217,11 @@ en: {
   "q.listen": "Listen",
   "q.why": "why is that?",
   "q.whyHead": "How it works",
+  "gr.more": "read more",
+  "gr.verbs": "{n} verbs of this pattern",
+  "gr.train": "Practise this pattern",
+  "gr.example": "Example",
+  "gr.past": "past", "gr.present": "present", "gr.future": "future",
 
   "res.score": "{score} of {total}",
   "res.perfect": "Perfect — the whole round without a single mistake.",
@@ -1995,7 +2025,8 @@ function renderIntro(){
   $("intro-gloss").textContent = c.gloss;
   // Разбор при первой встрече: объяснить, пока человек не заучил
   // неправильно. Нечего сказать — блок пуст, место не занимает.
-  $("intro-why").innerHTML = whyBlock(c.why);
+  $("intro-why").innerHTML = whyBlock(c.why, c.page);
+  wirePageLinks($("intro-why"));
   const snd = $("intro-snd");
   snd.innerHTML = icon("sound", 24);
   snd.disabled = !c.audio;
@@ -2100,9 +2131,10 @@ async function sendAnswer(given, btn, skip = false){
        ${res.reading ? `<div class="reading">${res.reading}</div>` : ""}
        ${res.memory ? `<div class="memory">${res.memory}</div>` : ""}
        ${res.audio ? `<button class="play" id="play">${icon("sound",18)}${t("q.listen")}</button>` : ""}
-       ${whyBlock(res.why)}
+       ${whyBlock(res.why, res.page)}
      </div>`;
   if (res.audio) $("play").onclick = () => new Audio("/api/audio/" + res.audio).play();
+  wirePageLinks($("verdict"));
   /* Ответил верно — разбор не навязываем, но даём спросить. Угадать из
      четырёх кнопок можно и не поняв, и человек это про себя знает. */
   if (res.correct && !res.why){
@@ -2191,9 +2223,52 @@ const bare = s => (s || "").replace(/\u0301/g, "");
 
 /* Разбор карточки. Пустой — не рисуем ничего: заглушка «это надо
    запомнить» занимает место и приучает не читать подсказки вовсе. */
-function whyBlock(lines){
+function whyBlock(lines, page){
   if (!lines || !lines.length) return "";
-  return `<div class="why">${lines.map(l => `<div>${l}</div>`).join("")}</div>`;
+  const more = page
+    ? `<div><button class="why-btn" data-page="${page}">${t("gr.more")}</button></div>`
+    : "";
+  return `<div class="why">${lines.map(l => `<div>${l}</div>`).join("")}${more}</div>`;
+}
+
+/* Ссылки «подробнее» развешиваем после отрисовки: блок разбора
+   собирается строкой в трёх разных местах, и вешать обработчик в
+   каждом значило бы трижды написать одно и то же. */
+function wirePageLinks(root){
+  (root || document).querySelectorAll("[data-page]").forEach(b =>
+    b.onclick = () => { tap(); openGrammar(b.dataset.page); });
+}
+
+async function openGrammar(id){
+  show("grammar");
+  $("gr-body").innerHTML = "<div class='skeleton'></div>".repeat(2);
+  let p;
+  try { p = await api("/api/grammar", { id }); }
+  catch(e){ return fail(t("err.network")); }
+  if (p.error) return fail(t("err.network"));
+
+  $("gr-title").textContent = p.title;
+  $("gr-lead").textContent = p.lead;
+  $("gr-body").innerHTML = p.blocks.map(b =>
+    `<div class="gr-block"><h2>${b.head}</h2><p>${b.body}</p></div>`).join("");
+
+  const e = p.example;
+  $("gr-example").innerHTML = e ? `
+    <div class="stat"><span>${t("gr.example")}</span><b>${e.inf}</b></div>
+    <div class="sub">${e.ru}</div>
+    <div class="gr-forms">
+      <span><b>${e.past}</b><i>${t("gr.past")}</i></span>
+      <span><b>${e.present}</b><i>${t("gr.present")}</i></span>
+      <span><b>${e.future}</b><i>${t("gr.future")}</i></span>
+    </div>` : "";
+
+  const btn = $("gr-train");
+  btn.textContent = `${t("gr.train")} · ${t("gr.verbs", {n: p.count})}`;
+  btn.onclick = () => {
+    tap();
+    state.mode = "present"; state.cat = "binyan:" + p.id;
+    openFormat(p.title);
+  };
 }
 
 /* Кнопка «почему?» — для тех, кто ответил верно, но наугад. Разбор
@@ -2205,7 +2280,9 @@ async function askWhy(mode, id, host){
   let r;
   try { r = await api("/api/why", { mode, id }); }
   catch(e){ host.remove(); return; }
-  host.outerHTML = whyBlock(r.why) || "";
+  const holder = host.parentElement;
+  host.outerHTML = whyBlock(r.why, r.page) || "";
+  wirePageLinks(holder);
 }
 
 function openPlacement(){

@@ -296,6 +296,11 @@ def section_label(mode, cat=None, lang="ru"):
 # спрашивать сверху «как будет…» нечего.
 GAP_MODES = {"gap_verb", "gap_who"}
 
+# Приставка в поле «категория», означающая «глаголы такого-то биньяна».
+# Своя форма нужна потому, что обычная категория у форм — «корень_время»,
+# и по ней биньян не отберёшь.
+BINYAN_PREFIX = "binyan:"
+
 # Режимы курса алфавита: вопрос формулируется иначе, чем «как будет…»
 ALPHABET_MODES = {m for m in LABELS if m.startswith("alef_")}
 
@@ -402,6 +407,17 @@ def round_pool(chat_id, mode, cat, lang="ru"):
         return pool, section_label("weak", lang=lang), modes
 
     pool = POOLS[mode]
+    if cat and cat.startswith(BINYAN_PREFIX):
+        # Тренировка одного биньяна: вход со страницы грамматики.
+        # Прочитал, как устроен пиэль, — и тут же прогнал только его
+        # глаголы. Без этого страница остаётся чтением, после которого
+        # человек возвращается к перемешанному списку и ничего не
+        # закрепляет.
+        import grammar
+        roots = set(grammar.verbs_of(cat[len(BINYAN_PREFIX):]))
+        pool = [w for w in pool if w.cat.rsplit("_", 1)[0] in roots]
+        page = grammar.page(cat[len(BINYAN_PREFIX):], lang)
+        return pool, (page["title"] if page else section_label(mode, lang=lang)), {}
     if cat:
         pool = [w for w in pool if w.cat == cat]
         return pool, section_label(mode, cat, lang).lower(), {}

@@ -29,6 +29,7 @@ from flask import Blueprint, g, jsonify, request, send_file
 import audio
 import db
 import explain
+import grammar
 import hebrew_name
 import phrases
 import phrases_en
@@ -374,6 +375,10 @@ def answer(chat_id, payload):
         # отличаются на письме две спутанные буквы.
         "why": explain.explain(card, mode, given=(None if correct else given),
                                lang=lang),
+        # Куда вести за подробностями. Устройство биньяна в три строки
+        # не уложить, а без него человек так и будет заучивать формы
+        # по одной вместо семи правил.
+        "page": explain.page_for(card, mode),
         "reading": read,
         "audio": audio.audio_key(voice) if audio.has_audio(voice) else None,
         "memory": _memory_line(before, correct),
@@ -730,7 +735,19 @@ def why(chat_id, payload):
     card = quiz.find_card(payload.get("mode", ""), payload.get("id", ""))
     if not card:
         return jsonify({"error": "unknown card"}), 400
-    return jsonify({"why": explain.explain(card, payload.get("mode"), lang=lang)})
+    mode = payload.get("mode")
+    return jsonify({"why": explain.explain(card, mode, lang=lang),
+                    "page": explain.page_for(card, mode)})
+
+
+@api.route("/api/grammar", methods=["POST"])
+@guarded
+def grammar_page(chat_id, payload):
+    """Страница грамматики по ссылке из разбора."""
+    page = grammar.page(payload.get("id", ""), req_lang())
+    if not page:
+        return jsonify({"error": "unknown page"}), 404
+    return jsonify(page)
 
 
 # ---------- тест уровня ----------
