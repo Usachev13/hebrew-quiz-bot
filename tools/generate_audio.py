@@ -225,8 +225,30 @@ def synth(text, voice=None, rate=None, inner=None):
         timeout=60,
     )
     if r.status_code != 200:
-        raise RuntimeError(f"{r.status_code}: {r.text[:200]}")
+        raise RuntimeError(explain(r.status_code, r.text))
     return r.content
+
+
+# Azure на отказ отвечает пустым телом, и в журнал падало голое «401: ».
+# Само по себе это ничего не объясняет, а причин у каждого кода немного и
+# они известны — пусть скрипт называет их сам, вместо того чтобы каждый
+# раз выяснять это заново.
+HTTP_HINTS = {
+    401: ("ключ не принят. Он не повреждён (длину проверяет "
+          "tools/check_azure.py), а именно недействителен: ресурс Speech "
+          "удалён или отключён, подписка Azure закрыта, ключ перевыпущен — "
+          "или ключ от ресурса в ДРУГОМ регионе: он привязан к региону "
+          "намертво. Портал: Speech service -> Keys and Endpoint"),
+    403: "доступ запрещён: подписка приостановлена или исчерпан лимит",
+    404: f"регион «{AZURE_REGION}» не найден — проверьте AZURE_SPEECH_REGION",
+    429: "слишком часто или кончилась месячная квота (500 тыс. знаков)",
+}
+
+
+def explain(code, body=""):
+    hint = HTTP_HINTS.get(code)
+    tail = f" | ответ: {body[:160]}" if body.strip() else ""
+    return f"{code}: {hint}{tail}" if hint else f"{code}: {body[:200]}"
 
 
 def missing_key():
