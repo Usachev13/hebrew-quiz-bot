@@ -2155,6 +2155,10 @@ $("again").onclick = () => startRound(state.fmt);
    Поэтому здесь нет ни разбора ответа, ни звука, ни очков. */
 const place = { steps: [], idx: 0, answers: [] };
 
+/* Строка без знака ударения — для поиска и сравнения. Показываем
+   «ле́хем», ищем по «лехем». */
+const bare = s => (s || "").replace(/\u0301/g, "");
+
 function openPlacement(){
   show("place-intro");
   $("pl-begin").onclick = () => { tap(); startPlacement(); };
@@ -2274,7 +2278,11 @@ function drawWords(){
     if (!q) return true;
     // Ищем и по русскому, и по огласованному ивриту, и по произношению:
     // человек может помнить слово любым из трёх способов.
-    return w.ru.toLowerCase().includes(q) || w.reading.toLowerCase().includes(q)
+    // Знак ударения при поиске снимаем с обеих сторон: в списке лежит
+    // «ле́хем», человек набирает «лехем», и без этого поиск перестал бы
+    // находить собственные слова.
+    return w.ru.toLowerCase().includes(q)
+        || bare(w.reading).toLowerCase().includes(bare(q))
         || w.he.includes(q) || (w.topic || "").toLowerCase().includes(q);
   });
 
