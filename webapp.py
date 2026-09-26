@@ -421,7 +421,9 @@ def home(chat_id, payload):
                 pool, _, _ = quiz.round_pool(chat_id, mode, cat, lang)
                 prio = db.card_priorities(chat_id, mode)
                 if pool:
-                    card = quiz.pick_card(pool, prio)
+                    # Жребий на сутки: карточка «Продолжить» не должна
+                    # меняться от того, что человек вернулся на главную.
+                    card = quiz.pick_card(pool, prio, rng=quiz.daily_rng(chat_id))
                     he = card.answer(lang)
                     resume.update({
                         "ru": card.prompt(lang), "he": he,

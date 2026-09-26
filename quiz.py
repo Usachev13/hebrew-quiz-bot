@@ -12,6 +12,7 @@
 """
 
 import random
+from datetime import date
 
 import alphabet
 import cards
@@ -84,18 +85,33 @@ FUTURE_FLAT = flatten_tense(CONJUGATIONS, "future", FUTURE_SLOTS, FUTURE_LABELS,
                             words_en.FUTURE_LABELS)
 
 
-def pick_card(remaining, priorities):
+def pick_card(remaining, priorities, rng=random):
     """Выбирает следующую карточку с учётом интервальных повторений.
 
     Берём случайную из самой приоритетной группы (см. db.PRIORITY_*):
     сперва то, что пора повторить, затем новое, затем проблемное. Внутри
     группы порядок случайный — чтобы не заучивать последовательность.
+
+    `rng` нужен там, где случайность вредна. В раунде она на месте: два
+    подхода подряд не должны идти одним и тем же порядком. А карточка
+    «Продолжить» на главной — обещание, а не жребий: она показывает, с
+    чего начнётся занятие, и меняться от нажатия на «Главная» не должна.
+    Туда передаётся жребий, засеянный днём и человеком.
     """
     if not priorities:
-        return random.choice(remaining)
+        return rng.choice(remaining)
     rank = lambda w: priorities.get(w.key(), db.PRIORITY_NEW)
     best = max(rank(w) for w in remaining)
-    return random.choice([w for w in remaining if rank(w) == best])
+    return rng.choice([w for w in remaining if rank(w) == best])
+
+
+def daily_rng(chat_id):
+    """Жребий, одинаковый для человека в течение суток.
+
+    Один посев на главный экран и на слово дня: оба должны стоять на
+    месте, пока человек ходит по вкладкам.
+    """
+    return random.Random(f"{chat_id}:{date.today().isoformat()}")
 
 
 INTRO_LEN = 6      # сколько новых слов показываем перед викториной
@@ -377,7 +393,7 @@ def round_pool(chat_id, mode, cat, lang="ru"):
 
 # ---------- слово дня ----------
 
-def pick_daily_word(chat_id):
+def pick_daily_word(chat_id, today=None):
     """Слово дня. По очереди, от самого желанного к запасному варианту:
 
     1. не приходило как слово дня и ещё не встречалось в раундах — новое;
@@ -387,20 +403,50 @@ def pick_daily_word(chat_id):
     Важен первый фильтр. Отбор только по «не встречалось в раундах» не
     годится: этот запас тает по мере учёбы, и на 272 отвеченных словах из
     273 выбор сужается до одного — оно и приходит каждый день.
+
+    Одно слово на весь день
+    -----------------------
+    Выбор ОБЯЗАН быть одинаковым при каждом вызове в течение суток. Это
+    не оптимизация, а смысл названия: «слово дня», которое меняется от
+    того, что человек нажал «Главная», — просто случайное слово.
+
+    Раньше здесь стоял random.choice, и приложение перерисовывало слово
+    на каждом открытии экрана. Хуже того, после утренней рассылки бот и
+    приложение расходились: отправленное слово попадало в `sent` и тем
+    самым ВЫБЫВАЛО из выбора, так что в чате человек видел одно, а в
+    приложении другое.
+
+    Поэтому: сперва смотрим, не отправляли ли уже сегодня — тогда это
+    оно и есть. Если нет, тянем жребий, засеянный парой «кто + какой
+    сегодня день». Один и тот же посев даёт один и тот же ответ, сколько
+    ни спрашивай, и записывать ничего не нужно — приложение не должно
+    менять данные только оттого, что его открыли.
     """
+    today = today or date.today().isoformat()
     try:
         seen = db.seen_cards(chat_id, "vocab")
         sent = db.daily_sent_words(chat_id)
     except Exception as e:
         print(f"[pick_daily_word] БД недоступна: {e}")
-        return random.choice(VOCAB_FLAT)
+        # Без базы жребий всё равно держим устойчивым: лучше показать
+        # одно и то же слово, чем мелькать разными.
+        return random.Random(f"{chat_id}:{today}").choice(VOCAB_FLAT)
 
+    # Уже присылали сегодня — показываем ровно его, иначе чат и
+    # приложение скажут человеку разное.
+    for cid, day in sent.items():
+        if day == today:
+            card = ANSWERS["vocab"].get(cid)
+            if card:
+                return card
+
+    rng = random.Random(f"{chat_id}:{today}")
     never_sent = [w for w in VOCAB_FLAT if w.key() not in sent]
     unseen = [w for w in never_sent if w.key() not in seen]
     if unseen:
-        return random.choice(unseen)
+        return rng.choice(unseen)
     if never_sent:
-        return random.choice(never_sent)
+        return rng.choice(never_sent)
 
     oldest = min(sent.values())
-    return random.choice([w for w in VOCAB_FLAT if sent.get(w.key()) == oldest])
+    return rng.choice([w for w in VOCAB_FLAT if sent.get(w.key()) == oldest])
