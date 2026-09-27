@@ -44,7 +44,15 @@ HATAF_KAMATS = "ֳ"
 #
 # Правило: камац перед буквой с хатаф-камацем — всегда катан.
 # Список: слова, которые под правило не подпадают.
-KAMATS_KATAN_WORDS = {"כָּל"}
+# Список пополняется сверкой с транскрипциями словаря: אָזְנַיִם
+# читается «ознайим», а мы говорили «азнайим». Правилом это не берётся —
+# камац катан от камаца гадоль по написанию не отличается, а «камац перед
+# шва = катан» ломается на глаголах (שָׁמְרָה — «шамра», не «шомра»).
+#
+# Пометка относится к ПЕРВОМУ камацу слова: в חָכְמָה катан только он,
+# второй читается как «а» («хохма», не «хохмо»). Слово, где катан был бы
+# вторым, потребует хранить позицию — пока таких у нас нет.
+KAMATS_KATAN_WORDS = {"כָּל", "אָזְנַיִם", "חָכְמָה", "אָזְנֵי"}
 
 # Согласные. Для ב, כ, פ звук зависит от дагеша, для ש — от точки сбоку.
 CONSONANTS = {
@@ -55,6 +63,82 @@ CONSONANTS = {
 }
 # С дагешем эти три читаются иначе
 HARD = {"ב": "б", "כ": "к", "פ": "п"}
+
+
+# Шва в начале слова: произносится или пропадает?
+#
+# Мы озвучивали его всегда, и выходило «геварим», «драхим» → «дерахим»,
+# «тшува» → «тешува». Израильтяне так не говорят, и это уходило прямо в
+# синтезатор — то есть человек слышал неверное произношение.
+#
+# Правило выведено из транскрипций словаря hebrewerry (34 слова, все
+# сошлись): шва пропадает, если первая буква НЕ сонорная, а вторая НЕ
+# гортанная. Иначе кластер не выговорить, и гласная остаётся.
+#
+#   пропадает: גְּבָרִים гварим, דְּרָכִים драхим, תְּשׁוּבָה тшува,
+#              סְפָרִים сфарим, פְּקָקִים пкаким, בְּקָרִים бкарим
+#   остаётся:  מְרָקִים мераким, לְבָבוֹת левавот, רְחוֹב рехов,
+#              יְלָדִים йеладим  — сонорные מ ל ר י
+#              כְּאֵב кеэв, שְׁאֵלָה шеэла, בְּעָלִים беалим — гортанные
+#              בְּבַקָּשָׁה бевакаша — та же буква дважды
+SONORANTS = set("מםנןלרי")
+# Только гортанные смычные: с ними кластер не собрать. Хет сюда НЕ
+# входит — «пхадим» словарь произносит без гласной, хотя ח вторая буква.
+GUTTURALS = set("אהע")
+FINAL_TO_PLAIN = {"ך": "כ", "ם": "מ", "ן": "נ", "ף": "פ", "ץ": "צ"}
+
+
+# Приставка гласную сохраняет, корень — нет. Это различие не фонетическое,
+# а морфологическое, и одной буквой его не поймать: תְּרוּפָה даёт «труфа»
+# (корень), а תְּדַבֵּר — «тедабер» (приставка будущего времени). Так же и
+# בְּקָרִים «бкарим» против בְּשֶׁקֶט «бешекет» (предлог).
+#
+# Мой первый вариант правила этого не знал, потому что выверялся на
+# существительных: он превратил «тедабер» в «тдабер» — 29 глагольных форм
+# на одну букву тав. Поймал это сравнением до/после по всему банку, а не
+# проверкой: проверка-то проходила.
+_PREFIXED = None
+
+
+def _prefixed_forms():
+    """Формы, где первая буква — приставка: у них шва звучит.
+
+    Берём из спряжений, а не списком: добавят глагол — он попадёт сюда
+    сам. Импорт ленивый, чтобы не завязывать низкий уровень на данные.
+    """
+    global _PREFIXED
+    if _PREFIXED is None:
+        try:
+            from conjugations import CONJUGATIONS
+            _PREFIXED = {f for d in CONJUGATIONS.values()
+                         for f in d.get("future", {}).values()}
+        except Exception:                      # noqa: BLE001
+            _PREFIXED = set()
+    return _PREFIXED
+
+
+# Предлог, приклеенный к слову: «в тишине», «внутри». Корень тут второй,
+# и гласная предлога остаётся. Списком, потому что предлог от корня по
+# написанию не отличить.
+KEEP_SHVA_WORDS = {"בְּשֶׁקֶט", "בְּתוֹךְ"}
+
+
+def _shva_silent_at_start(units, i):
+    """Пропадает ли шва в начале слова — по произносимости кластера."""
+    if i + 1 >= len(units):
+        return False
+    word = "".join(l + "".join(m) for l, m in units)
+    word = unicodedata.normalize("NFC", word)
+    if word in KEEP_SHVA_WORDS or word in _prefixed_forms():
+        return False
+    here = units[i][0]
+    nxt = units[i + 1][0]
+    if nxt == " ":
+        return False
+    if here in SONORANTS or nxt in GUTTURALS:
+        return False
+    plain = lambda c: FINAL_TO_PLAIN.get(c, c)
+    return plain(here) != plain(nxt)
 
 
 def _split(word):
@@ -235,7 +319,9 @@ def to_ipa(word):
         vowel = next((VOWELS[m] for m in marks if m in VOWELS), None)
         if KAMATS in marks:
             nxt_marks = units[i + 1][1] if i + 1 < len(units) else []
-            if unicodedata.normalize("NFC", word) in KAMATS_KATAN_WORDS \
+            first_kamats = not any(KAMATS in m for _l, m in units[:i])
+            if (first_kamats
+                    and unicodedata.normalize("NFC", word) in KAMATS_KATAN_WORDS) \
                     or HATAF_KAMATS in nxt_marks:
                 vowel = "о"
 
@@ -284,6 +370,11 @@ def to_ipa(word):
             after_shva = (not at_start
                           and SHVA in units[i - 1][1]
                           and not prev_was_vocal_shva)
+            if at_start and _shva_silent_at_start(units, i):
+                # Кластер выговаривается: согласная уходит в начало
+                # следующего слога, гласной не появляется.
+                prev_was_vocal_shva = False
+                continue
             if at_start or after_shva:
                 current += "e"
                 syllables.append(current); current = ""
@@ -402,7 +493,9 @@ def translit(word):
         # или в слове из списка (כָּל).
         if KAMATS in marks:
             next_marks = units[i + 1][1] if i + 1 < len(units) else []
-            if whole_word_katan or HATAF_KAMATS in next_marks:
+            first_kamats = not any(KAMATS in m for _l, m in units[:i])
+            if (whole_word_katan and first_kamats) \
+                    or HATAF_KAMATS in next_marks:
                 vowel = "о"
 
         has_dagesh = DAGESH in marks
@@ -453,7 +546,9 @@ def translit(word):
             after_shva = (not at_start
                           and SHVA in units[i - 1][1]
                           and not prev_was_vocal_shva)
-            if at_start or after_shva:
+            if at_start and _shva_silent_at_start(units, i):
+                prev_was_vocal_shva = False
+            elif at_start or after_shva:
                 res.append("е")
                 prev_was_vocal_shva = True
             else:
@@ -461,7 +556,20 @@ def translit(word):
         else:
             prev_was_vocal_shva = False
 
-    return "".join(res).strip()
+    out = "".join(res).strip()
+    # «Е» в начале слова и после гласной превращаем в «э»: «эхад», а не
+    # «ехад»; «кеэв», а не «кеев». Иначе русскоязычный читает «е» как
+    # «йе» и вставляет согласный, которого в иврите нет. Так пишет и
+    # словарь: эхад, кеэв, шеэла, беалим.
+    #
+    # Нашлось это не проверкой, а случайно: проверка сама приравнивала
+    # «э» к «е» и потому молчала. Поблажку убрал.
+    fixed = []
+    for i, ch in enumerate(out):
+        at_start = i == 0 or out[i - 1] == " "
+        after_vowel = i and out[i - 1] in "аеиоуэ"
+        fixed.append("э" if ch == "е" and (at_start or after_vowel) else ch)
+    return "".join(fixed)
 
 
 # --- латиница: чтение для англоязычных ---
