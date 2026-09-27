@@ -16,6 +16,9 @@ export default [{
     globals: {
       window:"readonly", document:"readonly", console:"readonly",
       fetch:"readonly", setTimeout:"readonly", setInterval:"readonly",
+      // Парные к таймерам. Их не было, и линтер честно сообщил о
+      // clearInterval как о неизвестном — пробел в списке, а не в коде.
+      clearInterval:"readonly", clearTimeout:"readonly",
       requestAnimationFrame:"readonly", matchMedia:"readonly",
       Audio:"readonly", Image:"readonly", localStorage:"readonly",
       navigator:"readonly", performance:"readonly", Math:"readonly",
