@@ -35,6 +35,7 @@ from alphabet import CONFUSABLE, DOTTED, LETTERS
 import grammar
 import hebrew_meta
 import nouns
+import roots
 from conjugations import CONJUGATIONS, PAST_LABELS, PRESENT_LABELS, FUTURE_LABELS
 from translit import to_ipa
 
@@ -151,6 +152,14 @@ T = {
               "слов немного, и их запоминают.",
         "en": "The ending doesn't match the gender — this is one of a "
               "small set of exceptions, learned by heart.",
+    },
+    "root": {
+        "ru": "Корень {root} — тот же, что у глагола {inf}. В иврите "
+              "родственные слова узнаются по корню, и это самый быстрый "
+              "способ запомнить новое.",
+        "en": "The root is {root}, the same as in the verb {inf}. Hebrew "
+              "words of one family share a root, and spotting it is the "
+              "fastest way to remember a new word.",
     },
     "stress": {
         "ru": "Ударение здесь на первом слоге. В иврите оно обычно на "
@@ -300,6 +309,20 @@ def _vocab_by_cid():
 _BY_CID = None
 
 
+def _root_line(card, lang):
+    """Родственный глагол, если он подтверждён.
+
+    Только подтверждённые пары: сказать «это от того же корня» и
+    ошибиться хуже, чем промолчать — человек построит на этом догадку
+    и понесёт её дальше.
+    """
+    root, inf = roots.family_of(card.he)
+    if not root:
+        return []
+    spaced = "־".join(root)
+    return [_t("root", lang, root=spaced, inf=inf)]
+
+
 def _vocab(card, lang):
     """Разбор словарного слова: смихут, предлог или ударение."""
     sm = hebrew_meta.smichut_of(card.he, lang)
@@ -368,6 +391,7 @@ def explain(card, mode, given=None, lang="ru"):
         lines += _alphabet(card, mode, given, lang)
     elif mode == "vocab":
         lines += _vocab(card, lang)
+        lines += _root_line(card, lang)
     elif mode == "plural":
         lines += _plural(card, lang)
 
