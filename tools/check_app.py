@@ -24,6 +24,7 @@ BUILTIN = {
     "if", "for", "while", "switch", "catch", "function", "return", "typeof",
     "await", "async", "new", "fetch", "setTimeout", "setInterval",
     "requestAnimationFrame", "matchMedia", "Audio", "parseInt", "parseFloat",
+    "setInterval", "clearInterval", "clearTimeout", "all", "catch",
     "isNaN", "alert", "confirm", "encodeURIComponent", "decodeURIComponent",
     # методы, которые ловятся регуляркой как вызовы
     "map", "join", "filter", "find", "split", "replace", "forEach", "push",

@@ -136,6 +136,38 @@ wrong = next(o for o in opts if o != ru)
 bl = post("/api/answer", mode="listen", id=ql[0]["id"], answer=wrong, format="choice")
 ok(bl["correct"] is False and bl["expected"] == ru, f"ошибка распознана, ждали {bl['expected']}")
 
+print("спринт")
+sp = post("/api/sprint")
+ok(sp["seconds"] == 60, f"минута: {sp['seconds']}")
+ok(len(sp["questions"]) == 40, f"вопросов вперёд: {len(sp['questions'])}")
+ok(all(q["mode"] == "sprint" for q in sp["questions"]), "режим свой, не vocab")
+ok(all("correct" not in q and "answer" not in q for q in sp["questions"]),
+   "верного ответа в выдаче нет")
+ok(len({q["id"] for q in sp["questions"]}) == 40, "вопросы не повторяются")
+ok(sp["best"] == 0, f"рекорда ещё нет: {sp['best']}")
+# отвечаем на три верно, на один неверно
+right = 0
+for q in sp["questions"][:4]:
+    card = quiz.ANSWERS["vocab"][q["id"]]
+    good = card.answer("ru")
+    give = good if right < 3 else next(o for o in q["options"] if o != good)
+    r = post("/api/answer", mode="sprint", id=q["id"], answer=give, format="choice")
+    ok(r["correct"] == (give == good), f"судит сервер: {give} -> {r['correct']}")
+    if r["correct"]: right += 1
+ok(right == 3, f"верных {right}")
+done = post("/api/sprint_done", score=right)
+ok(done["record"] is True and done["best"] == 3, f"рекорд записан: {done}")
+again = post("/api/sprint_done", score=2)
+ok(again["record"] is False and again["best"] == 3, f"хуже — не рекорд: {again}")
+big = post("/api/sprint_done", score=999)
+ok(big["score"] == 40, f"счёт больше выдачи обрезан: {big['score']}")
+# ответы спринта не должны трогать расписание словаря
+import db as _db
+st = _db.card_history(777, sp["questions"][0]["id"], "vocab")
+ok(st is None, f"расписание словаря не тронуто: {st}")
+st2 = _db.card_history(777, sp["questions"][0]["id"], "sprint")
+ok(st2 is not None, f"свой режим пишется: {st2}")
+
 print("прогресс пишется под устойчивым ключом")
 ok(q0["id"].startswith("plural:"), f"ключ: {q0['id']}")
 import db as _db

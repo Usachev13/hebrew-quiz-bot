@@ -140,6 +140,10 @@ LATER_COLUMNS = [
     # Ивритское написание имени. Пусто — значит человек его не правил, и
     # приложение показывает то, что вывело само.
     ("prefs", "heb_name", "TEXT"),
+    # Лучший результат спринта. Хранится, потому что смысл спринта —
+    # побить себя вчерашнего; без записанного рекорда это просто набор
+    # быстрых вопросов.
+    ("prefs", "sprint_best", "INTEGER NOT NULL DEFAULT 0"),
     # Пол говорящего: 'm', 'f' или NULL. В иврите глагол настоящего
     # времени меняется по полу того, кто говорит, — «אני רוצה» у мужчины
     # и «אני רוצה» с другой огласовкой у женщины. Выдать женщине мужскую
@@ -675,6 +679,34 @@ def heb_name(chat_id):
         "SELECT heb_name FROM prefs WHERE chat_id = ?", (str(chat_id),)
     ).fetchone()
     return (row["heb_name"] or None) if row else None
+
+
+
+def sprint_best(chat_id):
+    """Лучший результат спринта. Ноль — ещё не бегал."""
+    row = get_conn().execute(
+        "SELECT sprint_best FROM prefs WHERE chat_id = ?", (str(chat_id),)
+    ).fetchone()
+    return int(row["sprint_best"]) if row and row["sprint_best"] else 0
+
+
+def note_sprint(chat_id, score):
+    """Записывает результат и говорит, рекорд ли это.
+
+    Сравнение строго больше: повторить свой максимум приятно, но
+    рекордом это называть нечестно.
+    """
+    best = sprint_best(chat_id)
+    if score <= best:
+        return False, best
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO prefs (chat_id, sprint_best) VALUES (?, ?) "
+        "ON CONFLICT(chat_id) DO UPDATE SET sprint_best = excluded.sprint_best",
+        (str(chat_id), int(score)),
+    )
+    conn.commit()
+    return True, int(score)
 
 
 def set_slow_voice(chat_id, slow):

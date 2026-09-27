@@ -867,6 +867,25 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
   <button class="primary" id="next" data-t="ui.next" hidden style="margin-top:var(--s4)">Дальше</button>
 </div>
 
+<!-- Спринт. Отдельный экран, а не раунд с таймером: здесь нет ни
+     разбора, ни кнопки «дальше», ни прогресса по вопросам — только счёт
+     и секунды. Мешать это с обычным раундом значило бы завести в нём
+     пять «если спринт». -->
+<div id="s-sprint" class="screen">
+  <div class="lesson-head">
+    <span class="cap" id="sp-cap"></span>
+    <span class="of"><b id="sp-left"></b></span>
+  </div>
+  <div class="bar"><i id="sp-bar"></i></div>
+  <div class="prompt">
+    <span class="inner">
+      <div class="ask" id="sp-score"></div>
+      <div class="qword" id="sp-word"></div>
+    </span>
+  </div>
+  <div id="sp-options"></div>
+</div>
+
 <div id="s-done" class="screen">
   <div id="ring-wrap"></div>
   <div class="center" id="score-sub" style="font-size:17px;color:var(--text)"></div>
@@ -1067,6 +1086,12 @@ ru: {
   "q.again": "Ещё раз",
   "sec.listen": "На слух",         "sec.listen.sub": "услышал — выбери перевод",
   "sec.listen.empty": "Записи ещё не готовы — попробуйте позже",
+  "sec.sprint": "Спринт",          "sec.sprint.sub": "минута на скорость",
+  "sp.sec": "с",
+  "sp.score": "Очков: {n}",
+  "sp.result": "за минуту",
+  "sp.record": "Это ваш рекорд!",
+  "sp.best": "Ваш рекорд: {n}",
   "gr.train": "Потренировать эту модель",
   "gr.example": "Пример",
   "gr.past": "прошедшее", "gr.present": "настоящее", "gr.future": "будущее",
@@ -1236,6 +1261,12 @@ en: {
   "q.again": "Again",
   "sec.listen": "By ear",          "sec.listen.sub": "hear it, pick the meaning",
   "sec.listen.empty": "The recordings are not ready yet",
+  "sec.sprint": "Sprint",          "sec.sprint.sub": "one minute, go fast",
+  "sp.sec": "s",
+  "sp.score": "Score: {n}",
+  "sp.result": "in one minute",
+  "sp.record": "That's your best!",
+  "sp.best": "Your best: {n}",
   "gr.train": "Practise this pattern",
   "gr.example": "Example",
   "gr.past": "past", "gr.present": "present", "gr.future": "future",
@@ -1520,9 +1551,12 @@ const SECTIONS = [
   // знакомы глазами. Подраздела у него нет — это один режим по всему
   // словарю, поэтому ведём сразу к выбору формата.
   { go:"listen",   bg:"greetings", key:"listen" },
+  // Спринт последним: это игра поверх выученного, а не способ учить.
+  { go:"sprint",   bg:"mix",       key:"sprint" },
 ];
 const TITLES = { topics:"sec.topics", grammar:"sec.grammar", verbs:"sec.verbs",
-                 alphabet:"sec.alphabet", say:"sec.say", listen:"sec.listen" };
+                 alphabet:"sec.alphabet", say:"sec.say", listen:"sec.listen",
+                 sprint:"sec.sprint" };
 
 /* Время суток берём с устройства: сервер стоит во Франкфурте, и в шесть
    утра по Тель-Авиву он бы показывал ночь.
@@ -1900,6 +1934,7 @@ $("say-no").onclick = () => judgeSay(false);
 
 function openList(kind){
   if (kind === "say") return openSay();
+  if (kind === "sprint") return openSprint();
   if (kind === "listen"){
     // Без записей упражнение невозможно: скажем прямо, а не покажем
     // пустой раунд.
@@ -2147,6 +2182,108 @@ function renderQuestion(){
     }
     $("typed").hidden = false; $("answer").value = ""; $("answer").focus();
   }
+}
+
+/* ---------- Спринт на время ----------
+
+   Шестьдесят секунд, вопросы подряд, без разборов: разбор здесь только
+   сбивал бы — человек пришёл за скоростью, а понимать будет в обычном
+   раунде. Поэтому и экран свой.
+
+   Ответы уходят под режимом «sprint», а не «vocab»: в спешке
+   промахиваются по кнопке, и расписание повторений не должно принимать
+   это за «забыл слово». */
+const sprint = { on:false, idx:0, score:0, ends:0, tick:null, q:[],
+                 flying:[] };
+
+async function openSprint(){
+  let data;
+  try { data = await api("/api/sprint"); }
+  catch(e){ return fail(t("err.network")); }
+  sprint.on = true; sprint.idx = 0; sprint.score = 0; sprint.flying = [];
+  sprint.q = data.questions; sprint.best = data.best || 0;
+  sprint.ends = Date.now() + data.seconds * 1000;
+  $("sp-cap").textContent = data.label || t("sec.sprint");
+  show("sprint");
+  sprintTick();
+  sprint.tick = setInterval(sprintTick, 200);
+  renderSprint();
+}
+
+function sprintTick(){
+  const left = Math.max(0, sprint.ends - Date.now());
+  $("sp-left").textContent = Math.ceil(left / 1000) + "\u2009" + t("sp.sec");
+  $("sp-bar").style.width = (left / 1000 / 60 * 100) + "%";
+  if (left <= 0) endSprint();
+}
+
+function renderSprint(){
+  const q = sprint.q[sprint.idx];
+  // Вопросы кончились раньше времени — так бывает только у очень
+  // быстрых, но отработать это надо.
+  if (!q) return endSprint();
+  $("sp-score").textContent = t("sp.score", {n: sprint.score});
+  $("sp-word").textContent = q.ru;
+  const box = $("sp-options");
+  box.innerHTML = "";
+  q.options.forEach(opt => {
+    const b = document.createElement("button");
+    b.className = "opt";
+    b.innerHTML = `<span class="mark"></span><span class="val he sm">${opt}</span>`;
+    b.onclick = () => sprintAnswer(opt, b);
+    box.appendChild(b);
+  });
+}
+
+function sprintAnswer(given, btn){
+  if (!sprint.on) return;
+  const q = sprint.q[sprint.idx];
+  /* Верный ответ сервер НЕ присылает — иначе он лежал бы в отладчике, и
+     спринт проходился бы за пять секунд. Поэтому судит сервер.
+
+     Но и ждать его ответа перед следующим вопросом нельзя: двести
+     миллисекунд на каждом вопросе — это несколько секунд забега, то
+     есть чужое время. Поэтому идём дальше сразу, а счёт догоняет, когда
+     ответ придёт: цифра щёлкает с задержкой в моргание, и это заметно
+     меньше, чем пауза. */
+  btn.disabled = true;
+  const pending = api("/api/answer",
+      { mode:"sprint", id:q.id, answer:given, format:"choice" })
+    .then(res => {
+      if (res && res.correct){
+        sprint.score++;
+        if (sprint.on) $("sp-score").textContent = t("sp.score", {n: sprint.score});
+      }
+      buzz(res && res.correct ? "success" : "error");
+    })
+    .catch(() => {});
+  sprint.flying.push(pending);
+  sprint.idx++;
+  renderSprint();
+}
+
+async function endSprint(){
+  if (!sprint.on) return;
+  sprint.on = false;
+  clearInterval(sprint.tick);
+  // Последние ответы могли ещё не вернуться: без этого ожидания счёт
+  // терял бы один-два верных на каждом забеге, и рекорд был бы врущим.
+  try { await Promise.all(sprint.flying); } catch(e){ /* и так покажем */ }
+  let res = { score: sprint.score, best: sprint.best, record: false };
+  try { res = await api("/api/sprint_done", { score: sprint.score }); }
+  catch(e){ /* сеть отвалилась — счёт всё равно покажем */ }
+  showSprintResult(res);
+}
+
+function showSprintResult(res){
+  $("score-sub").innerHTML =
+    `<div style="font-size:34px;font-weight:700">${res.score}</div>` +
+    `<div>${t("sp.result")}</div>` +
+    (res.record ? `<div class="memory">${t("sp.record")}</div>`
+                : `<div class="memory">${t("sp.best", {n: res.best})}</div>`);
+  $("ring-wrap").innerHTML = "";
+  $("again").onclick = () => { tap(); openSprint(); };
+  show("done");
 }
 
 async function sendAnswer(given, btn, skip = false){

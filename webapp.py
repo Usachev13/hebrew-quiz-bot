@@ -288,7 +288,8 @@ def round_(chat_id, payload):
     mode = payload.get("mode", "vocab")
     cat = payload.get("cat") or None
     fmt = payload.get("format", "choice")
-    if mode not in quiz.POOLS and mode != "weak" and mode not in quiz.LISTEN_MODES:
+    if (mode not in quiz.POOLS and mode != "weak"
+            and mode not in quiz.LISTEN_MODES | quiz.SPRINT_MODES):
         return jsonify({"error": "unknown mode"}), 400
 
     lang = req_lang()
@@ -503,6 +504,52 @@ def home(chat_id, payload):
         "topics": topics, "resume": resume,
         "name": _heb_name(),
     })
+
+
+@api.route("/api/sprint", methods=["POST"])
+@guarded
+def sprint(chat_id, payload):
+    """Спринт: сорок вопросов вперёд и шестьдесят секунд.
+
+    Вопросы отдаём пачкой заранее, а не по одному: на каждый запрос
+    уходило бы время, которое человек считает своим. Отсчёт идёт на
+    клиенте — сервер состояния раунда не держит, а рекорд у человека свой
+    и ни с кем не соревнуется, так что обмануть тут можно только себя.
+    """
+    lang = req_lang()
+    pool = quiz.POOLS["vocab"]
+    try:
+        priorities = db.card_priorities(chat_id, "sprint")
+    except Exception as e:                            # noqa: BLE001
+        print(f"[sprint] приоритеты недоступны: {e}")
+        priorities = {}
+    used, questions = set(), []
+    for _ in range(min(quiz.SPRINT_QUESTIONS, len(pool))):
+        q = quiz.build_question(pool, used, priorities, lang=lang)
+        used.add(q["id"])
+        questions.append({"id": q["id"], "ru": q["ru"], "mode": "sprint",
+                          "options": q["options"]})
+    return jsonify({
+        "seconds": quiz.SPRINT_SECONDS,
+        "questions": questions,
+        "best": db.sprint_best(chat_id),
+        "label": quiz.section_label("sprint", lang=lang),
+    })
+
+
+@api.route("/api/sprint_done", methods=["POST"])
+@guarded
+def sprint_done(chat_id, payload):
+    """Итог забега: счёт, рекорд и побит ли он."""
+    try:
+        score = max(0, int(payload.get("score", 0)))
+    except (TypeError, ValueError):
+        score = 0
+    # Больше, чем вопросов в выдаче, набрать нельзя — это защита от
+    # опечатки в клиенте, а не от злого умысла.
+    score = min(score, quiz.SPRINT_QUESTIONS)
+    record, best = db.note_sprint(chat_id, score)
+    return jsonify({"score": score, "best": best, "record": record})
 
 
 @api.route("/api/round_done", methods=["POST"])
