@@ -200,6 +200,16 @@ NOTES_EN = {
     ("health", 1): "Literally «it hurts to me». Pointing works too.",
     ("emergency", 0): "A cry for help. Asking someone for a favour is a different phrase.",
     ("emergency", 6): "First-person past is the same for men and women.",
+    # Разговорный слой. Переводим не буквально, а по употреблению:
+    # «сабаба» это не «вращение», а «fine by me».
+    ("street", 0): ("Класс, отлично (согласие на всё)", "Cool, fine by me"),
+    ("street", 1): ("Ну же, давай! (поторопить)", "Come on, let's go!"),
+    ("street", 2): ("Ну, пока! (при прощании)", "Alright, bye!"),
+    ("street", 3): ("Ух ты! Да ну! (удивление)", "Wow! No way!"),
+    ("street", 4): ("Стыд, неловкая вышла история", "How embarrassing"),
+    ("street", 5): ("Бардак, неразбериха", "A mess, chaos"),
+    ("street", 6): ("Именно так; и назло", "Precisely; and out of spite"),
+    ("street", 7): ("Дорогой мой (ласково, к мужчине)", "My dear (to a man)"),
 }
 
 
@@ -212,6 +222,7 @@ SITUATIONS_EN = {
     "transport": "Transport: bus, train, taxi",
     "health": "At the doctor and the pharmacy",
     "emergency": "If something happens",
+    "street": "How people actually talk",
 }
 
 
