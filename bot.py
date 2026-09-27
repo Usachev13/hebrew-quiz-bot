@@ -25,6 +25,7 @@ import db
 import explain
 import hebrew_name
 import phrases
+import speech
 import quiz
 import reactions
 from messages import t, plural
@@ -276,6 +277,7 @@ def main_menu_keyboard(lang="ru"):
         "inline_keyboard": rows + [
             [{"text": t("menu.words", lang), "callback_data": "menu|words"}],
             [{"text": t("menu.alphabet", lang), "callback_data": "alphabet_menu"}],
+            [{"text": t("menu.speak", lang), "callback_data": "speak"}],
             [{"text": t("menu.wordOfDay", lang), "callback_data": "word_of_day"},
              {"text": t("menu.stats", lang), "callback_data": "show_stats"}],
         ]
@@ -866,6 +868,112 @@ def handle_typed_answer(chat_id, typed, message_id=None):
 
 # ---------- Слово дня ----------
 
+
+# ---------- «Скажите вслух»: голосовой ответ ученика ----------
+#
+# Единственное место, где голос идёт от человека к нам. Устроено просто:
+# бот даёт фразу по-русски, человек наговаривает её на иврите, бот
+# показывает расшифровку и расхождения.
+#
+# Формулировки нарочно осторожные. Распознавание не оценивает
+# произношение — такой услуги для иврита у Azure нет, — и ударения не
+# слышит. Оно отвечает на один вопрос: узнаётся ли сказанное. Обещать
+# больше значило бы врать человеку про его же речь.
+
+
+def start_speak(chat_id, lang="ru"):
+    if not speech.available():
+        send_message(chat_id, t("speak.off", lang), main_menu_keyboard(lang))
+        return
+    sit = random.choice(list(phrases.PHRASES))
+    items = phrases.PHRASES[sit]
+    idx = random.randrange(len(items))
+    item = items[idx]
+    fem = db.gender(chat_id) == "f"
+    expected = phrases.text(item, fem, lang)
+    if phrases.SLOT in expected:
+        # Фраза со слотом: наговаривать «…» нечего, берём её пример.
+        ex = item.get("example") or {}
+        if not ex.get("he"):
+            return start_speak(chat_id, lang)
+        expected = ex["he"]
+    sessions.setdefault(chat_id, {})
+    sessions[chat_id].update({"speak": {"he": expected, "ru": item["ru"],
+                                        "sit": sit, "idx": idx},
+                              "lang": lang})
+    send_message(chat_id,
+                 t("speak.task", lang, ru=item["ru"]) + "\n\n" +
+                 t("speak.hint", lang),
+                 {"inline_keyboard": [
+                     [{"text": t("speak.show", lang),
+                       "callback_data": "speak_show"}],
+                     [{"text": t("speak.next", lang),
+                       "callback_data": "speak_next"}],
+                     [{"text": t("menu.back", lang),
+                       "callback_data": "main_menu"}]]})
+
+
+def handle_voice(chat_id, voice, lang="ru"):
+    """Пришло голосовое. Расшифровываем и сверяем."""
+    s = sessions.get(chat_id) or {}
+    task = s.get("speak")
+    if not task:
+        # Голосовое вне упражнения: не молчим, иначе человек решит, что
+        # бот сломался.
+        send_message(chat_id, t("speak.noTask", lang),
+                     main_menu_keyboard(lang))
+        return
+    if (voice.get("duration") or 0) > speech.MAX_VOICE_SECONDS:
+        send_message(chat_id, t("speak.tooLong", lang))
+        return
+    try:
+        data = speech.download(API_URL, voice["file_id"], TELEGRAM_TOKEN)
+        heard, conf = speech.recognize(data)
+    except speech.NoKey:
+        send_message(chat_id, t("speak.off", lang))
+        return
+    except Exception as e:                            # noqa: BLE001
+        print(f"[speak] распознавание не вышло: {e}")
+        send_message(chat_id, t("speak.failed", lang))
+        return
+
+    res = speech.compare(heard, task["he"])
+    lines = [t(f"speak.v.{res['verdict']}", lang)]
+    if res["heard"]:
+        lines.append(t("speak.heard", lang, text=res["heard"]))
+    if res["verdict"] in ("close", "different"):
+        lines.append(t("speak.expected", lang,
+                       text=with_reading(task["he"], "vocab", lang)))
+        lines.append(speak_diff(res["diff"], lang))
+    # Низкая уверенность — не приговор, но человеку полезно знать, что
+    # расшифровка могла и переврать.
+    if res["heard"] and conf and conf < 0.5:
+        lines.append(t("speak.unsure", lang))
+    # Не перескакиваем на новую фразу: произношение ставится повтором, и
+    # человек должен иметь право сказать то же самое ещё раз.
+    send_message(chat_id, "\n".join(lines),
+                 {"inline_keyboard": [
+                     [{"text": t("speak.retry", lang),
+                       "callback_data": "speak_retry"}],
+                     [{"text": t("speak.next", lang),
+                       "callback_data": "speak_next"}],
+                     [{"text": t("menu.back", lang),
+                       "callback_data": "main_menu"}]]})
+    maybe_send_voice(chat_id, task["he"], "vocab")
+
+
+def speak_diff(diff, lang="ru"):
+    """Расхождения словами, а не разметкой: «пропущено», «лишнее»."""
+    missing = [w for tag, w in diff if tag == "-"]
+    extra = [w for tag, w in diff if tag == "+"]
+    parts = []
+    if missing:
+        parts.append(t("speak.missing", lang, words=", ".join(missing)))
+    if extra:
+        parts.append(t("speak.extra", lang, words=", ".join(extra)))
+    return "\n".join(parts)
+
+
 def send_word_of_day(chat_id, subscribe_hint=True, lang="ru"):
     """Слово дня: перевод, написание и кнопка потренироваться."""
     card = quiz.pick_daily_word(chat_id)
@@ -1082,6 +1190,14 @@ def _handle_webhook_update():
         text = msg.get("text", "")
         message_id = msg.get("message_id")
 
+        # Голосовое от человека — единственный случай, когда голос идёт к
+        # нам, а не от нас. Обрабатываем до текстовых команд: текста в
+        # таком сообщении нет вовсе, и ниже оно провалилось бы в «не понял».
+        if msg.get("voice"):
+            handle_voice(chat_id, msg["voice"],
+                         user_lang(chat_id, msg.get("from")))
+            return
+
         # Язык определяем один раз на сообщение и передаём вниз. Иначе
         # каждая функция ходила бы в базу за одним и тем же ответом.
         lang = user_lang(chat_id, msg.get("from"))
@@ -1183,6 +1299,23 @@ def _handle_webhook_update():
             start_round(chat_id, "vocab", lang=lang)
         elif data == "word_of_day":
             send_word_of_day(chat_id, lang=lang)
+        elif data == "speak":
+            start_speak(chat_id, lang)
+        elif data == "speak_next":
+            start_speak(chat_id, lang)
+        elif data == "speak_retry":
+            task = (sessions.get(chat_id) or {}).get("speak")
+            if task:
+                send_message(chat_id, t("speak.task", lang, ru=task["ru"]))
+            else:
+                start_speak(chat_id, lang)
+        elif data == "speak_show":
+            task = (sessions.get(chat_id) or {}).get("speak")
+            if task:
+                send_message(chat_id,
+                             t("speak.expected", lang,
+                               text=with_reading(task["he"], "vocab", lang)))
+                maybe_send_voice(chat_id, task["he"], "vocab")
         elif data == "alphabet_menu":
             send_message(chat_id, t("alef.intro", lang),
                          alphabet_menu_keyboard(lang))

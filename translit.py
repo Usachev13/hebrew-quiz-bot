@@ -312,11 +312,28 @@ def _helping_hiriq(units):
     return any(m in VOWELS for m in letters[-3][1])
 
 
+def _peel(word):
+    """Отделяет знаки препинания от слова: («слово», «?»).
+
+    Нужно потому, что целый ряд правил смотрит на ПОСЛЕДНЮЮ букву:
+    конечная ה и א не звучат, патах под ע и ח читается перед буквой,
+    ударение считается от конца. Вопросительный знак делал последнюю
+    букву непоследней, и «הַדִּירָה?» читалось «хадира́х» вместо
+    «хадира́», а «לוֹקֵחַ?» — «локеха́» вместо «локе́ах».
+
+    Ошибка жила с самого появления фраз и задела 29 из них: знак в конце
+    стоит у каждого вопроса.
+    """
+    core = (word or "").rstrip(".,!?:;\u2026\u00ab\u00bb\"'()")
+    return core, (word or "")[len(core):]
+
+
 def to_ipa(word):
     """Транскрипция слова в IPA с ударением."""
     if " " in (word or ""):
         return " ".join(to_ipa(w) for w in word.split())
 
+    word, _tail = _peel(word)
     units = _split(word)
     syllables = []          # список слогов
     current = ""            # накапливаемый слог
@@ -485,6 +502,7 @@ def translit(word):
     if " " in (word or ""):
         return " ".join(translit(w) for w in word.split())
 
+    word, tail = _peel(word)
     units = _split(word)
     whole_word_katan = unicodedata.normalize("NFC", word or "") in KAMATS_KATAN_WORDS
     res = []
@@ -579,7 +597,8 @@ def translit(word):
         at_start = i == 0 or out[i - 1] == " "
         after_vowel = i and out[i - 1] in "аеиоуэ"
         fixed.append("э" if ch == "е" and (at_start or after_vowel) else ch)
-    return "".join(fixed)
+    # Знак препинания возвращаем: человек видит «оле́?», а не «оле́».
+    return "".join(fixed) + tail
 
 
 # --- латиница: чтение для англоязычных ---

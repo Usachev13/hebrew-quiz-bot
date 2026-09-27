@@ -76,6 +76,35 @@ REFERENCE = {
 }
 
 
+def check_punctuation():
+    """Знак препинания не должен менять чтение слова.
+
+    Целый ряд правил смотрит на последнюю букву: конечная ה и א молчат,
+    патах под ע и ח читается перед буквой, ударение считается от конца.
+    Вопросительный знак делал последнюю букву непоследней, и
+    «הַדִּירָה?» читалось «хадира́х», а «לוֹקֵחַ?» — «локеха́».
+
+    Проверяем на всех фразах банка: именно там знаки и стоят.
+    """
+    import phrases                                  # noqa: PLC0415
+    bad = []
+    for sit, item in phrases.all_phrases():
+        for field in ("he", "he_f", "to_f", "he_en"):
+            text = item.get(field)
+            if not isinstance(text, str):
+                continue
+            for word in text.split():
+                core = word.rstrip(".,!?:;…«»\"'()")
+                if core == word:
+                    continue
+                with_mark = translit.reading(word, "ru")
+                without = translit.reading(core, "ru")
+                if with_mark.rstrip(".,!?:;…«»\"'()") != without:
+                    bad.append(f"{sit}: «{word}» читается «{with_mark}», "
+                               f"а без знака «{without}»")
+    return sorted(set(bad))
+
+
 def same(ours, theirs):
     """Сравниваем звуки, а не условности записи.
 
@@ -103,7 +132,14 @@ def main():
         ours = translit.reading(word, "ru", stress=False)
         if not same(ours, theirs):
             bad.append(f"{word}: мы «{ours}», словарь «{theirs}»")
+    punct = check_punctuation()
     print(f"слов в эталоне: {len(REFERENCE)}")
+    if punct:
+        print(f"✗ знак препинания меняет чтение: {len(punct)}")
+        for line in punct[:10]:
+            print("   ", line)
+        return 1
+    print("✓ знаки препинания чтение не меняют")
     if bad:
         print(f"✗ чтение расходится со словарём: {len(bad)}")
         for line in bad:
