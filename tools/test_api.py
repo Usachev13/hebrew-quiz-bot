@@ -1,5 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Проверка режима «один и много» через настоящий API, с подписанным initData."""
+"""Проверка новых режимов через настоящий API, с подписанным initData.
+
+Сюда добавляется каждый новый режим: множественное число, сокращения.
+Смысл в том, чтобы пройти весь путь — меню, раунд, ответ, разбор — так,
+как его проходит приложение, а не по отдельным функциям. Я не вижу
+отрисованную страницу, и это ближайшее к ней, что у меня есть.
+"""
 import hashlib, hmac, json, os, tempfile, time, urllib.parse, sys
 
 TOKEN = "123:TEST"
@@ -88,6 +94,21 @@ ie = next(i for i in me["grammar"] if i["key"] == "plural")
 ok(ie["name"] == "one and many", f"подпись: {ie['name']}")
 re_ = post("/api/round", mode="plural", cat="", format="choice", lang="en")
 ok("plural" in re_["questions"][0]["ru"], f"вопрос: {re_['questions'][0]['ru']}")
+
+print("сокращения")
+m2 = post("/api/menu")
+ab = next((i for i in m2["grammar"] if i["key"] == "abbrev"), None)
+ok(ab is not None and ab.get("mode") == "abbrev", f"раздел есть: {ab and ab.get('name')}")
+ra = post("/api/round", mode="abbrev", cat="", format="choice")
+qa = ra["questions"]
+ok(bool(qa), f"раунд собрался: {len(qa)}")
+ok(all("что это" in q["ru"] for q in qa), f"вопрос: {qa[0]['ru']}")
+expa = {q["id"]: quiz.ANSWERS["abbrev"][q["id"]].answer("ru") for q in qa}
+aa = post("/api/answer", mode="abbrev", id=qa[0]["id"], answer=expa[qa[0]["id"]], format="choice")
+ok(aa["correct"] is True, "ответ принят")
+ok(aa["reading"] == "", f"транскрипции нет: {aa['reading']!r}")
+ok(aa["audio"] is None, f"озвучки нет: {aa['audio']!r}")
+ok(bool(aa["why"]), f"разбор: {(aa['why'] or [''])[0][:60]}")
 
 print("прогресс пишется под устойчивым ключом")
 ok(q0["id"].startswith("plural:"), f"ключ: {q0['id']}")

@@ -272,7 +272,8 @@ def _intro_card(card, mode, lang="ru"):
         # «Что тут важно» — показываем сразу при знакомстве, пока слово
         # ещё не заучено неправильно.
         "why": explain.explain(card, mode, lang=lang),
-        "reading": reading(main, lang) if mode not in quiz.ALPHABET_MODES else "",
+        "reading": ("" if mode in quiz.ALPHABET_MODES | quiz.NO_READING_MODES
+                    else reading(main, lang)),
         "audio": audio.audio_key(main) if audio.has_audio(main) else None,
     }
 
@@ -366,7 +367,8 @@ def answer(chat_id, payload):
         before = None
 
     # Чтение — на языке интерфейса: «лехем» или «lekhem».
-    read = "" if mode in quiz.ALPHABET_MODES else reading(expected, lang)
+    read = ("" if mode in quiz.ALPHABET_MODES | quiz.NO_READING_MODES
+            else reading(expected, lang))
     # Озвучка привязана к ивриту, а не к языку интерфейса: у карточек
     # алфавита ответ переводится («далет» / «dalet»), и искать запись по
     # переведённому тексту значило бы терять её при смене языка.
@@ -448,7 +450,8 @@ def home(chat_id, payload):
                     he = card.answer(lang)
                     resume.update({
                         "ru": card.prompt(lang), "he": he,
-                        "reading": "" if mode in quiz.ALPHABET_MODES else reading(he, lang),
+                        "reading": ("" if mode in quiz.ALPHABET_MODES | quiz.NO_READING_MODES
+                                    else reading(he, lang)),
                         "audio": (audio.audio_key(card.he)
                                   if audio.has_audio(card.he) else None),
                     })
@@ -577,7 +580,8 @@ def know(chat_id, payload):
     expected = card.answer(lang)
     return jsonify({
         "id": card.key(), "expected": expected,
-        "reading": "" if mode in quiz.ALPHABET_MODES else reading(expected, lang),
+        "reading": ("" if mode in quiz.ALPHABET_MODES | quiz.NO_READING_MODES
+                    else reading(expected, lang)),
     })
 
 
@@ -908,7 +912,8 @@ def stats(chat_id, payload):
         he = card.answer(lang)
         rows.append({
             "ru": card.prompt(lang), "he": he,
-            "reading": "" if w["mode"] in quiz.ALPHABET_MODES else reading(he, lang),
+            "reading": ("" if w["mode"] in quiz.ALPHABET_MODES | quiz.NO_READING_MODES
+                        else reading(he, lang)),
             "wrong": w["n_wrong"], "mode": w["mode"],
         })
     return jsonify({

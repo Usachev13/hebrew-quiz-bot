@@ -36,6 +36,7 @@ import grammar
 import hebrew_meta
 import nouns
 import roots
+import abbrev
 from conjugations import CONJUGATIONS, PAST_LABELS, PRESENT_LABELS, FUTURE_LABELS
 from translit import to_ipa
 
@@ -153,6 +154,10 @@ T = {
         "en": "The ending doesn't match the gender — this is one of a "
               "small set of exceptions, learned by heart.",
     },
+    "abbrev": {
+        "ru": "{full} — {ru}. Где попадётся: {where}.",
+        "en": "{full} — {ru}. Where you'll meet it: {where}.",
+    },
     "root": {
         "ru": "Корень {root} — тот же, что у глагола {inf}. В иврите "
               "родственные слова узнаются по корню, и это самый быстрый "
@@ -264,6 +269,16 @@ def _letter_by_answer(mode, given, lang):
         if c.answer(lang) == given:
             return c.cid
     return None
+
+
+def _abbrev(card, lang):
+    """Что это значит и где попадётся. В вопросе этого нет нарочно."""
+    a = card.cid.split(":", 1)[1] if ":" in card.cid else ""
+    got = abbrev.meaning(a)
+    if not got:
+        return []
+    full, ru, where = got
+    return [_t("abbrev", lang, full=full, ru=ru, where=where)]
 
 
 def _plural(card, lang):
@@ -394,5 +409,7 @@ def explain(card, mode, given=None, lang="ru"):
         lines += _root_line(card, lang)
     elif mode == "plural":
         lines += _plural(card, lang)
+    elif mode == "abbrev":
+        lines += _abbrev(card, lang)
 
     return lines or None

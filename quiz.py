@@ -208,6 +208,25 @@ def build_question(pool, used, priorities=None, pick_from=None, lang="ru"):
             "correct": answer, "options": options}
 
 
+def abbrev_cards():
+    """Аббревиатура -> расшифровка.
+
+    Вопрос ставим в ту сторону, в какую он встаёт в жизни: человек видит
+    `ת"ז` на бланке и должен понять, что это. Перевод и место, где это
+    попадается, уходят в разбор — иначе подсказка была бы в самом
+    вопросе.
+    """
+    import abbrev
+    out = []
+    for a, full, ru, _where, _src in abbrev.all_items():
+        out.append(Card(ru=f"{a} — что это?", he=full, cat="abbrev",
+                        cid=f"abbrev:{a}",
+                        en=f"{a} — what is it?"))
+    return out
+
+
+ABBREV_FLAT = abbrev_cards()
+
 POOLS = {
     "vocab": VOCAB_FLAT,
     "verbs": VERBS_FLAT,
@@ -220,6 +239,7 @@ POOLS = {
     "gap_verb": GAP_FLAT,
     "gap_who": WHO_FLAT,
     "plural": PLURAL_FLAT,
+    "abbrev": ABBREV_FLAT,
     # Курс алфавита (уровень 0)
     "alef_names": alphabet.pool_names(),
     "alef_sounds": alphabet.pool_sounds(),
@@ -238,6 +258,7 @@ LABELS = {
     "gap_verb": "поставь глагол во фразу",
     "gap_who": "кто это делает",
     "plural": "один и много",
+    "abbrev": "сокращения",
     "alef_names": "названия букв",
     "alef_sounds": "звуки букв",
     "alef_by_name": "узнать букву по названию",
@@ -279,6 +300,7 @@ LABELS_EN = {
     "gap_verb": "put the verb into the sentence",
     "gap_who": "who is doing it",
     "plural": "one and many",
+    "abbrev": "abbreviations",
     "alef_names": "letter names",
     "alef_sounds": "letter sounds",
     "alef_by_name": "find the letter by name",
@@ -329,7 +351,7 @@ def section_label(mode, cat=None, lang="ru"):
 # страницы могла сверить его с набросками плиток: ключ плитки и id
 # рисунка обязаны совпасть, а найти расхождение в браузере я не могу.
 GRAMMAR_SECTIONS = ([(key, None) for key in GRAMMAR_LABELS]
-                    + [("plural", "plural")])
+                    + [("plural", "plural"), ("abbrev", "abbrev")])
 
 GAP_MODES = {"gap_verb", "gap_who"}
 
@@ -339,6 +361,11 @@ GAP_MODES = {"gap_verb", "gap_who"}
 BINYAN_PREFIX = "binyan:"
 
 # Режимы курса алфавита: вопрос формулируется иначе, чем «как будет…»
+# Режимы, где транскрипцию показывать нельзя. У сокращений расшифровка
+# написана без огласовок — нарочно, так она и выглядит в жизни, — а наше
+# чтение по неогласованному тексту выдаёт «твдт зхвт». Лучше ничего.
+NO_READING_MODES = {"abbrev"}
+
 ALPHABET_MODES = {m for m in LABELS if m.startswith("alef_")}
 
 # Порядок прохождения — от узнавания к чтению. Раньше разделы шли по
