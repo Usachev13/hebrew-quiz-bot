@@ -1063,6 +1063,10 @@ ru: {
   "gr.more": "подробнее",
   "gr.verbs": "{n} глаголов этой модели",
   "gr.words": "{n} слов",
+  "q.ask.listen": "Послушайте и выберите перевод",
+  "q.again": "Ещё раз",
+  "sec.listen": "На слух",         "sec.listen.sub": "услышал — выбери перевод",
+  "sec.listen.empty": "Записи ещё не готовы — попробуйте позже",
   "gr.train": "Потренировать эту модель",
   "gr.example": "Пример",
   "gr.past": "прошедшее", "gr.present": "настоящее", "gr.future": "будущее",
@@ -1228,6 +1232,10 @@ en: {
   "gr.more": "read more",
   "gr.verbs": "{n} verbs of this pattern",
   "gr.words": "{n} words",
+  "q.ask.listen": "Listen and pick the meaning",
+  "q.again": "Again",
+  "sec.listen": "By ear",          "sec.listen.sub": "hear it, pick the meaning",
+  "sec.listen.empty": "The recordings are not ready yet",
   "gr.train": "Practise this pattern",
   "gr.example": "Example",
   "gr.past": "past", "gr.present": "present", "gr.future": "future",
@@ -1508,9 +1516,13 @@ const SECTIONS = [
   { go:"topics",   bg:"topics",    key:"topics" },
   { go:"grammar",  bg:"grammar",   key:"grammar" },
   { go:"verbs",    bg:"verbs",     key:"verbs" },
+  // Аудирование стоит последним: оно осмысленно, когда слова уже
+  // знакомы глазами. Подраздела у него нет — это один режим по всему
+  // словарю, поэтому ведём сразу к выбору формата.
+  { go:"listen",   bg:"greetings", key:"listen" },
 ];
 const TITLES = { topics:"sec.topics", grammar:"sec.grammar", verbs:"sec.verbs",
-                 alphabet:"sec.alphabet", say:"sec.say" };
+                 alphabet:"sec.alphabet", say:"sec.say", listen:"sec.listen" };
 
 /* Время суток берём с устройства: сервер стоит во Франкфурте, и в шесть
    утра по Тель-Авиву он бы показывал ночь.
@@ -1888,6 +1900,13 @@ $("say-no").onclick = () => judgeSay(false);
 
 function openList(kind){
   if (kind === "say") return openSay();
+  if (kind === "listen"){
+    // Без записей упражнение невозможно: скажем прямо, а не покажем
+    // пустой раунд.
+    if (!state.menu.listen){ return fail(t("sec.listen.empty")); }
+    state.mode = "listen"; state.cat = null;
+    return openFormat(t("sec.listen"));
+  }
   const items = state.menu[kind];
   const wide  = kind === "topics" || kind === "grammar";
   $("list-title").textContent = t(TITLES[kind]);
@@ -2092,17 +2111,32 @@ function renderQuestion(){
   // У фраз с пропуском подсказка уже сама себе задание: в ней стоит
   // «___». Спрашивать сверху «как будет» значило бы задать два вопроса.
   const isGap  = q.mode.startsWith("gap_");
+  // Аудирование: задание — это звук, а не текст. Слово на экран не
+  // выводим вовсе, иначе смысл упражнения пропадает.
+  const isListen = q.mode === "listen";
   $("ask").textContent = t(isGap ? "q.ask.gap"
                          : isAlef ? "q.ask.alef"
+                         : isListen ? "q.ask.listen"
                          : isForm ? "q.ask.form" : "q.ask.word");
-  $("word").textContent = q.ru;
+  if (isListen){
+    $("word").innerHTML =
+      `<button class="play" id="q-play">${icon("sound", 22)}${t("q.again")}</button>`;
+    const again = () => { tap(); new Audio("/api/audio/" + q.voice).play(); };
+    $("q-play").onclick = again;
+    // Проигрываем сразу: человек пришёл слушать, лишний тап ни к чему.
+    // catch — браузер может запретить автозапуск, тогда остаётся кнопка.
+    new Audio("/api/audio/" + q.voice).play().catch(() => {});
+  } else {
+    $("word").textContent = q.ru;
+  }
   $("options").innerHTML = ""; $("typed").hidden = true; $("letters").hidden = true;
 
   if (state.fmt === "choice"){
     q.options.forEach(opt => {
       const b = document.createElement("button");
       b.className = "opt";
-      b.innerHTML = `<span class="mark"></span><span class="he sm">${opt}</span>`;
+      b.innerHTML = `<span class="mark"></span>` +
+        `<span class="val ${isListen ? "" : "he sm"}">${opt}</span>`;
       b.onclick = () => sendAnswer(opt, b);
       $("options").appendChild(b);
     });
@@ -2127,7 +2161,7 @@ async function sendAnswer(given, btn, skip = false){
   if (state.fmt === "choice"){
     document.querySelectorAll(".opt").forEach(b => {
       b.disabled = true;
-      const word = b.querySelector(".he").textContent;
+      const word = b.querySelector(".val").textContent;
       if (word === res.expected){ b.classList.add("ok"); b.querySelector(".mark").innerHTML = icon("check", 20); }
       else if (b === btn){ b.classList.add("bad"); b.querySelector(".mark").innerHTML = icon("cross", 20); }
     });

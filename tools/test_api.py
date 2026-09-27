@@ -110,6 +110,32 @@ ok(aa["reading"] == "", f"транскрипции нет: {aa['reading']!r}")
 ok(aa["audio"] is None, f"озвучки нет: {aa['audio']!r}")
 ok(bool(aa["why"]), f"разбор: {(aa['why'] or [''])[0][:60]}")
 
+print("аудирование")
+# Озвучки в песочнице нет, а пул аудирования зависит от файлов. Подменяем
+# проверку наличия — иначе проверить путь нечем, а он самый новый.
+import audio as _audio
+_audio.has_audio = lambda text, slow=False: True
+rl = post("/api/round", mode="listen", cat="", format="choice")
+ql = rl["questions"]
+ok(bool(ql), f"раунд собрался: {len(ql)}")
+ok(all(q["ru"] == "" for q in ql), "текста вопроса нет — задание это звук")
+ok(all(q.get("voice") for q in ql), f"ключ озвучки пришёл: {ql[0].get('voice')}")
+card = quiz.ANSWERS["vocab"][ql[0]["id"]]
+ok(ql[0]["voice"] == _audio.audio_key(card.he), "ключ считается от ивритского слова")
+ru = card.prompt("ru")
+opts = ql[0]["options"]
+ok(ru in opts, f"верный ответ среди вариантов: {ru}")
+ok(all(not any('\u0590' <= c <= '\u05ff' for c in o) for o in opts),
+   f"варианты по-русски, иврита в них нет: {opts}")
+al = post("/api/answer", mode="listen", id=ql[0]["id"], answer=ru, format="choice")
+ok(al["correct"] is True, "ответ переводом принят")
+ok(al.get("word") == card.he, f"после ответа показываем слово: {al.get('word')}")
+ok(al["reading"] and any('\u0430' <= c <= '\u044f' for c in al["reading"]),
+   f"чтение от иврита, а не от перевода: {al['reading']}")
+wrong = next(o for o in opts if o != ru)
+bl = post("/api/answer", mode="listen", id=ql[0]["id"], answer=wrong, format="choice")
+ok(bl["correct"] is False and bl["expected"] == ru, f"ошибка распознана, ждали {bl['expected']}")
+
 print("прогресс пишется под устойчивым ключом")
 ok(q0["id"].startswith("plural:"), f"ключ: {q0['id']}")
 import db as _db

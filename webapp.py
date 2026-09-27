@@ -205,6 +205,9 @@ def menu(chat_id, payload):
                             "gap_verb", "gap_who")],
         "alphabet": [{"key": m, "name": name(m), "count": counts[m]}
                      for m in quiz.ALPHABET_ORDER],
+        # Аудирование: счётчик зависит от наличия записей, поэтому
+        # считается здесь, а не берётся из статических наборов.
+        "listen": len(quiz.listen_pool()),
         "due": due,
         "weak": weak,
         "anagram_modes": sorted(quiz.ANAGRAM_MODES),
@@ -285,7 +288,7 @@ def round_(chat_id, payload):
     mode = payload.get("mode", "vocab")
     cat = payload.get("cat") or None
     fmt = payload.get("format", "choice")
-    if mode not in quiz.POOLS and mode != "weak":
+    if mode not in quiz.POOLS and mode != "weak" and mode not in quiz.LISTEN_MODES:
         return jsonify({"error": "unknown mode"}), 400
 
     lang = req_lang()
@@ -312,13 +315,19 @@ def round_(chat_id, payload):
     used, questions = set(), []
     for i in range(count):
         pick = intro if (intro and i < len(intro)) else None
-        q = quiz.build_question(pool, used, priorities, pick_from=pick, lang=lang)
+        listening = mode in quiz.LISTEN_MODES
+        q = quiz.build_question(pool, used, priorities, pick_from=pick,
+                                lang=lang, flip=listening)
         used.add(q["id"])
         card_mode = modes.get(q["id"], mode)
         # `id` — устойчивый ключ, по нему сервер и узнает карточку в
         # /api/answer. `ru` остаётся текстом вопроса: клиент его только
         # показывает. Раньше это было одно поле, и оно же служило ключом.
         item = {"id": q["id"], "ru": q["ru"], "mode": card_mode}
+        if listening:
+            # Задание — звук. Ивритский текст клиенту не отдаём вовсе:
+            # иначе ответ лежал бы в отладчике браузера.
+            item["voice"] = audio.audio_key(q["voice"])
         if fmt == "choice":
             item["options"] = q["options"]
         elif fmt == "anagram":
@@ -348,7 +357,9 @@ def answer(chat_id, payload):
     if not card:
         return jsonify({"error": "unknown card"}), 400
     card_id = card.key()
-    expected = card.answer(lang)
+    listening = mode in quiz.LISTEN_MODES
+    # В аудировании отвечают переводом: услышал иврит — назвал значение.
+    expected = card.prompt(lang) if listening else card.answer(lang)
 
     if skipped:
         verdict = "skip"
@@ -367,12 +378,16 @@ def answer(chat_id, payload):
         before = None
 
     # Чтение — на языке интерфейса: «лехем» или «lekhem».
+    shown = card.he if listening else expected
     read = ("" if mode in quiz.ALPHABET_MODES | quiz.NO_READING_MODES
-            else reading(expected, lang))
+            else reading(shown, lang))
     # Озвучка привязана к ивриту, а не к языку интерфейса: у карточек
     # алфавита ответ переводится («далет» / «dalet»), и искать запись по
     # переведённому тексту значило бы терять её при смене языка.
     voice = card.he
+    # В аудировании после ответа показываем и само слово: без этого
+    # человек угадал перевод, но не увидел, как это пишется.
+    extra = {"word": card.he} if listening else {}
     return jsonify({
         "verdict": verdict,
         "correct": correct,
@@ -389,6 +404,7 @@ def answer(chat_id, payload):
         "reading": read,
         "audio": audio.audio_key(voice) if audio.has_audio(voice) else None,
         "memory": _memory_line(before, correct),
+        **extra,
     })
 
 

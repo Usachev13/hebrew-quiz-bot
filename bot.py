@@ -30,6 +30,7 @@ import reactions
 from messages import t, plural
 from quiz import (
     POOLS, LABELS, TOPIC_LABELS, GRAMMAR_LABELS, ALPHABET_MODES,
+    LISTEN_MODES,
     ANSWERS, KNOWN_FORMS, ANAGRAM_MODES, GAP_MODES, ROUND_LEN, VOCAB_FLAT,
     build_question, round_pool, find_card,
 )
@@ -289,6 +290,7 @@ def words_menu_keyboard(lang="ru"):
             [{"text": t("menu.verbs", lang), "callback_data": "menu|verbs"}],
             [{"text": t("menu.plural", lang), "callback_data": "pick|plural|"}],
             [{"text": t("menu.abbrev", lang), "callback_data": "pick|abbrev|"}],
+            [{"text": t("menu.listen", lang), "callback_data": "pick|listen|"}],
             [{"text": t("menu.weak", lang), "callback_data": "pick|weak|"}],
             [{"text": t("menu.back", lang), "callback_data": "main_menu"}],
         ]
@@ -395,7 +397,8 @@ def keyboard_rows(buttons, per_row=2):
 def send_question(chat_id):
     s = sessions[chat_id]
     lang = s.get("lang", "ru")
-    q = build_question(s["pool"], s["used"], s.get("priorities"), lang=lang)
+    q = build_question(s["pool"], s["used"], s.get("priorities"), lang=lang,
+                       flip=s.get("mode") in LISTEN_MODES)
     s["used"].add(q["id"])
     s["current"] = q
 
@@ -409,6 +412,23 @@ def send_question(chat_id):
     idx = s["index"] + 1
     mode = card_mode(s, q)
     is_form = mode in ("past", "present", "future")
+
+    if mode in LISTEN_MODES:
+        # Задание — голосовое сообщение. Слово в текст не пишем: увидев
+        # его, человек ответит глазами и упражнение не состоится.
+        keyboard = {"keyboard": keyboard_rows(q["options"], per_row=2),
+                    "one_time_keyboard": True}
+        send_message(chat_id,
+                     f"{t('q.counter', lang, idx=idx, total=s['total'])}\n"
+                     f"{t('q.askListen', lang)}", keyboard)
+        try:
+            audio.send_voice(API_URL, chat_id, q["voice"],
+                             slow=db.slow_voice(chat_id))
+        except Exception as e:                       # noqa: BLE001
+            # Без звука вопрос бессмыслен — говорим прямо, а не молчим.
+            print(f"[listen] озвучка не ушла: {e}")
+            send_message(chat_id, t("q.noVoice", lang))
+        return
 
     if s.get("anagram"):
         # Буквы вразброс — задача собрать из них слово.
@@ -553,6 +573,13 @@ def lively(chat_id):
         return True
 
 
+def lang_of(s):
+    """Язык собеседника из сессии. Отдельной функцией, потому что
+    подставляется в нескольких местах и «ru» по умолчанию должен быть
+    один и тот же."""
+    return s.get("lang", "ru")
+
+
 def say_verdict(chat_id, s, outcome, answer, message_id=None, before=None,
                 extra=None, mode=None, card=None, given=None):
     """Ответ на попытку: реплика, память о слове, отметка серии.
@@ -644,10 +671,16 @@ def handle_answer(chat_id, question_idx, chosen_idx, message_id=None):
 
     if is_correct:
         s["score"] += 1
+    # В аудировании отвечают переводом, поэтому вслух читаем и показываем
+    # само слово: человек его услышал, но написанным ещё не видел.
+    listening = mode in LISTEN_MODES
     say_verdict(chat_id, s, "correct" if is_correct else "wrong",
-                q["correct"], message_id, before, mode=mode,
-                card=find_card(mode, q["id"]), given=chosen)
-    maybe_send_voice(chat_id, q["correct"], mode)
+                q["correct"], message_id, before,
+                extra=(t("q.itWas", lang_of(s),
+                         word=with_reading(q["voice"], "vocab", lang_of(s)))
+                       if listening else None),
+                mode=mode, card=find_card(mode, q["id"]), given=chosen)
+    maybe_send_voice(chat_id, q["voice"] if listening else q["correct"], mode)
 
     finish_question(chat_id)
 

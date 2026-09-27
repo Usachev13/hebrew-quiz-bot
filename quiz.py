@@ -169,7 +169,8 @@ def intro_cards(chat_id, mode, pool):
     return fresh[:INTRO_LEN]
 
 
-def build_question(pool, used, priorities=None, pick_from=None, lang="ru"):
+def build_question(pool, used, priorities=None, pick_from=None, lang="ru",
+                   flip=False):
     """Выбирает карточку (ещё не заданную в этом раунде) и 3 дистрактора
     из той же категории/группы биньяна — так угадать наугад сложнее.
 
@@ -177,13 +178,18 @@ def build_question(pool, used, priorities=None, pick_from=None, lang="ru"):
     знакомства спрашиваем ровно те слова, которые только что показали, а
     неверные варианты по-прежнему берём из всей темы — иначе они были бы
     только из шести новых и ответ вычислялся бы по исключению.
+
+    flip переворачивает вопрос: варианты собираются со стороны подсказки,
+    а не ответа. Нужно для аудирования — там человек слышит иврит и
+    выбирает перевод, то есть отвечает по-русски.
     """
+    side = (lambda w: w.prompt(lang)) if flip else (lambda w: w.answer(lang))
     source = pick_from if pick_from else pool
     remaining = [w for w in source if w.key() not in used]
     if not remaining:
         remaining = source
     correct = pick_card(remaining, priorities or {})
-    answer = correct.answer(lang)
+    answer = side(correct)
 
     # Дистракторы обязаны отличаться не только от верного ответа, но и
     # друг от друга: в некоторых пулах разные карточки дают одинаковый
@@ -196,16 +202,20 @@ def build_question(pool, used, priorities=None, pick_from=None, lang="ru"):
         for w in candidates:
             if len(seen) > need:
                 break
-            if w.answer(lang) not in seen:
-                seen.add(w.answer(lang))
+            if side(w) not in seen:
+                seen.add(side(w))
 
     take([w for w in pool if w.cat == correct.cat], 3)   # сначала из той же темы
     take([w for w in pool if w.cat != correct.cat], 3)   # не хватило — из любой
 
     options = list(seen)
     random.shuffle(options)
-    return {"id": correct.key(), "ru": correct.prompt(lang),
-            "correct": answer, "options": options}
+    # В перевёрнутом вопросе показывать нечего: задание — это звук.
+    # Ивритский текст отдаём отдельным полем, чтобы по нему нашли файл
+    # озвучки, а на экран он не попал.
+    return {"id": correct.key(), "ru": "" if flip else correct.prompt(lang),
+            "correct": answer, "options": options,
+            "voice": correct.he if flip else None}
 
 
 def abbrev_cards():
@@ -259,6 +269,7 @@ LABELS = {
     "gap_who": "кто это делает",
     "plural": "один и много",
     "abbrev": "сокращения",
+    "listen": "на слух",
     "alef_names": "названия букв",
     "alef_sounds": "звуки букв",
     "alef_by_name": "узнать букву по названию",
@@ -301,6 +312,7 @@ LABELS_EN = {
     "gap_who": "who is doing it",
     "plural": "one and many",
     "abbrev": "abbreviations",
+    "listen": "by ear",
     "alef_names": "letter names",
     "alef_sounds": "letter sounds",
     "alef_by_name": "find the letter by name",
@@ -364,6 +376,18 @@ BINYAN_PREFIX = "binyan:"
 # Режимы, где транскрипцию показывать нельзя. У сокращений расшифровка
 # написана без огласовок — нарочно, так она и выглядит в жизни, — а наше
 # чтение по неогласованному тексту выдаёт «твдт зхвт». Лучше ничего.
+# Аудирование: слышишь слово — выбираешь перевод. Пул собирается на
+# лету, потому что зависит от наличия файлов озвучки: слово без записи
+# спросить нечем. Поэтому в POOLS его нет — там статические наборы.
+LISTEN_MODES = {"listen"}
+
+
+def listen_pool():
+    """Словарные карточки, у которых есть озвучка."""
+    import audio
+    return [c for c in VOCAB_FLAT if audio.has_audio(c.he)]
+
+
 NO_READING_MODES = {"abbrev"}
 
 ALPHABET_MODES = {m for m in LABELS if m.startswith("alef_")}
@@ -411,9 +435,15 @@ LEGACY_ANSWERS = {
 
 
 def find_card(mode, card_id):
-    """Карточка по ключу — новому или старому."""
-    by_mode = ANSWERS.get(mode, {})
-    return by_mode.get(card_id) or LEGACY_ANSWERS.get(mode, {}).get(card_id)
+    """Карточка по ключу — новому или старому.
+
+    Аудирование работает на словарных карточках: своего набора у него нет,
+    пул собирается из VOCAB по наличию озвучки. Поэтому ключ ищем среди
+    словарных, иначе ответ не с чем сверить.
+    """
+    look = "vocab" if mode in LISTEN_MODES else mode
+    by_mode = ANSWERS.get(look, {})
+    return by_mode.get(card_id) or LEGACY_ANSWERS.get(look, {}).get(card_id)
 
 
 def id_migration_map():
@@ -469,6 +499,12 @@ def round_pool(chat_id, mode, cat, lang="ru"):
     if mode == "weak":
         pool, modes = weak_pool(chat_id)
         return pool, section_label("weak", lang=lang), modes
+
+    if mode in LISTEN_MODES:
+        pool = listen_pool()
+        if cat:
+            pool = [w for w in pool if w.cat == cat]
+        return pool, section_label(mode, lang=lang), {}
 
     pool = POOLS[mode]
     if cat and cat.startswith(BINYAN_PREFIX):
