@@ -74,36 +74,45 @@ M = {
 "n.infinitive": {"ru": "инфинитив|инфинитива|инфинитивов",
                  "en": "infinitive|infinitives"},
 "n.form": {"ru": "форма|формы|форм", "en": "form|forms"},
+"n.verb": {"ru": "глагол|глагола|глаголов", "en": "verb|verbs"},
 "n.day": {"ru": "день|дня|дней", "en": "day|days"},
 "n.error": {"ru": "ошибка|ошибки|ошибок", "en": "mistake|mistakes"},
 "n.question": {"ru": "вопрос|вопроса|вопросов", "en": "question|questions"},
 
 # ------------------------------------------------------------- приветствие
 "welcome": {
-"ru": "Здесь с вами <b>разговаривают на иврите</b>.\n\n"
-      "Скажите <b>שלום</b> — голосом или текстом — и вам ответят. "
-      "Дальше просто разговаривайте: собеседник отвечает на то, что вы "
-      "сказали, поправляет, если фраза построена не так, и переводит "
-      "каждую свою реплику.\n\n"
-      "Говорить можно как удобно: наговорить голосовое или набрать "
-      "текстом, на иврите или по-русски. Не знаете, как сказать, — "
+"ru": "Здесь две вещи, и они разные.\n\n"
+      "<b>В этом чате с вами разговаривают на иврите.</b> Скажите "
+      "<b>שלום</b> — голосом или текстом — и вам ответят. Дальше просто "
+      "разговаривайте: собеседник отвечает на то, что вы сказали, "
+      "поправляет фразу, если она построена не так, переводит каждую "
+      "свою реплику и спрашивает в ответ. Не знаете, как сказать, — "
       "скажите по-русски, вам подскажут ивритом.\n\n"
-      "Слова, буквы, глаголы и упражнения живут в приложении — "
-      "кнопка выше. Здесь только разговор: это единственное, чему "
-      "нельзя научиться, нажимая на кнопки.\n\n"
-      "Что внутри — /about",
-"en": "This is where people <b>talk to you in Hebrew</b>.\n\n"
-      "Say <b>שלום</b> — by voice or by text — and you'll get an "
-      "answer. Then just talk: your companion replies to what you "
-      "actually said, corrects the sentence if it came out wrong, and "
-      "translates every line.\n\n"
-      "Answer however suits you: record a voice message or type, in "
-      "Hebrew or in English. If you don't know how to say it, say it in "
-      "English and you'll be told the Hebrew.\n\n"
-      "Words, letters, verbs and exercises live in the app — the button "
-      "above. Here there is only conversation: the one thing you cannot "
-      "learn by pressing buttons.\n\n"
-      "What's inside — /about",
+      "<b>В приложении — всё остальное.</b> Алфавит с нуля, {words} {words_w} "
+      "по темам, {verbs} {verbs_w} во всех временах, разговорные фразы для "
+      "банка, врача и съёма квартиры. Каждое слово озвучено живым "
+      "ивритским голосом и показано с ударением. Что даётся тяжело — "
+      "возвращается чаще: через день, три, неделю, три недели.\n\n"
+      "Начните с кнопки ниже. Если буквы ещё не читаются — там есть "
+      "алфавит, а тест уровня подскажет, откуда начинать.\n\n"
+      "Подробнее — /about",
+"en": "There are two things here, and they are different.\n\n"
+      "<b>In this chat people talk to you in Hebrew.</b> Say "
+      "<b>שלום</b> — by voice or by text — and you'll get an answer. "
+      "Then just talk: your companion replies to what you actually "
+      "said, corrects the sentence if it came out wrong, translates "
+      "every line and asks you something back. If you don't know how to "
+      "say it, say it in English and you'll be told the Hebrew.\n\n"
+      "<b>The app holds everything else.</b> The alphabet from scratch, "
+      "{words} {words_w} by topic, {verbs} {verbs_w} in every tense, spoken phrases for "
+      "the bank, the doctor and renting a flat. Every word is voiced by "
+      "a real Hebrew voice and shown with its stress. Whatever is hard "
+      "comes back more often: in a day, three days, a week, three "
+      "weeks.\n\n"
+      "Start with the button below. If the letters don't read yet, the "
+      "alphabet is in there, and the placement test will tell you where "
+      "to begin.\n\n"
+      "More — /about",
 },
 
 # ----------------------------------------------------------- разговор

@@ -50,32 +50,35 @@ API = f"https://api.telegram.org/bot{TOKEN}"
 # упражнения отдельно.
 DESCRIPTION = {
     "ru": (
-        "Здесь с вами разговаривают на иврите.\n\n"
-        "Скажите שלום — голосом или текстом — и вам ответят. Дальше "
-        "просто разговаривайте: собеседник отвечает на сказанное, "
-        "поправляет фразу, если она построена не так, и переводит каждую "
-        "свою реплику.\n\n"
-        "Не знаете, как сказать, — скажите по-русски, вам подскажут "
-        "ивритом.\n\n"
-        "Слова, буквы, глаголы и упражнения — в приложении."
+        "Иврит с нуля — и разговор с первого дня.\n\n"
+        "В чате с вами говорят на иврите: скажите שלום голосом или "
+        "текстом, и вам ответят, поправят фразу и переведут каждую "
+        "реплику. Не знаете как — скажите по-русски, подскажут ивритом.\n\n"
+        "В приложении — алфавит с нуля, слова по темам, глаголы во всех "
+        "временах и фразы для банка, врача и съёма квартиры. Всё "
+        "озвучено живым голосом и показано с ударением. Что даётся "
+        "тяжело — возвращается чаще.\n\n"
+        "Нажмите «Запустить»."
     ),
     "": (
-        "This is where people talk to you in Hebrew.\n\n"
-        "Say שלום — by voice or by text — and you'll get an answer. Then "
-        "just talk: your companion replies to what you actually said, "
-        "corrects the sentence if it came out wrong, and translates every "
-        "line.\n\n"
-        "Don't know how to say it? Say it in English and you'll be told "
-        "the Hebrew.\n\n"
-        "Words, letters, verbs and exercises live in the app."
+        "Hebrew from scratch — and conversation from day one.\n\n"
+        "In the chat people talk to you in Hebrew: say שלום by voice or "
+        "text and you'll get an answer, a correction and a translation "
+        "of every line. Don't know how? Say it in English and you'll be "
+        "told the Hebrew.\n\n"
+        "The app holds the alphabet from scratch, words by topic, verbs "
+        "in every tense and phrases for the bank, the doctor and renting "
+        "a flat. All voiced by a real voice, all shown with stress. "
+        "Whatever is hard comes back more often.\n\n"
+        "Press Start."
     ),
 }
 
 # 120 знаков. Это строка под именем бота — она должна работать в отрыве
 # от всего остального.
 SHORT = {
-    "ru": "Разговорный иврит: скажите שלום — и вам ответят. Голосом или текстом.",
-    "": "Spoken Hebrew: say שלום and you'll get an answer. By voice or by text.",
+    "ru": "Иврит с нуля и разговор с первого дня: скажите שלום — и вам ответят.",
+    "": "Hebrew from scratch, conversation from day one: say שלום and get an answer.",
 }
 
 LIMITS = {"description": 512, "short_description": 120}

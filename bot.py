@@ -70,6 +70,13 @@ ADMIN_CHAT_ID = os.environ.get("ADMIN_CHAT_ID", "").strip()
 # бот от этого не ломается и работает как раньше.
 BOT_DOMAIN = os.environ.get("BOT_DOMAIN", "").strip()
 WEBAPP_URL = f"https://{BOT_DOMAIN}/app" if BOT_DOMAIN else ""
+if not WEBAPP_URL:
+    # Приветствие обещает кнопку приложения, и без домена этого обещания
+    # не выполнить: кнопка просто не появится, а текст останется. Лучше
+    # сказать об этом в журнал при запуске, чем узнать от человека,
+    # который не нашёл того, что ему пообещали в первом же сообщении.
+    print("[bot] BOT_DOMAIN не задан — кнопки приложения не будет, "
+          "хотя приветствие о ней говорит. См. .env.example")
 
 # Одна HTTP-сессия на процесс. Голый requests.post открывает новое
 # соединение на каждый вызов и заново жмёт руки по TLS, а на один вопрос
@@ -256,9 +263,18 @@ def user_lang(chat_id, tg_user=None):
 
 
 def welcome_text(name="", lang="ru"):
-    """Первое сообщение. Коротко: что это, с чего начать, куда нажать."""
+    """Первое сообщение: что в чате, что в приложении, куда нажать.
+
+    Числа подставляются из фактических пулов, а не вписаны руками:
+    вписанное руками расходится с данными на первом же пополнении
+    словаря, и заметит это не автор, а читатель.
+    """
     hi = f", {name}" if name else ""
-    return f"<b>שלום{hi}!</b>\n" + t("welcome", lang)
+    c = _counts()
+    body = t("welcome", lang,
+             words=c["words"], words_w=plural(c["words"], "n.word", lang),
+             verbs=c["verbs"], verbs_w=plural(c["verbs"], "n.verb", lang))
+    return f"<b>שלום{hi}!</b>\n" + body
 
 
 def about_text(lang="ru"):
