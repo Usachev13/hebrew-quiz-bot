@@ -22,9 +22,11 @@ from flask import Flask, request, jsonify
 import alphabet
 import audio
 import db
+import dialog
 import explain
 import hebrew_name
 import phrases
+import hebrew_rules
 import speech
 import quiz
 import reactions
@@ -134,6 +136,28 @@ MAX_SEEN_UPDATE_IDS = 2000
 
 
 # ---------- Telegram API helpers ----------
+
+# Команды упражнений, которые переехали в приложение. Оставлены
+# отвечающими нарочно: человек, привыкший к /past, должен узнать, куда
+# это делось, а не получить «не понял».
+MOVED_COMMANDS = ("/quiz", "/past", "/present", "/future", "/verbs",
+                  "/topics", "/alphabet", "/plural", "/abbrev", "/listen",
+                  "/weak", "/anagram", "/type", "/level", "/syntax")
+
+
+def send_typing(chat_id):
+    """«Печатает…» — пока модель думает.
+
+    Ответ собеседника приходит за две-три секунды, и без этой отметки
+    человек успевает решить, что бот умер, и написать ещё раз. Сбой тут
+    ничего не значит: это украшение, а не доставка.
+    """
+    try:
+        SESSION.post(f"{API_URL}/sendChatAction",
+                     json={"chat_id": chat_id, "action": "typing"}, timeout=5)
+    except requests.exceptions.RequestException:
+        pass
+
 
 def send_message(chat_id, text, reply_markup=None):
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
@@ -248,6 +272,7 @@ def about_text(lang="ru"):
     n = lambda v, key: plural(v, key, lang)
     return "\n\n".join([
         t("about.head", lang),
+        t("about.talk", lang),
         t("about.say", lang, say=c["say"], situations=c["situations"]),
         t("about.alef", lang, modes=c["alef_modes"],
           modes_w=n(c["alef_modes"], "n.section"),
@@ -273,10 +298,14 @@ def main_menu_keyboard(lang="ru"):
     if WEBAPP_URL:
         rows.append([{"text": t("menu.app", lang),
                       "web_app": {"url": WEBAPP_URL}}])
+    # В чате остались разговор и слово дня. Всё остальное — упражнения,
+    # и они переехали в приложение: там у них есть картинки, прогресс и
+    # экран, а в чате они были десятком уровней меню, сквозь которые
+    # человек продирался кнопками. Чат теперь занят тем, чего в
+    # приложении нет и быть не может, — живой беседой.
     return {
         "inline_keyboard": rows + [
-            [{"text": t("menu.words", lang), "callback_data": "menu|words"}],
-            [{"text": t("menu.alphabet", lang), "callback_data": "alphabet_menu"}],
+            [{"text": t("menu.talk", lang), "callback_data": "talk"}],
             [{"text": t("menu.speak", lang), "callback_data": "speak"}],
             [{"text": t("menu.wordOfDay", lang), "callback_data": "word_of_day"},
              {"text": t("menu.stats", lang), "callback_data": "show_stats"}],
@@ -914,29 +943,51 @@ def start_speak(chat_id, lang="ru"):
                        "callback_data": "main_menu"}]]})
 
 
-def handle_voice(chat_id, voice, lang="ru"):
-    """Пришло голосовое. Расшифровываем и сверяем."""
-    s = sessions.get(chat_id) or {}
-    task = s.get("speak")
-    if not task:
-        # Голосовое вне упражнения: не молчим, иначе человек решит, что
-        # бот сломался.
-        send_message(chat_id, t("speak.noTask", lang),
-                     main_menu_keyboard(lang))
-        return
+def _transcribe(chat_id, voice, lang="ru", with_conf=False):
+    """Голосовое -> текст. None (или пусто), если не вышло.
+
+    Об отказе сообщаем прямо здесь: причин ровно три — слишком длинно,
+    нет ключа, сбой, — и каждая требует своих слов. Вызывающему остаётся
+    только решить, что делать с текстом.
+    """
     if (voice.get("duration") or 0) > speech.MAX_VOICE_SECONDS:
         send_message(chat_id, t("speak.tooLong", lang))
-        return
+        return None
     try:
         data = speech.download(API_URL, voice["file_id"], TELEGRAM_TOKEN)
         heard, conf = speech.recognize(data)
     except speech.NoKey:
         send_message(chat_id, t("speak.off", lang))
-        return
+        return None
     except Exception as e:                            # noqa: BLE001
         print(f"[speak] распознавание не вышло: {e}")
         send_message(chat_id, t("speak.failed", lang))
+        return None
+    return (heard, conf) if with_conf else heard
+
+
+def handle_voice(chat_id, voice, lang="ru"):
+    """Пришло голосовое. Расшифровываем и сверяем."""
+    s = sessions.get(chat_id) or {}
+    task = s.get("speak")
+    if not task:
+        # Голосовое вне упражнения — это реплика в разговоре. Раньше
+        # здесь был отказ «нечего проверять»: бот умел слушать только
+        # заданную фразу, а на живое слово отвечал, что не просил
+        # говорить.
+        if not dialog.available():
+            send_message(chat_id, t("speak.noTask", lang),
+                         main_menu_keyboard(lang))
+            return
+        heard = _transcribe(chat_id, voice, lang)
+        if heard:
+            send_message(chat_id, t("talk.heard", lang, text=heard))
+            handle_talk(chat_id, heard, lang)
         return
+    heard_conf = _transcribe(chat_id, voice, lang, with_conf=True)
+    if heard_conf is None:
+        return
+    heard, conf = heard_conf
 
     res = speech.compare(heard, task["he"])
     lines = [t(f"speak.v.{res['verdict']}", lang)]
@@ -961,6 +1012,111 @@ def handle_voice(chat_id, voice, lang="ru"):
                      [{"text": t("menu.back", lang),
                        "callback_data": "main_menu"}]]})
     maybe_send_voice(chat_id, task["he"], "vocab")
+
+
+# ----------------------------------------------------------- разговор
+#
+# Всё остальное в боте — упражнения: у вопроса есть заранее известный
+# верный ответ. Здесь его нет. Человек говорит что хочет, собеседник
+# отвечает на сказанное, и разговор идёт дальше — ровно то, чему
+# тренажёр не учил никогда, хотя ради этого и затевался.
+#
+# Иврит здесь порождает языковая модель, и это единственное место в
+# проекте, где иврит никем не выверен. Что с этим делается, написано в
+# dialog.py; здесь — то, что видит человек.
+
+
+def talk_keyboard(lang="ru"):
+    return {"inline_keyboard": [
+        [{"text": t("talk.restart", lang), "callback_data": "talk_reset"}],
+        [{"text": t("menu.back", lang), "callback_data": "main_menu"}],
+    ]}
+
+
+def start_talk(chat_id, lang="ru"):
+    """Вход в разговор: объясняем правила игры и ждём первой реплики."""
+    if not dialog.available():
+        send_message(chat_id, t("talk.off", lang), main_menu_keyboard(lang))
+        return
+    sessions.setdefault(chat_id, {})["talk"] = True
+    left = db.dialog_left(chat_id)
+    send_message(chat_id, t("talk.intro", lang, left=left), talk_keyboard(lang))
+
+
+def handle_talk(chat_id, said, lang="ru"):
+    """Реплика человека — ответ собеседника.
+
+    Порядок важен: сперва предел, потом деньги. Проверять лимит после
+    запроса к модели значит платить за сообщение, которое мы всё равно
+    не покажем.
+    """
+    if not dialog.available():
+        send_message(chat_id, t("talk.off", lang), main_menu_keyboard(lang))
+        return
+    if db.dialog_left(chat_id) <= 0:
+        send_message(chat_id, t("talk.limit", lang), main_menu_keyboard(lang))
+        return
+
+    send_typing(chat_id)
+    history = db.dialog_history(chat_id)
+    try:
+        res = dialog.reply(history, said, gender=db.gender(chat_id) or "m",
+                           lang=lang)
+    except Exception as e:                                  # noqa: BLE001
+        print(f"[talk] {e}")
+        send_message(chat_id, t("talk.failed", lang), talk_keyboard(lang))
+        return
+
+    db.dialog_add(chat_id, "user", said)
+    db.dialog_add(chat_id, "bot", res["he"], res["usage"], res["ok"])
+
+    lines = []
+    # Поправка идёт ПЕРЕД ответом: сначала человек видит, как надо было
+    # сказать, и только потом — что ему ответили. Наоборот он поправку
+    # уже не прочитает, потому что будет думать над ответом.
+    if res["correction"]:
+        lines.append(t("talk.better", lang,
+                       text=_with_reading_if_clean(res["correction"], res["ok"], lang)))
+    if res["he"]:
+        lines.append(f"<b>{res['he']}</b>")
+        reading_line = _reading_if_clean(res["he"], res["ok"], lang)
+        if reading_line:
+            lines.append(reading_line)
+    if res["ru"]:
+        lines.append(f"<i>{res['ru']}</i>")
+    if res["hint"]:
+        lines.append(t("talk.hint", lang, text=res["hint"]))
+
+    send_message(chat_id, "\n".join(lines) or t("talk.failed", lang),
+                 talk_keyboard(lang))
+
+    # Голос — после текста: человек сначала читает, потом слушает и
+    # повторяет. Нет озвучки — разговор продолжается без неё.
+    if res["he"] and db.voice_enabled(chat_id) and audio.can_speak():
+        path = audio.ensure_audio(res["he"])
+        if path:
+            audio.send_voice_file(API_URL, chat_id, path)
+
+
+def _reading_if_clean(text, ok, lang):
+    """Транскрипция — только если огласовки прошли формальные правила.
+
+    Наше чтение выводится ИЗ огласовок. Если они от модели и при этом
+    сомнительные, транскрипция будет уверенно неверной — а человек
+    запомнит именно её, потому что читать на иврите ещё не умеет.
+    Промолчать честнее.
+    """
+    if not ok:
+        return ""
+    try:
+        return f"<code>{translit(text)}</code>"
+    except Exception:                                       # noqa: BLE001
+        return ""
+
+
+def _with_reading_if_clean(text, ok, lang):
+    r = _reading_if_clean(text, ok, lang)
+    return f"{text} {r}" if r else text
 
 
 def speak_diff(diff, lang="ru"):
@@ -1142,6 +1298,24 @@ def send_admin_stats(chat_id):
         f"Времени в боте: {human_time(total_seconds)}",
     ]
 
+    # Разговор — единственная статья, которая растёт с числом людей и
+    # стоит живых денег. Её надо видеть до счёта, а не после.
+    spend = db.dialog_spend()
+    if spend.get("msgs"):
+        tin, tout = spend["tin"], spend["tout"]
+        lines += [
+            "",
+            f"<b>Разговор за 30 дней:</b> {spend['msgs']} реплик "
+            f"у {spend['people']} чел.",
+            f"Токенов: {tin} на вход, {tout} на выход",
+        ]
+        # Ответов, не прошедших формальные правила, быть почти не должно.
+        # Если их много — модель порождает странный иврит, и это надо
+        # заметить раньше, чем заметит ученик.
+        if spend.get("dirty"):
+            lines.append(f"⚠️ С неверными огласовками: {spend['dirty']} "
+                         f"(огласовки сняты, транскрипция скрыта)")
+
     if people:
         lines += ["", "<b>По людям:</b>"]
         for p in people[:15]:
@@ -1216,8 +1390,13 @@ def _handle_webhook_update():
                          main_menu_keyboard(lang))
         elif text.startswith("/about") or text.startswith("/help"):
             send_message(chat_id, about_text(lang), main_menu_keyboard(lang))
-        elif text.startswith("/quiz"):
-            send_message(chat_id, t("ask.today", lang), main_menu_keyboard(lang))
+        elif text.startswith("/talk"):
+            start_talk(chat_id, lang)
+        elif any(text.startswith(c) for c in MOVED_COMMANDS):
+            # Упражнения переехали в приложение. Команду не роняем в
+            # «не понял»: человек набрал её по памяти, и он прав —
+            # раньше она работала.
+            send_message(chat_id, t("moved", lang), main_menu_keyboard(lang))
         elif text.startswith("/stats"):
             send_stats(chat_id, lang)
         elif text.startswith("/admin"):
@@ -1254,6 +1433,8 @@ def _handle_webhook_update():
             slow = not db.slow_voice(chat_id)
             db.set_slow_voice(chat_id, slow)
             send_message(chat_id, t("set.slow" if slow else "set.normal", lang))
+        elif text.startswith("/"):
+            send_message(chat_id, t("moved", lang), main_menu_keyboard(lang))
         elif in_typing_round:
             # В режиме набора принимаем любой текст: это и есть ответ
             # (плюс «?» для подсказки и /skip для пропуска).
@@ -1264,6 +1445,11 @@ def _handle_webhook_update():
             options = s["current"]["options"]
             if text in options:
                 handle_answer(chat_id, s["index"], options.index(text), message_id)
+        elif text.strip():
+            # Всё остальное — реплика в разговоре. Это и есть главная
+            # перемена: раньше произвольный текст был ошибкой («не
+            # понял»), теперь он и есть то, ради чего чат существует.
+            handle_talk(chat_id, text.strip(), lang)
 
     elif "callback_query" in update:
         cq = update["callback_query"]
@@ -1272,7 +1458,12 @@ def _handle_webhook_update():
         answer_callback(cq["id"])
         lang = user_lang(chat_id, cq.get("from"))
 
-        if data == "main_menu":
+        if data == "talk":
+            start_talk(chat_id, lang)
+        elif data == "talk_reset":
+            db.dialog_reset(chat_id)
+            send_message(chat_id, t("talk.reset", lang), talk_keyboard(lang))
+        elif data == "main_menu":
             send_message(chat_id, t("ask.today", lang), main_menu_keyboard(lang))
         elif data == "menu|words":
             send_message(chat_id, t("ask.what", lang), words_menu_keyboard(lang))

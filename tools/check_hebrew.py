@@ -38,13 +38,16 @@ import syntax                                    # noqa: E402
 from conjugations import CONJUGATIONS            # noqa: E402
 from words import VOCAB, VERBS                   # noqa: E402
 
-SHVA = "ְ"
+import hebrew_rules                              # noqa: E402
 
-# Конечный каф в огласованном тексте несёт шва-нах, остальные софиты —
-# нет. Проверено по словарю проекта: у кафа шва во всех случаях, у
-# прочих — ни в одном из 76.
-SOFIT_WITH_SHVA = "ך"
-SOFIT_WITHOUT = "םןףץ"
+# Сами правила живут в hebrew_rules.py, а не здесь. Причина простая: те
+# же правила теперь применяются на лету к ивриту, который порождает
+# языковая модель в разговоре, и второй копии быть не должно — копии
+# расходятся, а расхождение здесь означает, что одна из двух проверок
+# молча пропускает ошибку.
+SHVA = hebrew_rules.SHVA
+SOFIT_WITH_SHVA = hebrew_rules.SOFIT_WITH_SHVA
+SOFIT_WITHOUT = hebrew_rules.SOFIT_WITHOUT
 
 
 def hebrew_strings():
@@ -76,62 +79,24 @@ def hebrew_strings():
                 yield f"фраза/{frame}/{rule}", ru, word
 
 
-def check_final_kaf():
-    """Конечный каф обязан нести шва."""
-    bad = []
-    for where, label, he in hebrew_strings():
-        for word in he.split():
-            w = word.rstrip(".,?!»")
-            if w.endswith(SOFIT_WITH_SHVA):
-                bad.append(f"{where}: «{label}» -> {he}  (нужно {w}{SHVA})")
-    return "конечный каф без шва", bad
-
-
-def check_other_sofits():
-    """У прочих конечных букв шва, наоборот, быть не должно."""
-    bad = []
-    for where, label, he in hebrew_strings():
-        for word in he.split():
-            w = word.rstrip(".,?!»")
-            if len(w) >= 2 and w[-1] == SHVA and w[-2] in SOFIT_WITHOUT:
-                bad.append(f"{where}: «{label}» -> {he}  (лишний шва)")
-    return "лишний шва у конечной буквы", bad
-
-
-def check_sofit_position():
-    """Конечная буква не может стоять в середине слова.
-
-    Опечатка при ручном наборе: рука тянется к конечной форме, а слово
-    ещё не кончилось. Читается такое как другое слово.
-    """
-    bad = []
-    for where, label, he in hebrew_strings():
-        for word in he.split():
-            # Берём только ивритские буквы. Первый заход этого не делал,
-            # и запятая после «חֶשְׁבּוֹן,» оказывалась последним знаком —
-            # а «нун» из-за этого «серединой слова». Шесть ложных тревог
-            # на ровном месте: проверка обязана смотреть на буквы, а не
-            # на всё подряд, что не является огласовкой.
-            letters = [c for c in word
-                       if "א" <= c <= "ת"
-                       and unicodedata.combining(c) == 0]
-            for ch in letters[:-1]:
-                if ch in SOFIT_WITH_SHVA + SOFIT_WITHOUT:
-                    bad.append(f"{where}: «{label}» -> {he}  ({ch} в середине)")
+def by_rule(name):
+    """Одна проверка на всех строках — правило берём из hebrew_rules."""
+    def run():
+        bad = []
+        for where, label, he in hebrew_strings():
+            for problem in hebrew_rules.problems(he):
+                if problem.startswith(name):
+                    bad.append(f"{where}: «{label}» -> {he}  ({problem})")
                     break
-    return "конечная буква в середине слова", bad
+        return name, bad
+    run.__name__ = name
+    return run
 
 
-def check_double_niqqud():
-    """Две гласные подряд на одной букве — всегда опечатка."""
-    VOWELS = "ְֱֲֳִֵֶַָֹֻ"
-    bad = []
-    for where, label, he in hebrew_strings():
-        for i in range(len(he) - 1):
-            if he[i] in VOWELS and he[i + 1] in VOWELS:
-                bad.append(f"{where}: «{label}» -> {he}")
-                break
-    return "две огласовки подряд", bad
+check_final_kaf = by_rule("конечный каф без шва")
+check_other_sofits = by_rule("лишний шва у конечной буквы")
+check_sofit_position = by_rule("конечная буква в середине слова")
+check_double_niqqud = by_rule("две огласовки подряд")
 
 
 CHECKS = [check_final_kaf, check_other_sofits, check_sofit_position,

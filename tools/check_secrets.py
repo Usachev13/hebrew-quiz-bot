@@ -56,7 +56,7 @@ TELEGRAM = re.compile(r"(?<!\d)\d{8,10}:[A-Za-z0-9_-]{35}(?![A-Za-z0-9_-])")
 # Прочие ключи ищем по имени переменной: сами по себе они неотличимы от
 # любой длинной строки, а имя рядом делает находку однозначной.
 NAMED = re.compile(
-    r"(AZURE_SPEECH_KEY|OPENAI_API_KEY|TELEGRAM_TOKEN|[A-Z_]*SECRET[A-Z_]*|"
+    r"(AZURE_SPEECH_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|TELEGRAM_TOKEN|[A-Z_]*SECRET[A-Z_]*|"
     r"[A-Z_]*PASSWORD[A-Z_]*)\s*=\s*([^\s\"'#]{16,})"
 )
 

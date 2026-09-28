@@ -80,37 +80,100 @@ M = {
 
 # ------------------------------------------------------------- приветствие
 "welcome": {
-"ru": "Это «Ани ломед иврит» — тренажёр для тех, кто учит иврит с нуля "
-      "или подтягивает ульпан.\n\n"
-      "Как это работает: сначала показываю новое — написание, чтение, "
-      "перевод и звук. Потом спрашиваю. Дальше материал возвращается по "
-      "интервалам: через день, три, неделю, три недели. Что даётся "
-      "тяжело — приходит чаще.\n\n"
-      "Главное отличие: фразы вы произносите вслух до того, как "
-      "увидите ответ. Узнавать и говорить — разные умения, и второе "
-      "тренируется только ртом.\n\n"
-      "Начните с раздела «Заговорить»: там фразы, которые пригодятся "
-      "уже завтра. Если буквы ещё не читаются — сперва алфавит.\n\n"
+"ru": "Здесь с вами <b>разговаривают на иврите</b>.\n\n"
+      "Скажите <b>שלום</b> — голосом или текстом — и вам ответят. "
+      "Дальше просто разговаривайте: собеседник отвечает на то, что вы "
+      "сказали, поправляет, если фраза построена не так, и переводит "
+      "каждую свою реплику.\n\n"
+      "Говорить можно как удобно: наговорить голосовое или набрать "
+      "текстом, на иврите или по-русски. Не знаете, как сказать, — "
+      "скажите по-русски, вам подскажут ивритом.\n\n"
+      "Слова, буквы, глаголы и упражнения живут в приложении — "
+      "кнопка выше. Здесь только разговор: это единственное, чему "
+      "нельзя научиться, нажимая на кнопки.\n\n"
       "Что внутри — /about",
-"en": "This is «Ani Lomed Ivrit» — a trainer for anyone learning Hebrew "
-      "from scratch or keeping up with ulpan.\n\n"
-      "How it works: first you meet the material — spelling, reading, "
-      "meaning and sound. Then I ask. After that it comes back on a "
-      "schedule: in a day, three days, a week, three weeks. Whatever is "
-      "hard comes back more often.\n\n"
-      "The one real difference: you say the phrases out loud before you "
-      "see the answer. Recognising and speaking are different skills, "
-      "and the second one is only trained by the mouth.\n\n"
-      "Start with «Start speaking» — the phrases there will be useful "
-      "tomorrow. If the letters don't read yet, start with the "
-      "alphabet.\n\n"
+"en": "This is where people <b>talk to you in Hebrew</b>.\n\n"
+      "Say <b>שלום</b> — by voice or by text — and you'll get an "
+      "answer. Then just talk: your companion replies to what you "
+      "actually said, corrects the sentence if it came out wrong, and "
+      "translates every line.\n\n"
+      "Answer however suits you: record a voice message or type, in "
+      "Hebrew or in English. If you don't know how to say it, say it in "
+      "English and you'll be told the Hebrew.\n\n"
+      "Words, letters, verbs and exercises live in the app — the button "
+      "above. Here there is only conversation: the one thing you cannot "
+      "learn by pressing buttons.\n\n"
       "What's inside — /about",
+},
+
+# ----------------------------------------------------------- разговор
+"menu.talk": {"ru": "💬 Поговорить на иврите", "en": "💬 Talk in Hebrew"},
+"talk.intro": {
+"ru": "Говорите. Голосом или текстом, на иврите или по-русски.\n\n"
+      "Начните с <b>שלום</b> — вам ответят и спросят, как дела.\n\n"
+      "Сегодня осталось реплик: {left}.",
+"en": "Go ahead. Voice or text, Hebrew or English.\n\n"
+      "Start with <b>שלום</b> — you'll get an answer and a question "
+      "back.\n\nReplies left today: {left}.",
+},
+"talk.restart": {"ru": "Начать разговор заново", "en": "Start over"},
+"talk.reset": {"ru": "Хорошо, забыли. О чём поговорим?",
+               "en": "Fine, forgotten. What shall we talk about?"},
+"talk.heard": {"ru": "Вы сказали: {text}", "en": "You said: {text}"},
+"talk.better": {"ru": "Лучше сказать: {text}", "en": "Better: {text}"},
+"talk.hint": {"ru": "Подсказка: {text}", "en": "Hint: {text}"},
+"talk.off": {
+"ru": "Разговор пока не подключён — не хватает ключа модели. "
+      "Упражнения работают в приложении.",
+"en": "Conversation isn't connected yet — the model key is missing. "
+      "The exercises work in the app.",
+},
+"talk.limit": {
+"ru": "На сегодня разговор окончен — вернёмся завтра. "
+      "А упражнения в приложении без ограничений.",
+"en": "That's it for today's conversation — let's continue tomorrow. "
+      "The exercises in the app have no limit.",
+},
+"talk.failed": {
+"ru": "Собеседник не ответил. Скажите ещё раз.",
+"en": "No answer came back. Say it again.",
+},
+"moved": {
+"ru": "Упражнения переехали в приложение — кнопка ниже. "
+      "В чате остался разговор: просто напишите или наговорите "
+      "что-нибудь на иврите.",
+"en": "The exercises have moved to the app — button below. "
+      "The chat is for conversation now: just write or say something "
+      "in Hebrew.",
 },
 
 # ---------------------------------------------------------------- /about
 # Собирается из кусков, потому что числа считаются по фактическим пулам:
 # словарь пополняется, и записанная руками цифра разойдётся с правдой.
 "about.head": {"ru": "<b>Что здесь есть</b>", "en": "<b>What's here</b>"},
+"about.talk": {
+"ru": "💬 <b>Разговор</b> — здесь с вами говорят на иврите, и это "
+      "единственное, что живёт в чате. Собеседник отвечает на "
+      "сказанное, а не сверяет с заготовкой: поправляет фразу, если "
+      "она построена не так, переводит каждую свою реплику и "
+      "спрашивает в ответ. Говорить можно голосом или текстом, на "
+      "иврите или на своём языке.\n"
+      "Честно про устройство: иврит собеседника порождает языковая "
+      "модель. Всё остальное в тренажёре выверено по словарям, а это — "
+      "нет, поэтому реплики короткие и простые, а сомнительные "
+      "огласовки снимаются вместе с транскрипцией.",
+"en": "💬 <b>Conversation</b> — this is where people talk to you in "
+      "Hebrew, and it is the only thing left in the chat. Your "
+      "companion answers what you actually said instead of matching it "
+      "against a script: it corrects the sentence if it came out wrong, "
+      "translates every line and asks you something back. Speak by "
+      "voice or by text, in Hebrew or in your own language.\n"
+      "Plainly about how it works: the companion's Hebrew is produced "
+      "by a language model. Everything else in the trainer is checked "
+      "against dictionaries; this is not, so the lines are kept short "
+      "and simple, and doubtful vowel marks are dropped along with the "
+      "transcription.",
+},
 "about.say": {
 "ru": "🗣 <b>Заговорить</b> — {say} готовых фраз в {situations} "
       "ситуациях: макколет и кафе, банк и купат холим, съём квартиры, "
@@ -196,8 +259,8 @@ M = {
       "for now you mark yourself whether you managed to say it.",
 },
 "about.commands": {
-"ru": "Команды: /start · /word · /stats · /voices · /speed",
-"en": "Commands: /start · /word · /stats · /voices · /speed",
+"ru": "Команды: /talk · /word · /stats · /voices · /speed · /lang",
+"en": "Commands: /talk · /word · /stats · /voices · /speed · /lang",
 },
 
 # ---------------------------------------------------------------- меню

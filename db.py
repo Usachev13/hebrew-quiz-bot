@@ -124,6 +124,27 @@ CREATE TABLE IF NOT EXISTS prefs (
 -- занимает заметное время, а по file_id то же аудио уходит мгновенно.
 -- Ключ включает размер и время правки файла, поэтому после
 -- перегенерации озвучки старая запись просто перестаёт совпадать.
+-- Разговор с собеседником. Храним не ради истории, а ради двух вещей:
+-- продолжения беседы (модель без прошлых реплик отвечает невпопад) и
+-- счёта расходов — каждое сообщение стоит денег, в отличие от всего
+-- остального в тренажёре.
+--
+-- Реплики модели хранятся ещё и затем, чтобы носитель мог их прочитать.
+-- Это единственный иврит в проекте, который никто не выверял, и молча
+-- показывать его ученику, не имея возможности потом проверить, было бы
+-- нечестно.
+CREATE TABLE IF NOT EXISTS dialog (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id     TEXT NOT NULL,
+    at          TEXT NOT NULL,
+    role        TEXT NOT NULL,      -- 'user' или 'bot'
+    text        TEXT NOT NULL,
+    tokens_in   INTEGER NOT NULL DEFAULT 0,
+    tokens_out  INTEGER NOT NULL DEFAULT 0,
+    clean       INTEGER NOT NULL DEFAULT 1   -- прошло ли формальные правила
+);
+CREATE INDEX IF NOT EXISTS idx_dialog_chat ON dialog(chat_id, id);
+
 CREATE TABLE IF NOT EXISTS voice_files (
     file_key    TEXT PRIMARY KEY,
     file_id     TEXT NOT NULL,
@@ -1192,3 +1213,91 @@ def due_count(chat_id, mode=None):
             (str(chat_id), today),
         ).fetchone()
     return row["c"]
+
+
+# --------------------------------------------------------------- разговор
+#
+# Разговор — единственная часть тренажёра, которая стоит денег на каждом
+# сообщении. Поэтому у него есть суточный предел: не чтобы экономить на
+# человеке, а чтобы одна забытая вкладка не съела месячный бюджет.
+
+DIALOG_DAILY_LIMIT = int(os.environ.get("DIALOG_DAILY_LIMIT", "40"))
+
+
+def dialog_add(chat_id, role, text, tokens=(0, 0), clean=True):
+    """Запоминает реплику. Возвращает ничего — журнал не должен ломать беседу."""
+    try:
+        with get_conn() as conn:
+            conn.execute(
+                "INSERT INTO dialog (chat_id, at, role, text, tokens_in, "
+                "tokens_out, clean) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (str(chat_id), datetime.now().isoformat(timespec="seconds"),
+                 role, text, tokens[0], tokens[1], 1 if clean else 0),
+            )
+    except sqlite3.Error as e:
+        print(f"[dialog_add] {e}")
+
+
+def dialog_history(chat_id, turns=16):
+    """Последние реплики для продолжения беседы: [(роль, текст), …]."""
+    try:
+        with get_conn() as conn:
+            rows = conn.execute(
+                "SELECT role, text FROM dialog WHERE chat_id = ? "
+                "ORDER BY id DESC LIMIT ?", (str(chat_id), turns)
+            ).fetchall()
+        return [(r["role"], r["text"]) for r in reversed(rows)]
+    except sqlite3.Error as e:
+        print(f"[dialog_history] {e}")
+        return []
+
+
+def dialog_reset(chat_id):
+    """Начать разговор заново: прошлое забываем."""
+    try:
+        with get_conn() as conn:
+            conn.execute("DELETE FROM dialog WHERE chat_id = ?", (str(chat_id),))
+    except sqlite3.Error as e:
+        print(f"[dialog_reset] {e}")
+
+
+def dialog_today(chat_id):
+    """Сколько реплик человек сказал сегодня."""
+    today = date.today().isoformat()
+    try:
+        with get_conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM dialog WHERE chat_id = ? "
+                "AND role = 'user' AND at >= ?", (str(chat_id), today)
+            ).fetchone()
+        return row["n"] if row else 0
+    except sqlite3.Error as e:
+        print(f"[dialog_today] {e}")
+        return 0
+
+
+def dialog_left(chat_id):
+    """Сколько реплик осталось сегодня."""
+    return max(0, DIALOG_DAILY_LIMIT - dialog_today(chat_id))
+
+
+def dialog_spend(days=30):
+    """Расход по разговору за последние дни: реплики и токены.
+
+    Нужно для /admin: это единственная статья, растущая с числом
+    пользователей, и увидеть её надо до счёта, а не после.
+    """
+    since = (date.today() - timedelta(days=days)).isoformat()
+    try:
+        with get_conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS msgs, COUNT(DISTINCT chat_id) AS people, "
+                "COALESCE(SUM(tokens_in), 0) AS tin, "
+                "COALESCE(SUM(tokens_out), 0) AS tout, "
+                "COALESCE(SUM(1 - clean), 0) AS dirty "
+                "FROM dialog WHERE at >= ?", (since,)
+            ).fetchone()
+        return dict(row) if row else {}
+    except sqlite3.Error as e:
+        print(f"[dialog_spend] {e}")
+        return {}

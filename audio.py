@@ -212,3 +212,71 @@ def send_voice(api_url, chat_id, text, caption=None, slow=False, file_id=None):
         return None
     return send_voice_file(api_url, chat_id, audio_path(text, slow),
                            caption, file_id)
+
+
+# --------------------------------------------------------- синтез на лету
+#
+# Всё выше построено на том, что озвучка готова заранее. Для разговора
+# это не работает: реплики собеседника заранее не существует — её
+# только что придумала модель. Поэтому здесь единственное место, где
+# бот идёт в Azure во время урока.
+#
+# Кэш тот же самый: имя файла — хеш текста. Одинаковые реплики
+# («בְּסֵדֶר», «מַה שְׁלוֹמְךָ?») повторяются часто, и второй раз за них
+# платить незачем.
+#
+# Огласовки моделью поставлены, нашей разметки произношения тут нет:
+# отдаём текст как есть и полагаемся на голос Azure. Прогонять чужие
+# огласовки через наш IPA было бы хуже — мы выдали бы за своё чтение то,
+# что сами не проверяли.
+
+TTS_VOICE = os.environ.get("TTS_VOICE", "he-IL-HilaNeural")
+AZURE_KEY = os.environ.get("AZURE_SPEECH_KEY", "")
+AZURE_REGION = os.environ.get("AZURE_SPEECH_REGION", "uaenorth")
+TTS_URL = (f"https://{AZURE_REGION}.tts.speech.microsoft.com"
+           "/cognitiveservices/v1")
+
+
+def can_speak():
+    return bool(AZURE_KEY)
+
+
+def ensure_audio(text, voice=None):
+    """Путь к озвучке текста, синтезируя её при необходимости.
+
+    None — если синтез невозможен или не удался. Разговор из-за этого не
+    прерывается: реплика просто приходит текстом.
+    """
+    text = (text or "").strip()
+    if not text:
+        return None
+    path = audio_path(text)
+    if has_audio(text):
+        return path
+    if not AZURE_KEY:
+        return None
+
+    from xml.sax.saxutils import escape
+    ssml = ("<speak version='1.0' xml:lang='he-IL'>"
+            f"<voice name='{voice or TTS_VOICE}'>{escape(text)}</voice>"
+            "</speak>")
+    try:
+        r = SESSION.post(
+            TTS_URL,
+            headers={"Ocp-Apim-Subscription-Key": AZURE_KEY,
+                     "Content-Type": "application/ssml+xml",
+                     "X-Microsoft-OutputFormat": "ogg-48khz-16bit-mono-opus",
+                     "User-Agent": "hebrew-quiz-bot"},
+            data=ssml.encode("utf-8"),
+            timeout=20,
+        )
+        if r.status_code != 200:
+            print(f"[ensure_audio] Azure {r.status_code}")
+            return None
+        os.makedirs(AUDIO_DIR, exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(r.content)
+        return path
+    except (requests.exceptions.RequestException, OSError) as e:
+        print(f"[ensure_audio] {e}")
+        return None
