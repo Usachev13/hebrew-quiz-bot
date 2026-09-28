@@ -192,13 +192,35 @@ clean_text, ok = hebrew_rules.sanitize(DIRTY)
 check("сомнительная огласовка снимается", not ok and "ֵ" not in clean_text,
       f"{clean_text!r} ok={ok}")
 
+# Настоящий случай из живого разговора. Модель ответила без огласовок —
+# формальные правила такое пропускают, потому что ищут НЕВЕРНЫЕ
+# огласовки, а здесь их нет вовсе. Наше чтение выводится ИЗ огласовок, и
+# человек увидел «шлвм, нй всдр! т?».
+import bot  # noqa: E402
+
+BARE = "שלום, אני בסדר! אתה?"
+bare_out, bare_ok = hebrew_rules.sanitize(BARE)
+check("ответ без огласовок признан непригодным для чтения",
+      not bare_ok, f"{bare_out!r} ok={bare_ok}")
+check("но сам текст не испорчен", bare_out == BARE, bare_out)
+check("транскрипции по неогласованному тексту нет",
+      bot._reading_if_clean(BARE, bare_ok, "ru") == "",
+      bot._reading_if_clean(BARE, bare_ok, "ru"))
+check("частично огласованное тоже не читаем",
+      not hebrew_rules.sanitize("אֲנִי גר בְּתֵל אָבִיב")[1])
+check("слово из одной буквы не требует огласовки",
+      hebrew_rules.is_vocalized("בְּתֵל אָבִיב"))
+
+# Подсказка требует огласовок не общими словами, а примером: общие слова
+# модель игнорирует — именно так и вышло «שלום, אני בסדר».
+check("подсказка показывает огласовки примером",
+      "שָׁלוֹם" in dialog.SYSTEM or "שָׁלוֹם" in dialog._system("m", "ru"))
+
 GOOD_HE = "שָׁלוֹם, מַה שְׁלוֹמְךָ?"
 kept, ok = hebrew_rules.sanitize(GOOD_HE)
 check("хорошая огласовка сохраняется", ok and kept == GOOD_HE, f"{kept!r} ok={ok}")
 
 # И главное: при сомнительной записи транскрипция не показывается.
-import bot  # noqa: E402
-
 check("при сомнительной записи транскрипции нет",
       bot._reading_if_clean(DIRTY, False, "ru") == "",
       bot._reading_if_clean(DIRTY, False, "ru"))

@@ -77,7 +77,8 @@ SENTENCE_BREAK = os.environ.get("TTS_SENTENCE_BREAK", "0ms")
 PRICE_PER_1M_CHARS = 16.0
 
 
-SCOPES = ["all", "words", "forms", "present", "past", "future", "phrases"]
+SCOPES = ["all", "words", "forms", "present", "past", "future",
+          "phrases", "syntax"]
 
 
 def collect(scope):
@@ -122,6 +123,14 @@ def collect(scope):
         # на слух — сразу. Без записи упражнение учит глазами.
         import quiz
         for card in quiz.POOLS["plural"]:
+            items.append(card.he)
+    if scope in ("all", "syntax"):
+        # «Собери фразу». Озвучиваем только ВЕРНЫЕ варианты: неправильно
+        # построенная фраза, произнесённая живым голосом, запоминается
+        # ровно так же хорошо, как правильная, — а это последнее, чего мы
+        # хотим от упражнения про ошибки.
+        import quiz
+        for card in quiz.POOLS["syntax"]:
             items.append(card.he)
     sections = [s for s in ("present", "past", "future")
                 if scope in ("all", "forms", s)]

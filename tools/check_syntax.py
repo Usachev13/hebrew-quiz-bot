@@ -334,6 +334,36 @@ mixed = [c.cid for c in quiz.syntax_pool(False) if c.cat == "et_f_sg"]
 mixed += [c.cid for c in quiz.syntax_pool(True) if c.cat == "et_m_sg"]
 check("карточка чужого рода попала в пул", mixed)
 
+# Озвучка. Упражнение показывает фразу и даёт её послушать — без записи
+# кнопка звука стоит серой, и человек видит недоделку. Проверяем, что
+# генератор озвучки вообще знает про этот раздел: связь между ним и
+# упражнением нигде не объявлена, и разойтись они могут молча.
+import importlib.util  # noqa: E402
+
+spec = importlib.util.spec_from_file_location(
+    "gen_audio", os.path.join(os.path.dirname(__file__), "generate_audio.py"))
+gen = importlib.util.module_from_spec(spec)
+try:
+    spec.loader.exec_module(gen)
+    voiced = set(gen.collect("all"))
+    missing = [c.he for c in pool if c.he not in voiced]
+    check("фраза упражнения не попадает в озвучку", missing,
+          lambda x: x)
+    # И наоборот: неверные варианты озвучивать нельзя. Неправильно
+    # построенная фраза, произнесённая живым голосом, запоминается ровно
+    # так же хорошо, как правильная.
+    #
+    # Кроме тех, что являются верным ответом другой карточки: «הַבַּיִת
+    # גָּדוֹל» — правильное предложение «дом большой» и одновременно
+    # неверный ответ на «этот большой дом». Это и есть смысл правила об
+    # определённости, и озвучены они по праву — как предложение.
+    right_texts = {c.he for c in pool}
+    wrong_voiced = [w for c in pool for w in c.wrong
+                    if w in voiced and w not in right_texts]
+    check("неверный вариант попал в озвучку", wrong_voiced, lambda x: x)
+except Exception as exc:                                    # noqa: BLE001
+    check("генератор озвучки не читается", [str(exc)])
+
 print()
 print(f"фраз: {len(syntax.SENTENCES)}, карточек в пуле: {len(pool)}, "
       f"правил: {len(syntax.RULES)}")
