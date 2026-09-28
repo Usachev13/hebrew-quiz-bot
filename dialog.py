@@ -33,10 +33,21 @@
 
 Провайдер
 ---------
-Ключ берётся из .env: ANTHROPIC_API_KEY или OPENAI_API_KEY, какой есть.
-Своего мнения модуль не имеет — он умеет оба и выбирает по наличию
-ключа. Нет ключа — разговор просто не предлагается, как и озвучка без
-ключа Azure.
+Модуль умеет три и выбирает по наличию ключа в .env. Своего мнения он не
+имеет: собеседнику нужны две короткие фразы бытового иврита, и с этим
+справляется любая недорогая модель. Нет ключа — разговор просто не
+предлагается, как и озвучка без ключа Azure.
+
+Порядок выбора, если ключей несколько: Anthropic, OpenAI, Google. Он
+произволен и значит лишь «какой-то один»; чтобы взять именно нужный,
+уберите лишние ключи.
+
+Про бесплатный Google отдельно. У него щедрый бесплатный предел (тысячи
+запросов в день против наших сорока), и это правильный выбор, пока
+тренажёром пользуется один человек. Но у бесплатного уровня есть цена,
+которую платят не деньгами: разговоры уходят на улучшение чужих
+продуктов. Для себя это неважно, для платного продукта с чужими
+учениками — важно, и решать это надо до первого платящего, а не после.
 """
 
 import json
@@ -49,8 +60,10 @@ import hebrew_rules
 
 ANTHROPIC_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 OPENAI_KEY = os.environ.get("OPENAI_API_KEY", "")
+GOOGLE_KEY = os.environ.get("GOOGLE_API_KEY", "")
 ANTHROPIC_MODEL = os.environ.get("DIALOG_MODEL_ANTHROPIC", "claude-haiku-4-5-20251001")
 OPENAI_MODEL = os.environ.get("DIALOG_MODEL_OPENAI", "gpt-4o-mini")
+GOOGLE_MODEL = os.environ.get("DIALOG_MODEL_GOOGLE", "gemini-2.5-flash")
 
 # Сколько ходов разговора помним. Больше — дороже каждое сообщение:
 # история уходит в модель целиком при каждом запросе.
@@ -68,11 +81,15 @@ class NoKey(RuntimeError):
 
 
 def available():
-    return bool(ANTHROPIC_KEY or OPENAI_KEY)
+    return bool(ANTHROPIC_KEY or OPENAI_KEY or GOOGLE_KEY)
 
 
 def provider():
-    return "anthropic" if ANTHROPIC_KEY else ("openai" if OPENAI_KEY else "")
+    if ANTHROPIC_KEY:
+        return "anthropic"
+    if OPENAI_KEY:
+        return "openai"
+    return "google" if GOOGLE_KEY else ""
 
 
 # --------------------------------------------------------------- подсказка
@@ -157,6 +174,44 @@ def _ask_openai(system, turns):
     return text, (usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0))
 
 
+def _ask_google(system, turns):
+    """Gemini. Устроен иначе остальных двух, и в трёх местах.
+
+    Роль собеседника называется «model», а не «assistant». Системная
+    подсказка идёт отдельным полем, а не сообщением. И есть то, чего у
+    других нет: можно потребовать ответ строго в JSON — тогда модель не
+    обернёт его в ```json``` и не припишет фразу сверху. Разбор всё
+    равно остаётся терпимым (_parse), потому что полагаться на чужое
+    обещание формата — это и есть способ однажды остаться без
+    собеседника посреди разговора.
+    """
+    contents = [{"role": "model" if m["role"] == "assistant" else "user",
+                 "parts": [{"text": m["content"]}]} for m in turns]
+    r = requests.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{GOOGLE_MODEL}:generateContent",
+        headers={"x-goog-api-key": GOOGLE_KEY, "content-type": "application/json"},
+        json={"system_instruction": {"parts": [{"text": system}]},
+              "contents": contents,
+              "generationConfig": {"maxOutputTokens": 400,
+                                   "responseMimeType": "application/json"}},
+        timeout=TIMEOUT,
+    )
+    r.raise_for_status()
+    body = r.json()
+    try:
+        parts = body["candidates"][0]["content"]["parts"]
+        text = "".join(p.get("text", "") for p in parts)
+    except (KeyError, IndexError):
+        # Ответа нет — чаще всего сработал фильтр безопасности. Пустая
+        # строка уйдёт в _parse и превратится в пустую реплику, а бот
+        # скажет «скажите ещё раз». Это лучше, чем исключение.
+        text = ""
+    usage = body.get("usageMetadata") or {}
+    return text, (usage.get("promptTokenCount", 0),
+                  usage.get("candidatesTokenCount", 0))
+
+
 def _parse(text):
     """Достаём JSON из ответа.
 
@@ -201,8 +256,9 @@ def reply(history, said, gender="m", lang="ru"):
     turns.append({"role": "user", "content": said})
 
     system = _system(gender, lang)
-    raw, usage = (_ask_anthropic(system, turns) if ANTHROPIC_KEY
-                  else _ask_openai(system, turns))
+    ask = {"anthropic": _ask_anthropic, "openai": _ask_openai,
+           "google": _ask_google}[provider()]
+    raw, usage = ask(system, turns)
     data = _parse(raw)
 
     he = _clean(data.get("he"))

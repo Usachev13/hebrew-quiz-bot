@@ -68,6 +68,79 @@ check("пустой ответ не роняет разговор",
       isinstance(dialog._parse(""), dict) and isinstance(dialog._parse(None), dict))
 
 
+# ------------------------------------------------------- три провайдера
+# Ответ у каждого устроен по-своему, и разбирается своим куском кода.
+# Подменяем сам HTTP-вызов и проверяем, что из трёх разных форм ответа
+# выходит одно и то же: текст реплики и счёт токенов. Ошибка тут
+# означала бы, что разговор работает с одним провайдером и молча ломается
+# при переезде на другой.
+class FakeResponse:
+    def __init__(self, body):
+        self._body = body
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self._body
+
+
+SHAPES_BY_PROVIDER = {
+    "anthropic": (dialog._ask_anthropic, {
+        "content": [{"type": "text", "text": GOOD}],
+        "usage": {"input_tokens": 120, "output_tokens": 40}}),
+    "openai": (dialog._ask_openai, {
+        "choices": [{"message": {"content": GOOD}}],
+        "usage": {"prompt_tokens": 120, "completion_tokens": 40}}),
+    "google": (dialog._ask_google, {
+        "candidates": [{"content": {"parts": [{"text": GOOD}]}}],
+        "usageMetadata": {"promptTokenCount": 120, "candidatesTokenCount": 40}}),
+}
+
+real_post = dialog.requests.post
+for name, (fn, body) in SHAPES_BY_PROVIDER.items():
+    dialog.requests.post = lambda *a, **k: FakeResponse(body)
+    try:
+        text, usage = fn("подсказка", [{"role": "user", "content": "שלום"}])
+    finally:
+        dialog.requests.post = real_post
+    check(f"ответ разобран: {name}",
+          dialog._parse(text).get("he", "").startswith("שָׁלוֹם")
+          and usage == (120, 40), f"{text[:60]!r} {usage}")
+
+# Пустой ответ (сработал фильтр, оборвалась выдача) не должен ронять
+# разговор ни у одного из трёх.
+EMPTY = {"anthropic": {"content": []},
+         "openai": {"choices": [{"message": {"content": ""}}]},
+         "google": {"candidates": []}}
+for name, body in EMPTY.items():
+    fn = SHAPES_BY_PROVIDER[name][0]
+    dialog.requests.post = lambda *a, **k: FakeResponse(body)
+    try:
+        if name == "openai":
+            text, _ = fn("п", [{"role": "user", "content": "ש"}])
+        else:
+            text, _ = fn("п", [{"role": "user", "content": "ש"}])
+        ok = isinstance(dialog._parse(text), dict)
+    except Exception as e:                                  # noqa: BLE001
+        ok = False
+        text = f"исключение: {e}"
+    finally:
+        dialog.requests.post = real_post
+    check(f"пустой ответ не роняет: {name}", ok, str(text)[:60])
+
+# Выбор провайдера — по ключу, и порядок объявлен.
+saved = (dialog.ANTHROPIC_KEY, dialog.OPENAI_KEY, dialog.GOOGLE_KEY)
+for keys, expected in ((("a", "", ""), "anthropic"), (("", "o", ""), "openai"),
+                       (("", "", "g"), "google"), (("a", "o", "g"), "anthropic"),
+                       (("", "", ""), "")):
+    dialog.ANTHROPIC_KEY, dialog.OPENAI_KEY, dialog.GOOGLE_KEY = keys
+    check(f"выбор провайдера {keys} -> {expected or 'ничего'}",
+          dialog.provider() == expected, dialog.provider())
+check("без ключей разговор недоступен", not dialog.available())
+dialog.ANTHROPIC_KEY, dialog.OPENAI_KEY, dialog.GOOGLE_KEY = saved
+
+
 # ------------------------------------------- сомнительные огласовки
 # Каф без шва — формальная ошибка, значит записи модели верить нельзя.
 DIRTY = "הוֹלֵך לַבַּיִת"
