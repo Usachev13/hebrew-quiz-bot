@@ -139,6 +139,24 @@ for keys, expected in ((("a", "", ""), "anthropic"), (("", "o", ""), "openai"),
           dialog.provider() == expected, dialog.provider())
 check("без ключей разговор недоступен", not dialog.available())
 
+# Явный выбор сильнее наличия ключей. Это не удобство, а защита от
+# настоящей ловушки: в .env уже лежал OPENAI_API_KEY от опытов с
+# озвучкой, и вписанный рядом бесплатный ключ Google молча не
+# срабатывал бы — бот уходил к OpenAI и получал отказ авторизации.
+dialog.ANTHROPIC_KEY, dialog.OPENAI_KEY, dialog.GOOGLE_KEY = "", "старый", "новый"
+os.environ["DIALOG_PROVIDER"] = "google"
+check("явный выбор сильнее порядка", dialog.provider() == "google",
+      dialog.provider())
+os.environ["DIALOG_PROVIDER"] = "anthropic"
+check("назван провайдер без ключа — разговора нет, а не подмена",
+      dialog.provider() == "" and "ключа" in dialog.why_unavailable(),
+      f"{dialog.provider()!r} / {dialog.why_unavailable()}")
+os.environ["DIALOG_PROVIDER"] = "gemini"
+check("опечатка в имени названа по имени",
+      "такого не знаю" in dialog.why_unavailable(), dialog.why_unavailable())
+os.environ.pop("DIALOG_PROVIDER")
+check("без указания — первый по порядку", dialog.provider() == "openai")
+
 # Адрес запроса для формата OpenAI берётся из настройки: по этому же
 # протоколу говорят Groq, OpenRouter и прочие, и подключаются они сменой
 # адреса, а не новым кодом. Проверяем, что адрес действительно

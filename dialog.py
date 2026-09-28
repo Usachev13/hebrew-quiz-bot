@@ -91,16 +91,51 @@ class NoKey(RuntimeError):
     """Ключа модели нет — разговор нельзя предлагать."""
 
 
+KEYS = {"anthropic": lambda: ANTHROPIC_KEY,
+        "openai": lambda: OPENAI_KEY,
+        "google": lambda: GOOGLE_KEY}
+
+# Порядок по умолчанию, когда ключей несколько и выбор не назван.
+ORDER = ("anthropic", "openai", "google")
+
+
 def available():
-    return bool(ANTHROPIC_KEY or OPENAI_KEY or GOOGLE_KEY)
+    return bool(provider())
 
 
 def provider():
-    if ANTHROPIC_KEY:
-        return "anthropic"
-    if OPENAI_KEY:
-        return "openai"
-    return "google" if GOOGLE_KEY else ""
+    """Кто ведёт разговор.
+
+    Явный выбор (DIALOG_PROVIDER) сильнее наличия ключей — и это не
+    украшение. В .env этого проекта уже лежал OPENAI_API_KEY, оставшийся
+    от старых опытов с озвучкой. Молчаливый выбор «первый, у кого есть
+    ключ» означал бы, что человек вписывает бесплатный ключ Google,
+    перезапускает бота и получает отказ авторизации от OpenAI — при
+    полностью верных настройках. Причину такого поведения ищут часами.
+    """
+    named = os.environ.get("DIALOG_PROVIDER", "").strip().lower()
+    if named:
+        # Назвали провайдера, а ключа к нему нет — это ошибка настройки,
+        # и молча брать другого нельзя: человек получит не то, что
+        # просил, и не узнает об этом.
+        return named if KEYS.get(named, lambda: "")() else ""
+    for name in ORDER:
+        if KEYS[name]():
+            return name
+    return ""
+
+
+def why_unavailable():
+    """Почему разговора нет — словами, без ключей на экране."""
+    named = os.environ.get("DIALOG_PROVIDER", "").strip().lower()
+    if named and named not in KEYS:
+        return (f"DIALOG_PROVIDER={named} — такого не знаю. "
+                f"Возможные: {', '.join(KEYS)}")
+    if named and not KEYS[named]():
+        return f"Выбран {named}, но ключа к нему в .env нет."
+    if not any(fn() for fn in KEYS.values()):
+        return "Ни одного ключа модели в .env нет."
+    return ""
 
 
 # --------------------------------------------------------------- подсказка
