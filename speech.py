@@ -92,14 +92,56 @@ def recognize(data, lang="he-IL"):
     return text, float(best.get("Confidence") or 0.0)
 
 
+# Макаф — ивритский дефис. Он склеивает слова на письме («רַב־קַו»), а
+# произносятся они раздельно, и распознавание возвращает их двумя
+# словами. Без этой замены сверка объявляла «не хватает רב־קו, лишние
+# רב и קו» — то есть ругала за то, что человек сказал ровно верно.
+MAQAF = "\u05be"
+TAIL = ".,!?:;\"'"
+
+
 def words(text):
     """Слова для СРАВНЕНИЯ: без огласовок, с обычными софитами.
 
     В таком виде их отдаёт распознавание, и в таком же мы сверяем набранные
     руками ответы.
     """
-    cleaned = _normalize(text or "")
-    return [w.strip(".,!?:;\"'") for w in cleaned.split() if w.strip(".,!?:;\"'")]
+    cleaned = _normalize((text or "").replace(MAQAF, " "))
+    return [w.strip(TAIL) for w in cleaned.split() if w.strip(TAIL)]
+
+
+# Буквы, которые в современном израильском произношении не звучат.
+# Распознавание пишет то, что слышит, и на слух «лит'он» и «литон»
+# неразличимы: לִטְעוֹן ему возвращается как לטון. Ругать за это нельзя —
+# человек произнёс верно, разошлась запись, а не звук.
+#
+# ע и א молчат везде. ה молчит только в конце слова: в начале это «ха»
+# определённого артикля, и путать הבית с בית мы не станем.
+SILENT = "אע"
+
+
+def sound_key(word):
+    """Как слово звучит, а не как пишется.
+
+    Нужен только для поблажки: если написания разошлись, а звучание
+    совпало, считаем слово сказанным. Сам разбор показывает исходные
+    написания — иначе человек решит, что он сказал «לטונ».
+    """
+    # Короткие слова — только точное совпадение. Поблажка на них
+    # опаснее пользы: без алефа и конечной ה и «אֶת», и «תֵּה»
+    # превращаются в «ת», то есть чай сошёл бы за винительный падеж.
+    if len(word) <= 2:
+        return word
+    w = "".join(c for c in word if c not in SILENT)
+    while w.endswith("ה") and len(w) > 1:
+        w = w[:-1]
+    # Полное и неполное написание: קו и קוו, בקשה и בקששה — одно и то же.
+    out = []
+    for c in w:
+        if out and out[-1] == c and c in "וי":
+            continue
+        out.append(c)
+    return "".join(out) or word
 
 
 def shown(text):
@@ -109,8 +151,11 @@ def shown(text):
     вещи: «שלום» превращается в «שלומ», и человек решит, что он так и
     сказал.
     """
-    return [w.strip(".,!?:;\"'") for w in (text or "").split()
-            if w.strip(".,!?:;\"'")]
+    # Макаф разбираем и здесь, иначе списки «для показа» и «для сравнения»
+    # разной длины, и показывать приходится нормализованное: человек
+    # видит «לטעונ» и решает, что он так и сказал.
+    return [w.strip(TAIL) for w in (text or "").replace(MAQAF, " ").split()
+            if w.strip(TAIL)]
 
 
 def compare(heard, expected):
@@ -134,8 +179,14 @@ def compare(heard, expected):
     h_show = shown(heard) if len(shown(heard)) == len(h) else h
     e_show = shown(expected) if len(shown(expected)) == len(e) else e
 
+    # Сравниваем по звучанию, показываем по написанию. Иначе человек,
+    # сказавший верно, получает крестик из-за того, как распознавание
+    # решило записать услышанное.
+    e_key = [sound_key(w) for w in e]
+    h_key = [sound_key(w) for w in h]
+
     diff = []
-    sm = difflib.SequenceMatcher(a=e, b=h, autojunk=False)
+    sm = difflib.SequenceMatcher(a=e_key, b=h_key, autojunk=False)
     same = 0
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
         if tag == "equal":
@@ -149,9 +200,9 @@ def compare(heard, expected):
             diff += [("-", w) for w in e_show[i1:i2]]
             diff += [("+", w) for w in h_show[j1:j2]]
 
-    if same == len(e) == len(h):
+    if same == len(e_key) == len(h_key):
         verdict = "match"
-    elif len(e) >= 3 and same >= len(e) - 1:
+    elif len(e_key) >= 3 and same >= len(e_key) - 1:
         verdict = "close"
     else:
         verdict = "different"

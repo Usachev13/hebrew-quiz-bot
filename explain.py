@@ -420,6 +420,12 @@ def explain(card, mode, given=None, lang="ru"):
     """
     if card is None:
         return None
+    # Аудирование и спринт своих карточек не имеют — они работают на
+    # словарных. Без этой строки разбор в них молчал всегда: режим
+    # «listen» не совпадал ни с одной веткой ниже, и человек, нажавший
+    # «почему так?», не получал ничего.
+    if mode in ("listen", "sprint"):
+        mode = "vocab"
     lines = []
 
     if mode in ("past", "present", "future", "verbs", "gap_verb", "gap_who"):
