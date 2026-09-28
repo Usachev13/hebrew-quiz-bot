@@ -197,6 +197,15 @@ def build_question(pool, used, priorities=None, pick_from=None, lang="ru",
     # вопросе появлялись два одинаковых варианта.
     seen = {answer}
 
+    # Карточка сама принесла неверные варианты — брать из пула нечего.
+    # См. quiz.syntax_cards(): там дистрактор обязан отличаться от
+    # верного ответа ровно одним нарушенным правилом.
+    if correct.wrong:
+        options = [answer] + list(correct.wrong)
+        random.shuffle(options)
+        return {"id": correct.key(), "ru": correct.prompt(lang),
+                "correct": answer, "options": options, "voice": None}
+
     def take(candidates, need):
         random.shuffle(candidates)
         for w in candidates:
@@ -237,6 +246,38 @@ def abbrev_cards():
 
 ABBREV_FLAT = abbrev_cards()
 
+
+def syntax_cards():
+    """«Собери фразу»: варианты ответа — искажения ЭТОЙ ЖЕ фразы.
+
+    Обычный дистрактор здесь не работает. Если к «בַּיִת גָּדוֹל» подставить
+    три случайные фразы из пула, человек выберет верную по знакомым
+    словам и ничего не узнает о порядке слов. Поэтому неверные варианты
+    заданы в syntax.py рядом с правилом, которое каждый из них нарушает,
+    и кладутся в саму карточку.
+
+    Ключ карточки содержит род говорящего только там, где ответ от него
+    зависит (אֲנִי רוֹאֶה / רוֹאָה). В остальных каркасах фраза одна для
+    всех, и прогресс не должен раздваиваться.
+    """
+    import syntax
+    out = []
+    for i, (ru, en, right, wrongs, frame) in enumerate(syntax.SENTENCES):
+        out.append(Card(ru=ru, he=right, cat=frame,
+                        cid=f"syntax:{frame}:{i}", en=en,
+                        wrong=tuple(w for w, _rule in wrongs)))
+    return out
+
+
+SYNTAX_FLAT = syntax_cards()
+SYNTAX_MODES = {"syntax"}
+
+
+def syntax_pool(female):
+    """Фразы «собери фразу» для одного рода говорящего."""
+    skip = "et_m_sg" if female else "et_f_sg"
+    return [c for c in SYNTAX_FLAT if c.cat != skip]
+
 POOLS = {
     "vocab": VOCAB_FLAT,
     "verbs": VERBS_FLAT,
@@ -250,6 +291,7 @@ POOLS = {
     "gap_who": WHO_FLAT,
     "plural": PLURAL_FLAT,
     "abbrev": ABBREV_FLAT,
+    "syntax": SYNTAX_FLAT,
     # Курс алфавита (уровень 0)
     "alef_names": alphabet.pool_names(),
     "alef_sounds": alphabet.pool_sounds(),
@@ -269,6 +311,7 @@ LABELS = {
     "gap_who": "кто это делает",
     "plural": "один и много",
     "abbrev": "сокращения",
+    "syntax": "собери фразу",
     "listen": "на слух",
     "sprint": "спринт",
     "alef_names": "названия букв",
@@ -313,6 +356,7 @@ LABELS_EN = {
     "gap_who": "who is doing it",
     "plural": "one and many",
     "abbrev": "abbreviations",
+    "syntax": "build the sentence",
     "listen": "by ear",
     "sprint": "sprint",
     "alef_names": "letter names",
@@ -365,7 +409,8 @@ def section_label(mode, cat=None, lang="ru"):
 # страницы могла сверить его с набросками плиток: ключ плитки и id
 # рисунка обязаны совпасть, а найти расхождение в браузере я не могу.
 GRAMMAR_SECTIONS = ([(key, None) for key in GRAMMAR_LABELS]
-                    + [("plural", "plural"), ("abbrev", "abbrev")])
+                    + [("plural", "plural"), ("abbrev", "abbrev"),
+                       ("syntax", "syntax")])
 
 GAP_MODES = {"gap_verb", "gap_who"}
 
@@ -512,6 +557,16 @@ def round_pool(chat_id, mode, cat, lang="ru"):
     if mode == "weak":
         pool, modes = weak_pool(chat_id)
         return pool, section_label("weak", lang=lang), modes
+
+    if mode in SYNTAX_MODES:
+        # Фразы от первого лица зависят от рода говорящего: «אֲנִי רוֹאֶה»
+        # для мужчины, «רוֹאָה» для женщины. Показать оба набора значило
+        # бы объявить верную форму неверной через карточку. Пол уже
+        # спрошен и пропустить его нельзя (см. задачу про выбор пола).
+        pool = syntax_pool(db.gender(chat_id) == "f")
+        if cat:
+            pool = [w for w in pool if w.cat == cat]
+        return pool, section_label(mode, lang=lang), {}
 
     if mode in LISTEN_MODES:
         pool = listen_pool()

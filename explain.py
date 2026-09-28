@@ -387,6 +387,31 @@ def page_for(card, mode):
     return None
 
 
+def _syntax(card, given, lang):
+    """«Собери фразу»: назвать правило, а не объявить ответ неверным.
+
+    Смысл упражнения в том, чтобы человек ушёл с правилом, а не с
+    заученной фразой. Поэтому при ошибке первым идёт именно то правило,
+    которое нарушил выбранный вариант, — их различает syntax.rule_of по
+    паре (верно, выбрано).
+    """
+    import syntax
+    lines = []
+    if given:
+        rule = syntax.rule_of(card.he, given, lang)
+        if rule:
+            lines.append(rule)
+    for _ru, _en, right, wrongs, _frame in syntax.SENTENCES:
+        if right != card.he:
+            continue
+        for _wrong, name in wrongs:
+            text = (syntax.RULES_EN if lang == "en" else syntax.RULES)[name]
+            if text not in lines:
+                lines.append(text)
+        break
+    return lines
+
+
 def explain(card, mode, given=None, lang="ru"):
     """Разбор карточки. None — сказать нечего, и это нормально.
 
@@ -411,5 +436,7 @@ def explain(card, mode, given=None, lang="ru"):
         lines += _plural(card, lang)
     elif mode == "abbrev":
         lines += _abbrev(card, lang)
+    elif mode == "syntax":
+        lines += _syntax(card, given, lang)
 
     return lines or None

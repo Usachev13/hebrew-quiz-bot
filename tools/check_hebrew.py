@@ -34,6 +34,7 @@ import unicodedata
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 import phrases                                   # noqa: E402
+import syntax                                    # noqa: E402
 from conjugations import CONJUGATIONS            # noqa: E402
 from words import VOCAB, VERBS                   # noqa: E402
 
@@ -64,6 +65,15 @@ def hebrew_strings():
         for field in ("he", "he_f", "to_f", "he_en"):
             if item.get(field):
                 yield f"фразы/{sit}", item["ru"], item[field]
+    # «Собери фразу». Проверяем и неверные варианты: они тоже попадают
+    # человеку на экран, и огласовка в них должна быть настоящей —
+    # неверным вариант делает правило, а не испорченная запись слова.
+    for ru, _en, right, wrongs, frame in syntax.SENTENCES:
+        for word in right.split():
+            yield f"фраза/{frame}", ru, word
+        for wrong, rule in wrongs:
+            for word in wrong.split():
+                yield f"фраза/{frame}/{rule}", ru, word
 
 
 def check_final_kaf():

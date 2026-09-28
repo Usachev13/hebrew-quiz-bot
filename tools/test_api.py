@@ -110,6 +110,30 @@ ok(aa["reading"] == "", f"транскрипции нет: {aa['reading']!r}")
 ok(aa["audio"] is None, f"озвучки нет: {aa['audio']!r}")
 ok(bool(aa["why"]), f"разбор: {(aa['why'] or [''])[0][:60]}")
 
+print("собери фразу")
+m3 = post("/api/menu")
+sy = next((i for i in m3["grammar"] if i["key"] == "syntax"), None)
+ok(sy is not None and sy.get("mode") == "syntax", f"раздел есть: {sy and sy.get('name')}")
+rs = post("/api/round", mode="syntax", cat="", format="choice")
+qs = rs["questions"]
+ok(bool(qs), f"раунд собрался: {len(qs)}")
+ok(all(len(q["options"]) == 3 for q in qs),
+   f"по три варианта: {sorted({len(q['options']) for q in qs})}")
+# Главное в этом режиме: варианты — искажения ТОЙ ЖЕ фразы, а не чужие
+# карточки. Проверяем по данным, а не на глаз.
+import syntax as _syn
+card0 = quiz.ANSWERS["syntax"][qs[0]["id"]]
+ok(set(qs[0]["options"]) == {card0.he} | set(card0.wrong),
+   "варианты — искажения этой же фразы")
+# И ошибка должна называть правило, а не просто «неверно».
+bad = next(o for o in qs[0]["options"] if o != card0.he)
+asn = post("/api/answer", mode="syntax", id=qs[0]["id"], answer=bad,
+           format="choice")
+ok(asn["correct"] is False, "неверный ответ не принят")
+rule = _syn.rule_of(card0.he, bad)
+ok(bool(asn["why"]) and asn["why"][0] == rule,
+   f"разбор называет нарушенное правило: {(asn['why'] or [''])[0][:60]}")
+
 print("аудирование")
 # Озвучки в песочнице нет, а пул аудирования зависит от файлов. Подменяем
 # проверку наличия — иначе проверить путь нечем, а он самый новый.

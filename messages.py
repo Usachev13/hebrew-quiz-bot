@@ -278,6 +278,8 @@ M = {
                 "en": "🔤 Abbreviations"},
 "menu.plural": {"ru": "🔢 Один и много",
                 "en": "🔢 One and many"},
+"menu.syntax": {"ru": "🧩 Собери фразу",
+                "en": "🧩 Build the sentence"},
 "ask.grammar": {"ru": "Что из грамматики?", "en": "Which part of grammar?"},
 "ask.verbs": {"ru": "Глаголы — что тренируем?", "en": "Verbs — what shall we practise?"},
 "ask.format": {"ru": "Как отвечаем?", "en": "How do we answer?"},
