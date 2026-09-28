@@ -138,6 +138,32 @@ for keys, expected in ((("a", "", ""), "anthropic"), (("", "o", ""), "openai"),
     check(f"выбор провайдера {keys} -> {expected or 'ничего'}",
           dialog.provider() == expected, dialog.provider())
 check("без ключей разговор недоступен", not dialog.available())
+
+# Адрес запроса для формата OpenAI берётся из настройки: по этому же
+# протоколу говорят Groq, OpenRouter и прочие, и подключаются они сменой
+# адреса, а не новым кодом. Проверяем, что адрес действительно
+# подставляется, — иначе ключ Groq молча уйдёт в OpenAI и вернётся
+# отказом авторизации, а причина будет неочевидна.
+saved_base = dialog.OPENAI_BASE
+dialog.OPENAI_BASE = "https://api.groq.com/openai/v1"
+seen = {}
+
+
+def _spy(url, **kw):
+    seen["url"] = url
+    return FakeResponse({"choices": [{"message": {"content": GOOD}}],
+                         "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
+
+
+dialog.requests.post = _spy
+try:
+    dialog._ask_openai("п", [{"role": "user", "content": "ש"}])
+finally:
+    dialog.requests.post = real_post
+    dialog.OPENAI_BASE = saved_base
+check("адрес берётся из настройки",
+      seen.get("url") == "https://api.groq.com/openai/v1/chat/completions",
+      seen.get("url"))
 dialog.ANTHROPIC_KEY, dialog.OPENAI_KEY, dialog.GOOGLE_KEY = saved
 
 

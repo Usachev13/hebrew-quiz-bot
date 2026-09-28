@@ -42,6 +42,11 @@
 произволен и значит лишь «какой-то один»; чтобы взять именно нужный,
 уберите лишние ключи.
 
+«OpenAI» здесь означает не компанию, а формат запроса: по нему говорят
+и Groq, и OpenRouter, и Mistral, и локальная Ollama. Достаточно задать
+OPENAI_BASE_URL — и любой из них становится доступен без единой строки
+нового кода. Там же лежат бесплатные ключи, которые выдают без карты.
+
 Про бесплатный Google отдельно. У него щедрый бесплатный предел (тысячи
 запросов в день против наших сорока), и это правильный выбор, пока
 тренажёром пользуется один человек. Но у бесплатного уровня есть цена,
@@ -63,6 +68,12 @@ OPENAI_KEY = os.environ.get("OPENAI_API_KEY", "")
 GOOGLE_KEY = os.environ.get("GOOGLE_API_KEY", "")
 ANTHROPIC_MODEL = os.environ.get("DIALOG_MODEL_ANTHROPIC", "claude-haiku-4-5-20251001")
 OPENAI_MODEL = os.environ.get("DIALOG_MODEL_OPENAI", "gpt-4o-mini")
+# Протокол OpenAI стал общим языком: по нему говорят Groq, OpenRouter,
+# Mistral, Together и локальная Ollama. Поэтому «openai» здесь — это не
+# компания, а формат запроса, и сменой одного адреса мы получаем доступ
+# ко всем ним, включая бесплатные. Отдельного кода они не требуют.
+OPENAI_BASE = os.environ.get("OPENAI_BASE_URL",
+                             "https://api.openai.com/v1").rstrip("/")
 GOOGLE_MODEL = os.environ.get("DIALOG_MODEL_GOOGLE", "gemini-2.5-flash")
 
 # Сколько ходов разговора помним. Больше — дороже каждое сообщение:
@@ -160,7 +171,7 @@ def _ask_anthropic(system, turns):
 
 def _ask_openai(system, turns):
     r = requests.post(
-        "https://api.openai.com/v1/chat/completions",
+        f"{OPENAI_BASE}/chat/completions",
         headers={"Authorization": f"Bearer {OPENAI_KEY}",
                  "content-type": "application/json"},
         json={"model": OPENAI_MODEL, "max_tokens": 400,
