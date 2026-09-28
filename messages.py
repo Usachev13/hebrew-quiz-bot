@@ -120,16 +120,38 @@ M = {
 "talk.intro": {
 "ru": "Говорите. Голосом или текстом, на иврите или по-русски.\n\n"
       "Начните с <b>שלום</b> — вам ответят и спросят, как дела.\n\n"
+      "Сейчас с вами говорит {who}. В иврите это слышно в самих словах, "
+      "поэтому собеседника можно сменить кнопкой ниже.\n\n"
       "Сегодня осталось реплик: {left}.",
 "en": "Go ahead. Voice or text, Hebrew or English.\n\n"
       "Start with <b>שלום</b> — you'll get an answer and a question "
-      "back.\n\nReplies left today: {left}.",
+      "back.\n\nYou're talking to {who}. In Hebrew this is audible in "
+      "the words themselves, so you can switch with the button "
+      "below.\n\nReplies left today: {left}.",
 },
 "talk.restart": {"ru": "Начать разговор заново", "en": "Start over"},
+"talk.who.m": {"ru": "мужчина", "en": "a man"},
+"talk.who.f": {"ru": "женщина", "en": "a woman"},
+"talk.switch.m": {"ru": "👨 Пусть отвечает мужчина",
+                  "en": "👨 Let a man answer"},
+"talk.switch.f": {"ru": "👩 Пусть отвечает женщина",
+                  "en": "👩 Let a woman answer"},
+"talk.switched.m": {
+"ru": "Теперь с вами говорит мужчина — и голосом, и формами слов. "
+      "Разговор начат заново.",
+"en": "You're talking to a man now — both the voice and the word forms. "
+      "The conversation starts over.",
+},
+"talk.switched.f": {
+"ru": "Теперь с вами говорит женщина — и голосом, и формами слов. "
+      "Разговор начат заново.",
+"en": "You're talking to a woman now — both the voice and the word "
+      "forms. The conversation starts over.",
+},
 "talk.reset": {"ru": "Хорошо, забыли. О чём поговорим?",
                "en": "Fine, forgotten. What shall we talk about?"},
 "talk.heard": {"ru": "Вы сказали: {text}", "en": "You said: {text}"},
-"talk.better": {"ru": "Лучше сказать: {text}", "en": "Better: {text}"},
+"talk.better": {"ru": "💡 {text}", "en": "💡 {text}"},
 "talk.hint": {"ru": "Подсказка: {text}", "en": "Hint: {text}"},
 "talk.off": {
 "ru": "Разговор пока не подключён — не хватает ключа модели. "

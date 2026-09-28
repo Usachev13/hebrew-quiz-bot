@@ -186,6 +186,13 @@ LATER_COLUMNS = [
     # если тест не проходили. Хранится, чтобы не звать проходить его
     # каждый раз и чтобы показать результат в профиле.
     ("prefs", "level", "TEXT"),
+    # Пол СОБЕСЕДНИКА в разговоре — не путать с `gender`, который про
+    # самого человека. В иврите это две разные вещи, и обе слышны: от
+    # своего пола зависит, как человек говорит о себе, от пола
+    # собеседника — как тот говорит о себе и каким голосом звучит.
+    # Женский голос по умолчанию был не решением, а недосмотром: он
+    # просто стоял в настройках озвучки карточек.
+    ("prefs", "talk_gender", "TEXT"),
 ]
 
 # Интервалы системы Лейтнера: сколько дней ждать до следующего показа.
@@ -549,6 +556,26 @@ def set_gender(chat_id, gender):
     )
     conn.commit()
     return gender
+
+
+def talk_gender(chat_id):
+    """Пол собеседника в разговоре: 'm' или 'f'. По умолчанию женский."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT talk_gender FROM prefs WHERE chat_id = ?", (str(chat_id),)
+        ).fetchone()
+    return (row["talk_gender"] or "f") if row else "f"
+
+
+def set_talk_gender(chat_id, value):
+    value = value if value in ("m", "f") else "f"
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO prefs (chat_id, talk_gender) VALUES (?, ?) "
+            "ON CONFLICT(chat_id) DO UPDATE SET talk_gender = excluded.talk_gender",
+            (str(chat_id), value),
+        )
+    return value
 
 
 def gender(chat_id):

@@ -1042,8 +1042,13 @@ def handle_voice(chat_id, voice, lang="ru"):
 # dialog.py; здесь — то, что видит человек.
 
 
-def talk_keyboard(lang="ru"):
+def talk_keyboard(chat_id, lang="ru"):
+    # Пол собеседника прямо в разговоре, а не в настройках: он слышен в
+    # каждой реплике, и менять его захочется сразу, а не через меню.
+    other = "m" if db.talk_gender(chat_id) == "f" else "f"
     return {"inline_keyboard": [
+        [{"text": t(f"talk.switch.{other}", lang),
+          "callback_data": f"talk_voice|{other}"}],
         [{"text": t("talk.restart", lang), "callback_data": "talk_reset"}],
         [{"text": t("menu.back", lang), "callback_data": "main_menu"}],
     ]}
@@ -1056,7 +1061,9 @@ def start_talk(chat_id, lang="ru"):
         return
     sessions.setdefault(chat_id, {})["talk"] = True
     left = db.dialog_left(chat_id)
-    send_message(chat_id, t("talk.intro", lang, left=left), talk_keyboard(lang))
+    who = t(f"talk.who.{db.talk_gender(chat_id)}", lang)
+    send_message(chat_id, t("talk.intro", lang, left=left, who=who),
+                 talk_keyboard(chat_id, lang))
 
 
 def handle_talk(chat_id, said, lang="ru"):
@@ -1077,10 +1084,11 @@ def handle_talk(chat_id, said, lang="ru"):
     history = db.dialog_history(chat_id)
     try:
         res = dialog.reply(history, said, gender=db.gender(chat_id) or "m",
-                           lang=lang)
+                           lang=lang, companion=db.talk_gender(chat_id))
     except Exception as e:                                  # noqa: BLE001
         print(f"[talk] {e}")
-        send_message(chat_id, t("talk.failed", lang), talk_keyboard(lang))
+        send_message(chat_id, t("talk.failed", lang),
+                     talk_keyboard(chat_id, lang))
         return
 
     db.dialog_add(chat_id, "user", said)
@@ -1090,9 +1098,16 @@ def handle_talk(chat_id, said, lang="ru"):
     # Поправка идёт ПЕРЕД ответом: сначала человек видит, как надо было
     # сказать, и только потом — что ему ответили. Наоборот он поправку
     # уже не прочитает, потому что будет думать над ответом.
-    if res["correction"]:
-        lines.append(t("talk.better", lang,
-                       text=_with_reading_if_clean(res["correction"], res["ok"], lang)))
+    #
+    # Показываем его собственную фразу целиком, с правками внутри неё, а
+    # не отдельный «правильный вариант». Разница существенная: рядом
+    # лежащий правильный вариант человек сравнивает сам и обычно не
+    # сравнивает, а зачёркнутое слово в своей же фразе видно сразу.
+    if res["marked"]:
+        lines.append(t("talk.better", lang, text=res["marked"]))
+        reading = _reading_if_clean(res["fixed"], res["ok"], lang)
+        if reading:
+            lines.append(reading)
     if res["he"]:
         lines.append(f"<b>{res['he']}</b>")
         reading_line = _reading_if_clean(res["he"], res["ok"], lang)
@@ -1104,12 +1119,13 @@ def handle_talk(chat_id, said, lang="ru"):
         lines.append(t("talk.hint", lang, text=res["hint"]))
 
     send_message(chat_id, "\n".join(lines) or t("talk.failed", lang),
-                 talk_keyboard(lang))
+                 talk_keyboard(chat_id, lang))
 
     # Голос — после текста: человек сначала читает, потом слушает и
     # повторяет. Нет озвучки — разговор продолжается без неё.
     if res["he"] and db.voice_enabled(chat_id) and audio.can_speak():
-        path = audio.ensure_audio(res["he"])
+        path = audio.ensure_audio(res["he"],
+                                  voice=audio.voice_for(db.talk_gender(chat_id)))
         if path:
             audio.send_voice_file(API_URL, chat_id, path)
 
@@ -1478,7 +1494,17 @@ def _handle_webhook_update():
             start_talk(chat_id, lang)
         elif data == "talk_reset":
             db.dialog_reset(chat_id)
-            send_message(chat_id, t("talk.reset", lang), talk_keyboard(lang))
+            send_message(chat_id, t("talk.reset", lang),
+                         talk_keyboard(chat_id, lang))
+        elif data.startswith("talk_voice|"):
+            new_gender = db.set_talk_gender(chat_id, data.split("|", 1)[1])
+            # Разговор начинаем заново: собеседник сменился, и тянуть в
+            # новую беседу реплики прежнего — значит получить в ответ
+            # «как я уже говорила» мужским голосом.
+            db.dialog_reset(chat_id)
+            send_message(chat_id,
+                         t(f"talk.switched.{new_gender}", lang),
+                         talk_keyboard(chat_id, lang))
         elif data == "main_menu":
             send_message(chat_id, t("ask.today", lang), main_menu_keyboard(lang))
         elif data == "menu|words":

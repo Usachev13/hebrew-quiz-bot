@@ -231,6 +231,15 @@ def send_voice(api_url, chat_id, text, caption=None, slow=False, file_id=None):
 # что сами не проверяли.
 
 TTS_VOICE = os.environ.get("TTS_VOICE", "he-IL-HilaNeural")
+# Голос собеседника. В иврите пол говорящего слышен в самих словах, и
+# женский голос, произносящий мужские формы, — это не мелочь, а урок
+# неправильной речи. Раньше голос был один просто потому, что так стояло
+# в настройках озвучки карточек.
+VOICE_BY_GENDER = {"f": "he-IL-HilaNeural", "m": "he-IL-AvriNeural"}
+
+
+def voice_for(gender):
+    return VOICE_BY_GENDER.get(gender, TTS_VOICE)
 AZURE_KEY = os.environ.get("AZURE_SPEECH_KEY", "")
 AZURE_REGION = os.environ.get("AZURE_SPEECH_REGION", "uaenorth")
 TTS_URL = (f"https://{AZURE_REGION}.tts.speech.microsoft.com"
