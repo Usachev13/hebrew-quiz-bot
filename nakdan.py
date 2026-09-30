@@ -62,6 +62,12 @@ CACHE_PATH = Path(os.environ.get(
 # Разделитель приставки в ответе: «בְּ|קִילוֹ». Нам он не нужен.
 PREFIX_MARK = "|"
 
+# Метег — вертикальная чёрточка под буквой, знак ритма для чтеца. Dicta
+# ставит его охотно, мы не ставим нигде, и в ответе собеседника он
+# выглядел соринкой: «אֲנִי נֹוֽעַם». Снимаем — на чтение он не влияет, а
+# наш разбор огласовок о нём не знает.
+METEG = "\u05bd"
+
 _cache = None
 
 
@@ -118,7 +124,7 @@ def _assemble(payload):
             continue
         options = node.get("options") or []
         word = options[0].get("w") if options else node.get("word", "")
-        out.append((word or "").replace(PREFIX_MARK, ""))
+        out.append((word or "").replace(PREFIX_MARK, "").replace(METEG, ""))
     return "".join(out)
 
 

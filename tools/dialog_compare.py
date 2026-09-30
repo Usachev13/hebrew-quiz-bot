@@ -55,7 +55,7 @@ SCRIPT = [
 ]
 
 
-def run(provider, verbose=True):
+def run(provider, verbose=True, raw=False):
     saved = (dialog.ANTHROPIC_KEY, dialog.OPENAI_KEY, dialog.GOOGLE_KEY)
     os.environ["DIALOG_PROVIDER"] = provider
     if not dialog.provider():
@@ -77,6 +77,10 @@ def run(provider, verbose=True):
             print(f"      {res['ru']}")
             if res["fixed"]:
                 print(f"      поправка: {res['fixed']}")
+            if res.get("no_ru"):
+                print("      ⚠️ перевода нет — модель не заполнила поле ru")
+            if raw:
+                print(f"      сырой ответ: {res['raw'][:400]}")
         time.sleep(0.5)
     dialog.ANTHROPIC_KEY, dialog.OPENAI_KEY, dialog.GOOGLE_KEY = saved
     return rows
@@ -85,6 +89,7 @@ def run(provider, verbose=True):
 def score(rows):
     """Три числа, которые можно посчитать без носителя."""
     clean = sum(1 for _s, r in rows if r["ok"])
+    no_ru = sum(1 for _s, r in rows if r.get("no_ru"))
     asks = sum(1 for _s, r in rows if "?" in r["he"])
     length = sum(len(r["he"]) for _s, r in rows) / max(len(rows), 1)
     tin = sum(r["usage"][0] for _s, r in rows)
@@ -96,6 +101,7 @@ def score(rows):
     third = hebrew_rules.strip_niqqud(rows[2][1]["he"]) if len(rows) > 2 else ""
     remembers = "דניאל" in third
     return {"огласовки в порядке": f"{clean}/{len(rows)}",
+            "без перевода": f"{no_ru}/{len(rows)}",
             "встречных вопросов": f"{asks}/{len(rows)}",
             "средняя длина": f"{length:.0f} знаков",
             "помнит имя": "да" if remembers else "НЕТ",
@@ -106,6 +112,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--providers", default="google,openai,anthropic")
     ap.add_argument("--quiet", action="store_true")
+    ap.add_argument("--raw", action="store_true",
+                    help="печатать ответ модели как есть — видно, "
+                         "какие поля она пропустила")
     args = ap.parse_args()
 
     results = {}
@@ -114,7 +123,7 @@ def main():
         if not provider:
             continue
         print(f"\n=== {provider} ===")
-        rows = run(provider, verbose=not args.quiet)
+        rows = run(provider, verbose=not args.quiet, raw=args.raw)
         if rows:
             results[provider] = score(rows)
 

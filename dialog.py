@@ -180,9 +180,13 @@ fixed = "אני הולך הביתה".
 {{"he": "שלום! מה שלומך היום?", "ru": "Привет! Как дела сегодня?",
   "fixed": "", "hint": ""}}
 
+Поля he и ru заполнены ВСЕГДА, в каждом ответе без исключений. Ответ на
+иврите без перевода бесполезен: человек его не прочтёт. Пустыми могут
+быть только fixed и hint.
+
 Отвечай ТОЛЬКО JSON, без пояснений вокруг:
-{{"he": "ответ на иврите, обычным письмом",
-  "ru": "перевод ответа на русский",
+{{"he": "ответ на иврите, обычным письмом — обязательно",
+  "ru": "перевод этого же ответа на русский — обязательно",
   "fixed": "исправленная фраза человека или пустая строка",
   "hint": "подсказка по-русски или пустая строка"}}"""
 
@@ -245,6 +249,25 @@ def _ask_openai(system, turns):
     return text, (usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0))
 
 
+def google_models():
+    """Какие модели доступны этому ключу.
+
+    Имена моделей у Google меняются, и «gemini-2.5-flash» на одном ключе
+    работает, а на другом отвечает 404 без объяснений. Спрашивать имя у
+    самой службы надёжнее, чем помнить его.
+    """
+    if not GOOGLE_KEY:
+        return []
+    r = requests.get("https://generativelanguage.googleapis.com/v1beta/models",
+                     headers={"x-goog-api-key": GOOGLE_KEY}, timeout=TIMEOUT)
+    r.raise_for_status()
+    out = []
+    for m in r.json().get("models", []):
+        if "generateContent" in (m.get("supportedGenerationMethods") or []):
+            out.append(m.get("name", "").replace("models/", ""))
+    return out
+
+
 def _ask_google(system, turns):
     """Gemini. Устроен иначе остальных двух, и в трёх местах.
 
@@ -268,6 +291,17 @@ def _ask_google(system, turns):
                                    "responseMimeType": "application/json"}},
         timeout=TIMEOUT,
     )
+    if r.status_code == 404:
+        # Имя модели не подошло. Ошибка Google об этом молчит, поэтому
+        # называем доступные сами — иначе человек гадает.
+        try:
+            names = ", ".join(google_models()[:12]) or "ни одной"
+        except Exception:                                    # noqa: BLE001
+            names = "не удалось спросить"
+        raise RuntimeError(
+            f"Google не знает модель «{GOOGLE_MODEL}». "
+            f"Доступны этому ключу: {names}. "
+            f"Впишите нужную в DIALOG_MODEL_GOOGLE.")
     r.raise_for_status()
     body = r.json()
     try:
@@ -408,9 +442,17 @@ def reply(history, said, gender="m", lang="ru", companion="f"):
     # по контексту, а неверная огласовка учит неверному чтению.
     he, ok = hebrew_rules.sanitize(he)
     fixed, ok_fixed = hebrew_rules.sanitize(fixed)
+    ru = _clean(data.get("ru"))
+    if he and not ru:
+        # Модель забыла перевод — это случается, и в живом разговоре
+        # ученик получал ивритскую фразу без единого слова по-русски.
+        # Просить второй раз дорого и медленно; честнее сказать прямо,
+        # что перевода нет, чем показать пустоту.
+        ru = ""
     return {
         "he": he,
-        "ru": _clean(data.get("ru")),
+        "ru": ru,
+        "no_ru": bool(he and not ru),
         "fixed": fixed,
         # Разметка правки: сравниваем сказанное с исправленным.
         "marked": mark_fix(said, fixed),

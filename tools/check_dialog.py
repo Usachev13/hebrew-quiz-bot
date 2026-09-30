@@ -75,8 +75,9 @@ check("пустой ответ не роняет разговор",
 # означала бы, что разговор работает с одним провайдером и молча ломается
 # при переезде на другой.
 class FakeResponse:
-    def __init__(self, body):
+    def __init__(self, body, status=200):
         self._body = body
+        self.status_code = status
 
     def raise_for_status(self):
         pass
@@ -317,6 +318,56 @@ for who in ("m", "f"):
           want in sys_text, sys_text.split(".")[0][:80])
 check("пол ученика и пол собеседника — разные вещи",
       dialog._system("f", "ru", "m") != dialog._system("m", "ru", "m"))
+
+
+# ------------------------------------------------- перевод обязателен
+# Из живого прогона: модель заполнила «ru» только в первой реплике из
+# пяти. Ученик получил ивритские фразы без единого слова по-русски —
+# то есть ответ, который он не может прочесть.
+no_ru = dialog._parse('{"he": "שלום", "ru": "", "fixed": "", "hint": ""}')
+check("пустой перевод виден в разборе", no_ru.get("ru") == "")
+
+saved_ask = dialog._ask_anthropic
+dialog.ANTHROPIC_KEY = "x"
+dialog.OPENAI_KEY = dialog.GOOGLE_KEY = ""
+os.environ.pop("DIALOG_PROVIDER", None)
+dialog._ask_anthropic = lambda system, turns: (
+    '{"he": "שלום", "ru": "", "fixed": "", "hint": ""}', (10, 5))
+try:
+    res = dialog.reply([], "שלום")
+finally:
+    dialog._ask_anthropic = saved_ask
+check("ответ без перевода помечен", res.get("no_ru") is True, res)
+
+dialog._ask_anthropic = lambda system, turns: (
+    '{"he": "שלום", "ru": "Привет", "fixed": "", "hint": ""}', (10, 5))
+try:
+    res = dialog.reply([], "שלום")
+finally:
+    dialog._ask_anthropic = saved_ask
+check("ответ с переводом не помечен", not res.get("no_ru"), res)
+check("подсказка требует перевода всегда",
+      "ВСЕГДА" in dialog._system("m", "ru"))
+dialog.ANTHROPIC_KEY = ""
+
+
+# --------------------------------------------- имя модели у Google
+# «gemini-2.5-flash» на одном ключе работает, а на другом отвечает 404
+# без объяснений. Проверяем, что мы на это отвечаем не голым кодом
+# ошибки, а списком доступных имён.
+dialog.GOOGLE_KEY = "x"
+dialog.requests.post = lambda *a, **k: FakeResponse({}, status=404)
+dialog.google_models = lambda: ["gemini-flash-latest", "gemini-pro-latest"]
+try:
+    dialog._ask_google("п", [{"role": "user", "content": "ש"}])
+    said = ""
+except RuntimeError as e:
+    said = str(e)
+finally:
+    dialog.requests.post = real_post
+    dialog.GOOGLE_KEY = ""
+check("404 объясняется списком доступных моделей",
+      "gemini-flash-latest" in said and "DIALOG_MODEL_GOOGLE" in said, said[:120])
 
 
 # ------------------------------------------- наши формы важнее машинных
