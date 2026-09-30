@@ -647,6 +647,10 @@ def _merge_by_word(text):
     return nakdan.trusted_overlay(" ".join(out))
 
 
+def _has_hebrew(text):
+    return any("\u05d0" <= c <= "\u05ea" for c in (text or ""))
+
+
 def _goals(value, said, scene):
     """Номера задач (с нуля), выполненных этой репликой.
 
@@ -670,7 +674,8 @@ def _goals(value, said, scene):
     return sorted(out)
 
 
-def reply(history, said, gender="m", lang="ru", companion="f", scene=None):
+def reply(history, said, gender="m", lang="ru", companion="f", scene=None,
+          scene_done=()):
     """Ответ собеседника.
 
     history — [(роль, текст), …] прошлых ходов, роль «user» или «bot».
@@ -695,7 +700,7 @@ def reply(history, said, gender="m", lang="ru", companion="f", scene=None):
         # Сценка: роль и задачи поверх обычных правил речи — короткие
         # фразы, уровень алеф и поправки остаются теми же.
         import scenes
-        system += scenes.prompt(scene)
+        system += scenes.prompt(scene, scene_done)
         if provider() == "openai":
             ask = lambda s, t: _ask_openai(s, t, response_schema=SCENE_SCHEMA)
     raw, usage = ask(system, turns)
@@ -744,8 +749,13 @@ def reply(history, said, gender="m", lang="ru", companion="f", scene=None):
         "fixed": fixed,
         # Разметка правки: сравниваем сказанное с исправленным.
         "marked": mark_fix(said, fixed),
-        "hint": _clean(data.get("hint")),
-        "goals_done": _goals(data.get("goals_done"), said, scene),
+        # Подсказка — только на русскую реплику. На верную ивритскую
+        # модель всё равно норовила что-то подсказать («Как сказать „я
+        # заплачу картой“?» в ответ на «אני משלם בכרטיס»), и человек
+        # решал, что ошибся. Ошибки в иврите показывает fixed.
+        "hint": "" if _has_hebrew(said) else _clean(data.get("hint")),
+        "goals_done": [g for g in _goals(data.get("goals_done"), said, scene)
+                       if g not in set(scene_done)],
         "ok": ok and ok_fixed,
         "usage": usage,
         "raw": raw,

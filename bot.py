@@ -1169,7 +1169,7 @@ def handle_talk(chat_id, said, lang="ru", said_msg=None):
     try:
         res = dialog.reply(history, said, gender=db.gender(chat_id) or "m",
                            lang=lang, companion=db.talk_gender(chat_id),
-                           scene=scene)
+                           scene=scene, scene_done=(state or {}).get("done") or [])
     except Exception as e:                                  # noqa: BLE001
         print(f"[talk] {e}")
         send_message(chat_id, t("talk.failed", lang),

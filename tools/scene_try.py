@@ -47,7 +47,7 @@ def main():
     print(f"\n  собеседник: {res['he']}\n              {res['ru']}")
     done = set()
     for said in SCRIPTS.get(key, SCRIPTS["makolet"]):
-        res = dialog.reply(history, said, scene=scene)
+        res = dialog.reply(history, said, scene=scene, scene_done=done)
         history += [("user", said), ("bot", res["he"])]
         done |= set(res["goals_done"])
         print(f"\n  > {said}")
