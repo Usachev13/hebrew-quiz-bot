@@ -59,7 +59,7 @@ for key, data in hebrew_meta.PREPOSITIONS.items():
         seen = set()
         for i, f in enumerate(forms):
             if f in seen:
-                dupes.append(f"{key}: {f} повторяется ({hebrew_meta.PERSONS[i][0]})")
+                dupes.append(f"{key}: {f} повторяется ({hebrew_meta.PERSONS[i]})")
             seen.add(f)
 check("форма повторяется внутри предлога", dupes)
 
@@ -91,6 +91,24 @@ for key, data in hebrew_meta.PREPOSITIONS.items():
         if not bare(form).startswith(stem[0]):
             stray.append(f"{key}: {form} не от основы {stem}")
 check("форма не от своей основы", stray)
+
+# Таблица для страницы справочника берёт те же подписи. Однажды здесь
+# появился второй список лиц — кортежами — и молча переопределил первый:
+# страница показала бы «('я', 'I')» вместо «я». Упражнение при этом
+# работало, и ни одна проверка не заметила.
+bad_table = []
+for key in hebrew_meta.PREPOSITIONS:
+    for lang in ("ru", "en"):
+        tab = hebrew_meta.table(key, lang)
+        for row in tab["rows"]:
+            if not isinstance(row["who"], str):
+                bad_table.append(f"{key}/{lang}: {row['who']!r}")
+                break
+check("таблица справочника получила не строку", bad_table)
+check("подписей лиц на двух языках поровну",
+      [] if len(hebrew_meta.PERSONS) == len(hebrew_meta.PERSONS_EN)
+      else [f"{len(hebrew_meta.PERSONS)} / {len(hebrew_meta.PERSONS_EN)}"])
+
 
 # ---------------------------------------------------------- карточки
 pool = quiz.POOLS["prepositions"]

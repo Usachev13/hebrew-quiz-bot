@@ -292,7 +292,7 @@ def preposition_cards():
         for i, form in enumerate(forms):
             if i >= len(hebrew_meta.PERSONS):
                 break
-            ru, en = hebrew_meta.PERSONS[i]
+            ru, en = hebrew_meta.PERSONS[i], hebrew_meta.PERSONS_EN[i]
             out.append(Card(
                 ru=f"{data['base']} ({data['ru'].split(' — ')[0]}) — {ru}",
                 he=form,
