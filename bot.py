@@ -337,6 +337,7 @@ def words_menu_keyboard(lang="ru"):
             [{"text": t("menu.verbs", lang), "callback_data": "menu|verbs"}],
             [{"text": t("menu.plural", lang), "callback_data": "pick|plural|"}],
             [{"text": t("menu.syntax", lang), "callback_data": "pick|syntax|"}],
+            [{"text": t("menu.numerals", lang), "callback_data": "pick|numerals|"}],
             [{"text": t("menu.abbrev", lang), "callback_data": "pick|abbrev|"}],
             [{"text": t("menu.listen", lang), "callback_data": "pick|listen|"}],
             [{"text": t("menu.weak", lang), "callback_data": "pick|weak|"}],

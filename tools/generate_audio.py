@@ -78,7 +78,7 @@ PRICE_PER_1M_CHARS = 16.0
 
 
 SCOPES = ["all", "words", "forms", "present", "past", "future",
-          "phrases", "syntax"]
+          "phrases", "syntax", "numerals"]
 
 
 def collect(scope):
@@ -123,6 +123,13 @@ def collect(scope):
         # на слух — сразу. Без записи упражнение учит глазами.
         import quiz
         for card in quiz.POOLS["plural"]:
+            items.append(card.he)
+    if scope in ("all", "numerals"):
+        # Числительные озвучиваем вместе со словом: отдельно взятое
+        # «шлоша» ничему не учит, а «шлоша сфарим» слышно как целое, и
+        # именно это сочетание человек произносит.
+        import quiz
+        for card in quiz.POOLS["numerals"]:
             items.append(card.he)
     if scope in ("all", "syntax"):
         # «Собери фразу». Озвучиваем только ВЕРНЫЕ варианты: неправильно

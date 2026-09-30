@@ -387,6 +387,21 @@ def page_for(card, mode):
     return None
 
 
+def _numerals(card, lang):
+    """Правило выбора формы числительного.
+
+    Главное здесь — назвать переворот прямо: форма с ־ָה идёт с мужским
+    родом. Не назвав его, разбор бесполезен: человек видит две похожие
+    формы и не понимает, по какому признаку выбирать.
+    """
+    import numerals
+    key = "en" if lang == "en" else "ru"
+    lines = [numerals.RULE[key]]
+    if card.cat == "two":
+        lines.append(numerals.RULE_TWO[key])
+    return lines
+
+
 def _syntax(card, given, lang):
     """«Собери фразу»: назвать правило, а не объявить ответ неверным.
 
@@ -444,5 +459,7 @@ def explain(card, mode, given=None, lang="ru"):
         lines += _abbrev(card, lang)
     elif mode == "syntax":
         lines += _syntax(card, given, lang)
+    elif mode == "numerals":
+        lines += _numerals(card, lang)
 
     return lines or None

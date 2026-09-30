@@ -273,6 +273,26 @@ def syntax_cards():
     return out
 
 
+def numeral_cards():
+    """«Сколько чего»: форма числа под род существительного.
+
+    Берём только те слова, у которых род и множественное подтверждены
+    словарём, — то есть ровно те, что уже работают в «один и много».
+    """
+    import numerals
+    pairs = [(c.he, c.ru, nouns.gender_of(c.he), nouns.plural_of(c.he))
+             for c in VOCAB_FLAT if nouns.plural_of(c.he)]
+    rows = numerals.cards(pairs) + numerals.two_cards(pairs)
+    out = []
+    for i, (ru, en, right, wrongs, frame) in enumerate(rows):
+        out.append(Card(ru=ru, he=right, cat=frame,
+                        cid=f"numerals:{frame}:{i}", en=en,
+                        wrong=tuple(w for w, _r in wrongs)))
+    return out
+
+
+NUMERALS_FLAT = numeral_cards()
+
 SYNTAX_FLAT = syntax_cards()
 SYNTAX_MODES = {"syntax"}
 
@@ -296,6 +316,7 @@ POOLS = {
     "plural": PLURAL_FLAT,
     "abbrev": ABBREV_FLAT,
     "syntax": SYNTAX_FLAT,
+    "numerals": NUMERALS_FLAT,
     # Курс алфавита (уровень 0)
     "alef_names": alphabet.pool_names(),
     "alef_sounds": alphabet.pool_sounds(),
@@ -316,6 +337,7 @@ LABELS = {
     "plural": "один и много",
     "abbrev": "сокращения",
     "syntax": "собери фразу",
+    "numerals": "сколько чего",
     "listen": "на слух",
     "sprint": "спринт",
     "alef_names": "названия букв",
@@ -361,6 +383,7 @@ LABELS_EN = {
     "plural": "one and many",
     "abbrev": "abbreviations",
     "syntax": "build the sentence",
+    "numerals": "how many of what",
     "listen": "by ear",
     "sprint": "sprint",
     "alef_names": "letter names",
@@ -414,7 +437,7 @@ def section_label(mode, cat=None, lang="ru"):
 # рисунка обязаны совпасть, а найти расхождение в браузере я не могу.
 GRAMMAR_SECTIONS = ([(key, None) for key in GRAMMAR_LABELS]
                     + [("plural", "plural"), ("abbrev", "abbrev"),
-                       ("syntax", "syntax")])
+                       ("syntax", "syntax"), ("numerals", "numerals")])
 
 GAP_MODES = {"gap_verb", "gap_who"}
 
