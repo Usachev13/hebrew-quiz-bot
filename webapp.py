@@ -217,6 +217,7 @@ def menu(chat_id, payload):
         "due": due,
         "weak": weak,
         "anagram_modes": sorted(quiz.ANAGRAM_MODES),
+        "speak_modes": sorted(quiz.SPEAK_MODES),
         # Язык отдаём с первым же ответом: страница до этого показывает
         # заставку и ничего не подписывает, а свой список «каким странам
         # какой язык» ей заводить незачем — он один и лежит здесь.
@@ -380,8 +381,40 @@ def answer(chat_id, payload):
     # В аудировании отвечают переводом: услышал иврит — назвал значение.
     expected = card.prompt(lang) if listening else card.answer(lang)
 
+    heard = None
+    if payload.get("format") == "speak" and not skipped:
+        # Ответ голосом. Распознаём и дальше судим ТАК ЖЕ, как набранный
+        # ответ: без огласовок, с поблажкой на опечатку. Распознавание
+        # пишет по-своему («שלומ»/«שלום»), поэтому ещё и сверка по
+        # звучанию — та же, что в «Заговорить».
+        import base64
+        if not speech.available():
+            return jsonify({"error": "no_stt"}), 409
+        try:
+            data = base64.b64decode(payload.get("audio") or "", validate=True)
+        except ValueError:
+            return jsonify({"error": "bad audio"}), 400
+        if not data or len(data) > MAX_SAY_AUDIO:
+            return jsonify({"error": "bad audio"}), 400
+        try:
+            heard, _conf = speech.recognize(data, content_type=speech.WAV)
+        except Exception as e:                               # noqa: BLE001
+            print(f"[answer/speak] {e}")
+            return jsonify({"error": "stt_failed"}), 502
+        heard = (heard or "").strip().rstrip(".?!")
+        print(f"[answer/speak] {mode}:{card_id}: услышано «{heard}»")
+        if not heard:
+            # Тишина — не ответ: не пишем в расписание, даём сказать ещё раз.
+            return jsonify({"verdict": "silence", "correct": False, "heard": ""})
+        given = heard
+
     if skipped:
         verdict = "skip"
+    elif heard is not None:
+        verdict = check_answer(heard, expected, quiz.KNOWN_FORMS.get(mode))
+        if verdict not in ("exact", "typo"):
+            by_sound = speech.compare(heard, expected)["verdict"]
+            verdict = {"match": "exact", "close": "typo"}.get(by_sound, verdict)
     elif payload.get("format") == "choice":
         verdict = "exact" if given == expected else "wrong"
     else:
@@ -423,6 +456,7 @@ def answer(chat_id, payload):
         "reading": read,
         "audio": audio.audio_key(voice) if audio.has_audio(voice) else None,
         "memory": _memory_line(before, correct),
+        **({"heard": heard} if heard is not None else {}),
         **extra,
     })
 
@@ -803,6 +837,16 @@ def _say_targets(ph, female, lang):
     return list(dict.fromkeys(out))
 
 
+def _say_frames(ph, female, lang):
+    """Каркасы с пропуском «{}» — или пустой список, если пропуска нет."""
+    out = [phrases.text(ph, female, lang)]
+    pair = phrases.listener_forms(ph)
+    if pair:
+        out += [pair["to_m"], pair["to_f"]]
+    out = [f for f in dict.fromkeys(out) if phrases.SLOT in f]
+    return out
+
+
 @api.route("/api/say_check", methods=["POST"])
 @guarded
 def say_check(chat_id, payload):
@@ -846,9 +890,15 @@ def say_check(chat_id, payload):
 
     # Лучшая из сверок по всем допустимым формам.
     order = {"match": 0, "close": 1, "different": 2, "silence": 3}
-    best = min((speech.compare(heard, target)
-                for target in _say_targets(ph, female, lang)),
-               key=lambda r: order[r["verdict"]])
+    frames = _say_frames(ph, female, lang)
+    if frames:
+        # Фраза с пропуском: на месте «…» годится любое слово. Сверять с
+        # примером нельзя — человек не обязан заказывать именно кофе.
+        tries = [speech.compare_frame(heard, f) for f in frames]
+    else:
+        tries = [speech.compare(heard, target)
+                 for target in _say_targets(ph, female, lang)]
+    best = min(tries, key=lambda r: order[r["verdict"]])
     verdict, ok, comment, by = best["verdict"], best["verdict"] == "match", "", "words"
     if not ok:
         label = ph["ru"].replace(phrases.SLOT, "…")

@@ -285,12 +285,21 @@ button{font:inherit;color:inherit;cursor:pointer}
                  50%{box-shadow:0 0 0 14px rgba(176,65,62,0)}}
 .mic-l{color:var(--muted);font-size:13px;text-align:center}
 #s-say #say-show.ghost{margin-top:0}
+#q-speak .mic-box{margin-top:var(--s4)}
+.verdict .heard-line{font-size:13px;color:var(--muted);margin-bottom:4px}
 .say-res{display:block;margin-top:var(--s4);padding-top:var(--s4);
          border-top:1px solid var(--border)}
 .say-res[hidden]{display:none}
 .say-res .heard{display:block;direction:rtl;font-size:22px;line-height:1.6;font-weight:600}
 .say-res .heard s{color:#B0413E;text-decoration-thickness:2px}
 .say-res .heard b{color:var(--gold)}
+.say-res .heard u{text-decoration:none;border-bottom:2px dotted var(--gold-bright)}
+/* Пример для фразы с пропуском — ДО ответа, по-русски. Без него
+   «Мне …, пожалуйста» не говорит, что подставить, и человек гадает. */
+.card-say .slot-ex{display:block;margin-top:var(--s3);font-size:14px;color:var(--text);
+                   background:var(--surface-2);border-radius:var(--r);padding:var(--s2) var(--s3)}
+.card-say .slot-ex[hidden]{display:none}
+.card-say .slot-ex small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
 .say-res .v{display:block;font-weight:650;margin-top:var(--s2)}
 .say-res .v.good{color:#4F6B3A}
 .say-res .c{display:block;color:var(--muted);font-size:14px;margin-top:4px;line-height:1.45}
@@ -891,6 +900,7 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
     <span class="ask" data-t="ui.sayAloud">скажите вслух</span>
     <span class="ru" id="say-ru"></span>
     <span class="hint" id="say-note"></span>
+    <span class="slot-ex" id="say-slot" hidden></span>
     <span class="say-res" id="say-res" hidden></span>
     <span class="hidden-box" id="say-hidden">
       <span class="he xl" id="say-he"></span>
@@ -961,6 +971,14 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
       <button class="primary" id="send" data-t="ui.answer">Ответить</button>
       <button class="ghost" id="skip" data-t="ui.dunno" style="flex:0 0 38%">Не знаю</button>
     </div>
+  </div>
+  <!-- Формат «Вслух»: вместо поля — микрофон. -->
+  <div id="q-speak" hidden>
+    <div class="mic-box">
+      <button class="mic" id="q-mic" data-t-aria="say.mic.idle"><i></i></button>
+      <span class="mic-l" id="q-mic-l"></span>
+    </div>
+    <button class="ghost" id="q-skip" data-t="ui.dunno">Не знаю</button>
   </div>
   <div id="verdict" aria-live="polite"></div>
   <button class="ghost" id="know" data-t="ui.know" style="margin-top:var(--s2)">Я уже знаю это</button>
@@ -1287,6 +1305,10 @@ ru: {
   "say.mic.off": "Микрофон недоступен — отмечайте сами, сказали или нет.",
   "say.mic.failed": "Проверить не вышло — сравните с ответом сами.",
   "say.v.match": "Верно!",
+  "fmt.speak": "Вслух",            "fmt.speak.sub": "скажите — проверит распознавание речи",
+  "q.heard": "Услышано:",
+  "say.slotEx": "Например: «{ex}»",
+  "say.slotAny": "вместо «…» можно сказать своё слово",
   "say.v.meaning": "Смысл передан — так тоже говорят",
   "say.v.close": "Почти",
   "say.v.different": "Не совсем",
@@ -1501,6 +1523,10 @@ en: {
   "say.mic.off": "No microphone — mark it yourself.",
   "say.mic.failed": "Couldn't check — compare with the answer yourself.",
   "say.v.match": "Correct!",
+  "fmt.speak": "Out loud",         "fmt.speak.sub": "say it — speech recognition checks",
+  "q.heard": "Heard:",
+  "say.slotEx": "For example: “{ex}”",
+  "say.slotAny": "you can say your own word instead of “…”",
   "say.v.meaning": "Meaning conveyed — that works too",
   "say.v.close": "Almost",
   "say.v.different": "Not quite",
@@ -2101,6 +2127,11 @@ function renderSay(){
   $("say-ru").textContent = c.ru;
   $("say-note").textContent = c.note || "";
   $("say-note").hidden = !c.note;
+  // Фраза с пропуском: сразу даём русский пример и говорим, что слово
+  // можно своё. Иврит примера по-прежнему спрятан до ответа.
+  $("say-slot").hidden = !c.example;
+  if (c.example) $("say-slot").innerHTML =
+    `${t("say.slotEx", { ex: esc(c.example.ru) })}<small>${t("say.slotAny")}</small>`;
   $("say-he").textContent = c.he;
   $("say-tr").textContent = c.reading || "";
   // Пример с заполненным слотом: человек слышит и видит целую фразу, а
@@ -2130,7 +2161,7 @@ function renderSay(){
   // С микрофоном «Показать ответ» — запасной выход, а не главный путь.
   $("say-show").className = mic ? "ghost" : "primary";
   $("say-show").textContent = t(mic ? "ui.dontKnow" : "ui.showAnswer");
-  setMic("idle");
+  setMic("idle", "say");
 
   // Пять секунд тишины: за них надо успеть сказать. Без паузы человек
   // жмёт «показать» рефлекторно и снова ничего не произносит.
@@ -2201,10 +2232,10 @@ async function judgeSay(said){
 }
 
 $("say-show").onclick = () => { tap(); stopRec(true); revealSay(); };
-$("say-mic").onclick = () => { tap(); toggleRec(); };
+$("say-mic").onclick = () => { tap(); toggleRec("say", checkSay, sayMicDenied); };
 $("say-again").onclick = () => { tap();
   $("say-res").hidden = true; $("say-after").hidden = true;
-  $("say-mic-box").hidden = false; setMic("idle"); };
+  $("say-mic-box").hidden = false; setMic("idle", "say"); };
 $("say-next").onclick = () => judgeSay(!!state.sayOk);
 
 /* ---------- запись голоса ----------
@@ -2221,20 +2252,24 @@ function canCheckSpeech(){
             && (window.AudioContext || window.webkitAudioContext) && !state.micOff);
 }
 
-function setMic(mode){
-  const b = $("say-mic");
+/* Одна запись на два места: «Заговорить» (ui="say") и раунд в формате
+   «Вслух» (ui="q"). Кнопка и подпись — по префиксу, что делать с
+   записью и с отказом в доступе — решает тот, кто начал запись. */
+function setMic(mode, ui = rec.ui || "say"){
+  const b = $(ui + "-mic");
   b.classList.toggle("rec", mode === "rec");
   b.classList.toggle("busy", mode === "busy");
   b.disabled = mode === "busy";
-  $("say-mic-l").textContent = t("say.mic." + mode);
+  $(ui + "-mic-l").textContent = t("say.mic." + mode);
 }
 
 const clientLog = (where, msg) =>
   api("/api/client_log", { where, msg: String(msg) }).catch(() => {});
 
-async function toggleRec(){
+async function toggleRec(ui = "say", onWav = checkSay, onDenied = sayMicDenied){
   if (rec.on) return stopRec();
   if (rec.asking) return;
+  rec.ui = ui; rec.onWav = onWav; rec.onDenied = onDenied;
   // Пока Telegram спрашивает разрешение, показываем, что нажатие
   // принято. Раньше подпись не менялась, и казалось, что не происходит
   // ничего.
@@ -2253,11 +2288,7 @@ async function toggleRec(){
     clientLog("mic", (e && (e.name + ": " + e.message)) || e);
     // Отказали в доступе или микрофона нет — дальше без него.
     state.micOff = true;
-    $("say-mic-box").hidden = true;
-    $("say-show").className = "primary";
-    $("say-show").textContent = t("ui.showAnswer");
-    $("say-note").hidden = false;
-    $("say-note").textContent = t("say.mic.off");
+    rec.onDenied();
     return;
   }
   rec.asking = false;
@@ -2276,7 +2307,7 @@ async function toggleRec(){
   };
   src.connect(rec.node); rec.node.connect(rec.ctx.destination);
   rec.on = true;
-  $("say-wait").hidden = true;
+  if (ui === "say") $("say-wait").hidden = true;
   setMic("rec");
   rec.timer = setTimeout(() => stopRec(), REC_MAX_MS);
 }
@@ -2291,7 +2322,15 @@ function stopRec(discard = false){
   if (discard){ setMic("idle"); return; }
   if (!rec.chunks.length) clientLog("mic", "запись пустая: звук не шёл");
   const wav = encodeWav(rec.chunks, rec.rate);
-  checkSay(wav);
+  rec.onWav(wav);
+}
+
+function sayMicDenied(){
+  $("say-mic-box").hidden = true;
+  $("say-show").className = "primary";
+  $("say-show").textContent = t("ui.showAnswer");
+  $("say-note").hidden = false;
+  $("say-note").textContent = t("say.mic.off");
 }
 
 function encodeWav(chunks, rate){
@@ -2349,8 +2388,10 @@ async function checkSay(audio){
   // Сказанное — с правками внутри, как в разговоре: лишнее зачёркнуто,
   // недостающее выделено. Если смысл принят моделью, разметку по словам
   // не показываем: «ошибки» там — просто другие верные слова.
-  const words = r.ok ? esc(r.heard) : (r.diff || []).map(([op, w]) =>
-      op === "=" ? esc(w) : op === "+" ? `<s>${esc(w)}</s>` : `<b>${esc(w)}</b>`).join(" ");
+  // «~» — своё слово на месте «…»: не ошибка, подчёркнуто пунктиром.
+  const words = r.ok && r.by === "model" ? esc(r.heard) : (r.diff || []).map(([op, w]) =>
+      op === "=" ? esc(w) : op === "~" ? `<u>${esc(w)}</u>`
+      : op === "+" ? `<s>${esc(w)}</s>` : `<b>${esc(w)}</b>`).join(" ");
   $("say-res").hidden = false;
   $("say-res").innerHTML = `<span class="heard">${words}${r.ok ? " ✓" : ""}</span>
     <span class="v ${r.ok ? "good" : ""}">${t("say.v." + r.verdict)}</span>
@@ -2412,12 +2453,17 @@ const FORMATS = [
   { key:"choice",  bg:"choice"  },
   { key:"type",    bg:"type"    },
   { key:"anagram", bg:"anagram" },
+  // Ответ голосом — везде, где ответ на иврите. Проверяет распознавание
+  // тем же судом, что и набранный ответ.
+  { key:"speak",   bg:"say"     },
 ];
 function openFormat(title){
   $("format-title").textContent = title;
   const host = $("format-tiles"); host.innerHTML = "";
   FORMATS.forEach(f => {
     if (f.key === "anagram" && !state.menu.anagram_modes.includes(state.mode)) return;
+    if (f.key === "speak" && !(canCheckSpeech()
+        && (state.menu.speak_modes || []).includes(state.mode))) return;
     host.appendChild(tile({
       ...f, name: t("fmt." + f.key), sub: t("fmt." + f.key + ".sub"),
       onclick:() => startRound(f.key) }));
@@ -2601,8 +2647,13 @@ function renderQuestion(){
     $("word").textContent = q.ru;
   }
   $("options").innerHTML = ""; $("typed").hidden = true; $("letters").hidden = true;
+  $("q-speak").hidden = true;
 
-  if (state.fmt === "choice"){
+  if (state.fmt === "speak" && !state.micOff){
+    $("q-speak").hidden = false;
+    $("q-mic").hidden = false;
+    setMic("idle", "q");
+  } else if (state.fmt === "choice"){
     q.options.forEach(opt => {
       const b = document.createElement("button");
       b.className = "opt";
@@ -2771,12 +2822,28 @@ function showSprintResult(res){
   show("done");
 }
 
-async function sendAnswer(given, btn, skip = false){
+async function sendAnswer(given, btn, skip = false, audio = null){
   if (state.busy) return;
   state.busy = true;
   const q = state.round.questions[state.idx];
-  const res = await api("/api/answer",
-    { mode:q.mode, id:q.id, answer:given, format:state.fmt, skip });
+  let res;
+  try {
+    res = await api("/api/answer",
+      { mode:q.mode, id:q.id, answer:given, format:state.fmt, skip,
+        ...(audio ? { audio } : {}) });
+  } catch(e){ res = { error:"network" }; }
+  if (audio && (res.error || res.verdict === "silence")){
+    // Тишина или сбой распознавания — вопрос не засчитываем, даём
+    // сказать ещё раз.
+    if (res.error) clientLog("answer/speak", res.error);
+    state.busy = false;
+    setMic("idle", "q");
+    $("verdict").innerHTML = `<div class="verdict typo"><div class="head">${
+      t(res.error ? "say.mic.failed" : "say.v.silence")}</div></div>`;
+    return;
+  }
+  if (res.error){ state.busy = false; return fail(t("err.network")); }
+  $("q-speak").hidden = true;
   if (res.correct) state.score++;
   buzz(res.correct ? "success" : "error");
 
@@ -2795,6 +2862,8 @@ async function sendAnswer(given, btn, skip = false){
   $("verdict").innerHTML =
     `<div class="verdict ${kind}">
        <div class="head">${icon(res.correct ? "check" : "cross", 18)}<span>${t(head)}</span></div>
+       ${res.heard !== undefined && !res.correct
+          ? `<div class="heard-line">${t("q.heard")} <span class="he sm">${esc(res.heard)}</span></div>` : ""}
        <div class="he sm">${res.expected}</div>
        ${res.reading ? `<div class="reading">${res.reading}</div>` : ""}
        ${res.memory ? `<div class="memory">${res.memory}</div>` : ""}
@@ -2817,6 +2886,11 @@ async function sendAnswer(given, btn, skip = false){
 $("send").onclick = () => sendAnswer($("answer").value.trim());
 $("answer").addEventListener("keydown", e => { if (e.key === "Enter") $("send").click(); });
 $("skip").onclick = () => sendAnswer("", null, true);
+$("q-skip").onclick = () => { stopRec(true); sendAnswer("", null, true); };
+$("q-mic").onclick = () => { tap(); toggleRec("q",
+  wav => { setMic("busy", "q"); sendAnswer("", null, false, wav); },
+  () => { // нет микрофона — этот раунд доводим набором
+    $("q-speak").hidden = true; $("typed").hidden = false; $("answer").focus(); }); };
 /* Взрослый оле часто знает половину базовой лексики. Без этой кнопки
    он гоняет знакомое слово по десять раз, и это выглядит издевательством.
    Карточка уходит в последнюю коробку, но через 21 день всплывёт на

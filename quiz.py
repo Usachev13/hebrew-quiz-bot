@@ -557,6 +557,14 @@ SPRINT_SECONDS = 60
 # времени.
 SPRINT_QUESTIONS = 40
 
+# Где можно отвечать голосом: ответ — ивритское слово или фраза.
+# Не входят: алфавит (ответ — название буквы или звук, одиночную букву
+# распознавание не берёт), сокращения (их читают по-разному: «шах» и
+# «шекель хадаш» — оба верны), аудирование и спринт.
+SPEAK_MODES = {"vocab", "verbs", "past", "present", "future", "gap_verb",
+               "gap_who", "plural", "syntax", "numerals", "prepositions",
+               "smichut", "kol", "she"}
+
 LISTEN_MODES = {"listen"}
 
 

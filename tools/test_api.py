@@ -83,10 +83,46 @@ ok(_calls and r["verdict"] == "meaning" and r["ok"] and r["by"] == "model",
 _dialog.judge = lambda *a, **k: None
 r = say_check(id=_ph_id, audio=WAV).get_json()
 ok(r["verdict"] == "different" and not r["ok"], f"модели нет — вердикт по словам: {r['verdict']}")
+_P = __import__("phrases")
+_slot_id = next(_P.card_id(sit, i) for sit, it in _P.PHRASES.items()
+                for i, p in enumerate(it) if p["ru"].startswith("Мне {}"))
+_calls.clear(); _dialog.judge = _judge
+speech.recognize = lambda data, lang="he-IL", content_type=None: ("לי תה בבקשה", 0.9)
+r = say_check(id=_slot_id, audio=WAV).get_json()
+ok(r["verdict"] == "match" and not _calls,
+   f"«Мне …, пожалуйста»: своё слово (чай, а не кофе из примера) — верно без модели: {r['verdict']}")
+ok(("~", "תה") in [tuple(x) for x in r["diff"]], "своё слово помечено как подстановка, а не ошибка")
+speech.recognize = lambda data, lang="he-IL", content_type=None: ("לי בבקשה", 0.9)
+_dialog.judge = lambda *a, **k: None
+r = say_check(id=_slot_id, audio=WAV).get_json()
+ok(r["verdict"] == "different" and ["-", "…"] in r["diff"],
+   "пропуск не заполнен — отмечен пустой «…», а не слово из примера")
 speech.recognize = lambda data, lang="he-IL", content_type=None: ("", 0.0)
 r = say_check(id=_ph_id, audio=WAV).get_json()
 ok(r["verdict"] == "silence", "тишина — просим сказать ещё раз")
 ok(say_check(id=_ph_id, audio="не base64!").status_code == 400, "мусор вместо звука — 400")
+print("формат «Вслух» в обычном раунде")
+_vc = quiz.POOLS["vocab"][0]
+_exp = _vc.answer("ru")
+def speak_answer(heard_text, mode="vocab", cid=None):
+    speech.recognize = lambda data, lang="he-IL", content_type=None: (heard_text, 0.9)
+    return post("/api/answer", mode=mode, id=cid or _vc.key(), format="speak", audio=WAV)
+r = speak_answer(hebrew_rules.strip_niqqud(_exp) + ".")
+ok(r["correct"] and r["verdict"] == "exact", f"сказал слово — верно: {r['verdict']}, услышано «{r.get('heard')}»")
+r = speak_answer("משהו אחר")
+ok(not r["correct"] and r.get("heard") == "משהו אחר", "не то слово — неверно, и видно, что услышано")
+_long = next(c for c in quiz.POOLS["syntax"]
+             if len(hebrew_rules.strip_niqqud(c.answer("ru")).split()) >= 4)
+_w = hebrew_rules.strip_niqqud(_long.answer("ru")).split()
+_w[-1] = "בננה"                      # одно слово из четырёх+ не то
+r = speak_answer(" ".join(_w), mode="syntax", cid=_long.key())
+ok(r["verdict"] == "typo" and r["correct"],
+   f"длинная фраза, одно слово распознано иначе — «почти», засчитано: {r['verdict']}")
+r = speak_answer("")
+ok(r["verdict"] == "silence" and not r["correct"], "тишина — не засчитывается ни так, ни так")
+ok("vocab" in post("/api/menu").get("speak_modes", []), "меню разрешает «Вслух» для слов")
+ok(not any(m.startswith("alef_") for m in post("/api/menu").get("speak_modes", [])),
+   "в алфавите «Вслух» не предлагается")
 ok(post("/api/menu").get("speech_check") is True, "меню говорит приложению, что проверка есть")
 
 print("раунд")

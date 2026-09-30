@@ -213,3 +213,72 @@ def compare(heard, expected):
     else:
         verdict = "different"
     return {"verdict": verdict, "heard": heard.strip(), "diff": diff}
+
+
+SLOT = "{}"
+MAX_FILLER = 3          # столько слов может стоять на месте «…»
+
+
+def compare_frame(heard, frame):
+    """Сверка с каркасом, в котором есть пропуск «…» (SLOT).
+
+    На месте пропуска годится любое слово: задание «Мне …, пожалуйста»
+    не говорит, ЧТО заказать. Первый заход сверял с примером из подсказки
+    («לי קפה בבקשה») и объявлял «кофе» пропущенным, хотя его никто не
+    просил говорить.
+
+    В разборе слова на месте пропуска помечены «~» — это не ошибка, а
+    своё слово человека. Пропуск остался пустым — («-», «…»).
+    """
+    before, _, after = (frame or "").partition(SLOT)
+    eb, ea = words(before), words(after)
+    sb = shown(before) if len(shown(before)) == len(eb) else eb
+    sa = shown(after) if len(shown(after)) == len(ea) else ea
+    h = words(heard)
+    if not h:
+        return {"verdict": "silence", "heard": "", "diff": []}
+    h_show = shown(heard) if len(shown(heard)) == len(h) else h
+    e_key = [sound_key(w) for w in eb + ea]
+    h_key = [sound_key(w) for w in h]
+    e_show = sb + sa
+    k = len(eb)                               # где в каркасе стоит пропуск
+
+    diff, same, filler, stray = [], 0, 0, 0
+    sm = difflib.SequenceMatcher(a=e_key, b=h_key, autojunk=False)
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == "equal":
+            same += i2 - i1
+            diff += [("=", w) for w in e_show[i1:i2]]
+        elif tag == "insert" and i1 == k:
+            filler += j2 - j1
+            diff += [("~", w) for w in h_show[j1:j2]]
+        elif tag == "insert":
+            stray += j2 - j1
+            diff += [("+", w) for w in h_show[j1:j2]]
+        elif tag == "delete":
+            diff += [("-", w) for w in e_show[i1:i2]]
+        else:
+            diff += [("-", w) for w in e_show[i1:i2]]
+            diff += [("+", w) for w in h_show[j1:j2]]
+            stray += j2 - j1
+    if not filler:
+        diff.insert(_pos(diff, k), ("-", "…"))
+
+    if same == len(e_key) and not stray and 1 <= filler <= MAX_FILLER:
+        verdict = "match"
+    elif len(e_key) >= 2 and same >= len(e_key) - 1 and filler:
+        verdict = "close"
+    else:
+        verdict = "different"
+    return {"verdict": verdict, "heard": heard.strip(), "diff": diff}
+
+
+def _pos(diff, k):
+    """Куда в разборе поставить пустой пропуск: после k-го слова каркаса."""
+    seen = 0
+    for i, (op, _) in enumerate(diff):
+        if seen == k:
+            return i
+        if op in ("=", "-"):
+            seen += 1
+    return len(diff)

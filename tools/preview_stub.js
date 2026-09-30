@@ -53,7 +53,7 @@ window.fetch = async (path, opt) => {
   if (!String(path).startsWith("/api/")) return realFetch(path, opt);
 
   const b = JSON.parse(opt.body); let r = {};
-  if (path.endsWith("/menu")) r = { speech_check:true, guide_seen:true,
+  if (path.endsWith("/menu")) r = { speech_check:true, guide_seen:true, speak_modes:["vocab","verbs"],
     topics: PT.map(([key,name,count]) => ({key,name,count})),
     grammar: [["adjectives","Прилагательные",10],["cardinals","Числительные",9]]
       .map(([key,name,count]) => ({key,name,count})),
@@ -91,6 +91,11 @@ window.fetch = async (path, opt) => {
           questions: PW.map(([ru,he],i) => ({ru, mode:"vocab",
             options:[he, PW[(i+1)%10][1], PW[(i+2)%10][1], PW[(i+3)%10][1]],
             letters:[...he.replace(/[\u0591-\u05C7]/g,"")]})) }; }
+  else if (path.endsWith("/answer") && b.format === "speak") {
+    // «Вслух»: образец ошибки — видно, что услышало распознавание.
+    return { ok:true, status:200, json: async () => ({verdict:"wrong", correct:false,
+      heard:"לחמים", expected:"לֶחֶם", reading:"лехем", audio:null, memory:null}) };
+  }
   else if (path.endsWith("/answer")) {
     const a = (ALEF[b.mode] || []).find(q => q.ru === b.ru);
     if (a){ const ok = b.answer === a.he;
