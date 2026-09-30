@@ -43,6 +43,7 @@ sys.path.insert(0, str(HERE.parent))
 
 import dialog  # noqa: E402
 import hebrew_rules  # noqa: E402
+from translit import translit  # noqa: E402
 
 # Разговор, а не набор отдельных вопросов: важно, помнит ли собеседник
 # сказанное. Третья реплика проверяет ровно это — имя названо в первой.
@@ -85,6 +86,17 @@ def run(provider, verbose=True, raw=False, model=None):
         if verbose:
             print(f"    > {said}")
             print(f"      {res['he']}")
+            # Чтение кириллицей — не украшение. Иврит в терминале
+            # раскладывается двунаправленным алгоритмом, и вперемешку с
+            # русским и знаками порядок слов на экране может выглядеть
+            # как угодно: показалось, что модель пишет слева направо.
+            # По транскрипции видно, что она НА САМОМ ДЕЛЕ сказала, и
+            # бессмыслица опознаётся сразу, без чтения на иврите.
+            if res["ok"] and res["he"]:
+                try:
+                    print(f"      {translit(res['he'])}")
+                except Exception:                            # noqa: BLE001
+                    pass
             print(f"      {res['ru']}")
             if res["fixed"]:
                 print(f"      поправка: {res['fixed']}")
