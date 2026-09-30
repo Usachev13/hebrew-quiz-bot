@@ -161,7 +161,8 @@ def _sent_file_id(response):
     return (body.get("result") or {}).get("voice", {}).get("file_id")
 
 
-def send_voice_file(api_url, chat_id, path, caption=None, file_id=None):
+def send_voice_file(api_url, chat_id, path, caption=None, file_id=None,
+                    reply_markup=None):
     """Отправляет файл голосовым. Возвращает file_id или None.
 
     file_id — идентификатор уже загруженного файла. Если он есть, аудио
@@ -175,6 +176,9 @@ def send_voice_file(api_url, chat_id, path, caption=None, file_id=None):
     data = {"chat_id": str(chat_id)}
     if caption:
         data["caption"] = caption
+    if reply_markup:
+        # Кнопки прямо под голосовым: в разговоре это «Текст».
+        data["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
 
     if file_id:
         try:

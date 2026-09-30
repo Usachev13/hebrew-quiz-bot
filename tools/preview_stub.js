@@ -53,7 +53,7 @@ window.fetch = async (path, opt) => {
   if (!String(path).startsWith("/api/")) return realFetch(path, opt);
 
   const b = JSON.parse(opt.body); let r = {};
-  if (path.endsWith("/menu")) r = {
+  if (path.endsWith("/menu")) r = { speech_check:true, guide_seen:true,
     topics: PT.map(([key,name,count]) => ({key,name,count})),
     grammar: [["adjectives","Прилагательные",10],["cardinals","Числительные",9]]
       .map(([key,name,count]) => ({key,name,count})),
@@ -130,6 +130,12 @@ window.fetch = async (path, opt) => {
   else if (path.endsWith("/say")) r = { label:"Быт: макколет, рынок, кафе",
     female: PREVIEW_GENDER === "f", cards: SAY };
   else if (path.endsWith("/say_answer")) r = { ok:true };
+  // Проверка голоса: образец ошибки — лишнее слово зачёркнуто, нужное
+  // выделено, и короткое пояснение модели.
+  else if (path.endsWith("/say_check")) r = { verdict:"wrong", ok:false,
+    heard:"כמה זה עולים", by:"model", unsure:false,
+    diff:[["=","כמה"],["=","זה"],["+","עולים"],["-","עולה"]],
+    comment:"«Стоит» про одну вещь — עוֹלֶה, а не множественное число." };
   else if (path.endsWith("/round_done")) r = {xp:163, level:5, at_level:32, need:64};
   return { ok:true, status:200, json: async () => r };
 };

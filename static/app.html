@@ -271,6 +271,29 @@ button{font:inherit;color:inherit;cursor:pointer}
 .card-say .wait i{display:block;height:100%;width:0;background:var(--gold-bright);
                   border-radius:999px}
 .card-say .wait.run i{width:100%;transition:width 5s linear}
+/* Микрофон. Нажал — запись, нажал ещё раз — проверка. Удерживать не
+   нужно: на телефоне удержание спорит с прокруткой. */
+.mic-box{display:flex;flex-direction:column;align-items:center;gap:var(--s2);
+         margin:var(--s2) 0 var(--s3)}
+.mic{width:76px;height:76px;border-radius:50%;border:0;background:var(--primary);
+     box-shadow:var(--shadow-p);display:grid;place-items:center;position:relative}
+.mic i{width:22px;height:34px;border-radius:12px;background:var(--on-primary);display:block}
+.mic.rec{background:#B0413E;animation:pulse 1.1s ease-in-out infinite}
+.mic.rec i{width:24px;height:24px;border-radius:5px}
+.mic.busy{opacity:.5}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(176,65,62,.45)}
+                 50%{box-shadow:0 0 0 14px rgba(176,65,62,0)}}
+.mic-l{color:var(--muted);font-size:13px;text-align:center}
+#s-say #say-show.ghost{margin-top:0}
+.say-res{display:block;margin-top:var(--s4);padding-top:var(--s4);
+         border-top:1px solid var(--border)}
+.say-res[hidden]{display:none}
+.say-res .heard{display:block;direction:rtl;font-size:22px;line-height:1.6;font-weight:600}
+.say-res .heard s{color:#B0413E;text-decoration-thickness:2px}
+.say-res .heard b{color:var(--gold)}
+.say-res .v{display:block;font-weight:650;margin-top:var(--s2)}
+.say-res .v.good{color:#4F6B3A}
+.say-res .c{display:block;color:var(--muted);font-size:14px;margin-top:4px;line-height:1.45}
 /* Две формы рядом: подпись сверху говорит, кому так сказать. Без
    подписи человек не поймёт, зачем ему два варианта. */
 .to-pair{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3);
@@ -868,6 +891,7 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
     <span class="ask" data-t="ui.sayAloud">скажите вслух</span>
     <span class="ru" id="say-ru"></span>
     <span class="hint" id="say-note"></span>
+    <span class="say-res" id="say-res" hidden></span>
     <span class="hidden-box" id="say-hidden">
       <span class="he xl" id="say-he"></span>
       <span class="tr" id="say-tr"></span>
@@ -877,6 +901,16 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
     <span class="wait" id="say-wait"><i></i></span>
   </div>
 
+  <!-- Микрофон: сказал — проверила нейросеть. Нет распознавания или
+       микрофона — остаётся прежняя самопроверка ниже. -->
+  <div class="mic-box" id="say-mic-box" hidden>
+    <button class="mic" id="say-mic" data-t-aria="say.mic.idle"><i></i></button>
+    <span class="mic-l" id="say-mic-l"></span>
+  </div>
+  <div class="row" id="say-after" hidden>
+    <button class="ghost" id="say-again" data-t="say.again">Ещё раз</button>
+    <button class="ok-btn" id="say-next" data-t="say.next">Дальше</button>
+  </div>
   <button class="primary" id="say-show" data-t="ui.showAnswer">Показать ответ</button>
   <div class="row" id="say-judge" hidden>
     <button class="ok-btn" id="say-yes" data-t="ui.said">Сказал</button>
@@ -1244,6 +1278,20 @@ ru: {
   "ui.sayHint": "Сначала скажите вслух, потом смотрите ответ. Молча упражнение не работает — в этом вся разница.",
   "ui.sayAloud": "скажите вслух",
   "ui.showAnswer": "Показать ответ",
+  "ui.dontKnow": "Не помню — показать ответ",
+  "say.again": "Ещё раз",           "say.next": "Дальше",
+  "say.mic.idle": "Нажмите и скажите",
+  "say.mic.rec": "Говорите… нажмите, чтобы закончить",
+  "say.mic.busy": "Проверяю…",
+  "say.mic.off": "Микрофон недоступен — отмечайте сами, сказали или нет.",
+  "say.mic.failed": "Проверить не вышло — сравните с ответом сами.",
+  "say.v.match": "Верно!",
+  "say.v.meaning": "Смысл передан — так тоже говорят",
+  "say.v.close": "Почти",
+  "say.v.different": "Не совсем",
+  "say.v.wrong": "Не совсем",
+  "say.v.silence": "Ничего не услышал — скажите ещё раз, чуть громче",
+  "say.unsure": "Распознавание не уверено — возможно, дело в нём, а не в вас.",
   "ui.said": "Сказал",
   "ui.failed": "Не смог",
   "ui.newWords": "Новые слова",
@@ -1443,6 +1491,20 @@ en: {
   "ui.sayHint": "Say it out loud first, then look at the answer. Silently it doesn't work — that's the whole difference.",
   "ui.sayAloud": "say it out loud",
   "ui.showAnswer": "Show the answer",
+  "ui.dontKnow": "Don't remember — show the answer",
+  "say.again": "Again",             "say.next": "Next",
+  "say.mic.idle": "Tap and speak",
+  "say.mic.rec": "Speak… tap to finish",
+  "say.mic.busy": "Checking…",
+  "say.mic.off": "No microphone — mark it yourself.",
+  "say.mic.failed": "Couldn't check — compare with the answer yourself.",
+  "say.v.match": "Correct!",
+  "say.v.meaning": "Meaning conveyed — that works too",
+  "say.v.close": "Almost",
+  "say.v.different": "Not quite",
+  "say.v.wrong": "Not quite",
+  "say.v.silence": "Didn't hear anything — try again, a bit louder",
+  "say.unsure": "Recognition wasn't sure — it may be the recognizer, not you.",
   "ui.said": "Said it",
   "ui.failed": "Couldn't",
   "ui.newWords": "New words",
@@ -2050,6 +2112,15 @@ function renderSay(){
   $("say-hidden").hidden = true;
   $("say-judge").hidden = true;
   $("say-show").hidden = false;
+  $("say-res").hidden = true;
+  $("say-after").hidden = true;
+  state.sayOk = null;
+  const mic = canCheckSpeech();
+  $("say-mic-box").hidden = !mic;
+  // С микрофоном «Показать ответ» — запасной выход, а не главный путь.
+  $("say-show").className = mic ? "ghost" : "primary";
+  $("say-show").textContent = t(mic ? "ui.dontKnow" : "ui.showAnswer");
+  setMic("idle");
 
   // Пять секунд тишины: за них надо успеть сказать. Без паузы человек
   // жмёт «показать» рефлекторно и снова ничего не произносит.
@@ -2059,12 +2130,15 @@ function renderSay(){
   w.classList.add("run");
 }
 
-function revealSay(){
+function revealSay(checked = false){
   const c = state.say.cards[state.sIdx];
   $("say-hidden").hidden = false;
   $("say-wait").hidden = true;
   $("say-show").hidden = true;
-  $("say-judge").hidden = false;
+  // Проверено нейросетью — судить себя не нужно, дальше «Ещё раз» или
+  // «Дальше». Открыл ответ, не сказав, — прежняя самопроверка.
+  $("say-judge").hidden = checked;
+  if (!checked) $("say-mic-box").hidden = true;
 
   const box = $("say-hidden");
   box.querySelector(".to-pair")?.remove();
@@ -2116,7 +2190,142 @@ async function judgeSay(said){
   renderSay();
 }
 
-$("say-show").onclick = () => { tap(); revealSay(); };
+$("say-show").onclick = () => { tap(); stopRec(true); revealSay(); };
+$("say-mic").onclick = () => { tap(); toggleRec(); };
+$("say-again").onclick = () => { tap();
+  $("say-res").hidden = true; $("say-after").hidden = true;
+  $("say-mic-box").hidden = false; setMic("idle"); };
+$("say-next").onclick = () => judgeSay(!!state.sayOk);
+
+/* ---------- запись голоса ----------
+
+   Пишем WAV сами, 16 кГц моно. MediaRecorder отдаёт webm (Android) или
+   mp4 (iPhone), а распознавание Azure принимает ogg или wav — перекодировать
+   на сервере значило бы ставить туда ffmpeg. Сырой звук из AudioContext
+   и сорок строк кодировщика проще и работают везде, где есть микрофон. */
+const REC_MAX_MS = 8000;
+const rec = { on:false, ctx:null, stream:null, node:null, chunks:[], rate:48000, timer:null };
+
+function canCheckSpeech(){
+  return !!(state.menu?.speech_check && navigator.mediaDevices?.getUserMedia
+            && (window.AudioContext || window.webkitAudioContext) && !state.micOff);
+}
+
+function setMic(mode){
+  const b = $("say-mic");
+  b.classList.toggle("rec", mode === "rec");
+  b.classList.toggle("busy", mode === "busy");
+  b.disabled = mode === "busy";
+  $("say-mic-l").textContent = t("say.mic." + mode);
+}
+
+async function toggleRec(){
+  if (rec.on) return stopRec();
+  try {
+    rec.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch(e){
+    // Отказали в доступе или микрофона нет — дальше без него.
+    state.micOff = true;
+    $("say-mic-box").hidden = true;
+    $("say-show").className = "primary";
+    $("say-show").textContent = t("ui.showAnswer");
+    $("say-note").hidden = false;
+    $("say-note").textContent = t("say.mic.off");
+    return;
+  }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  rec.ctx = new AC();
+  rec.rate = rec.ctx.sampleRate;
+  const src = rec.ctx.createMediaStreamSource(rec.stream);
+  rec.node = rec.ctx.createScriptProcessor(4096, 1, 1);
+  rec.chunks = [];
+  rec.node.onaudioprocess = e => {
+    if (rec.on) rec.chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+  };
+  src.connect(rec.node); rec.node.connect(rec.ctx.destination);
+  rec.on = true;
+  $("say-wait").hidden = true;
+  setMic("rec");
+  rec.timer = setTimeout(() => stopRec(), REC_MAX_MS);
+}
+
+function stopRec(discard = false){
+  if (!rec.on) return;
+  rec.on = false;
+  clearTimeout(rec.timer);
+  try { rec.node.disconnect(); } catch(e){}
+  rec.stream.getTracks().forEach(tr => tr.stop());
+  rec.ctx.close().catch(() => {});
+  if (discard){ setMic("idle"); return; }
+  const wav = encodeWav(rec.chunks, rec.rate);
+  checkSay(wav);
+}
+
+function encodeWav(chunks, rate){
+  const len = chunks.reduce((n, c) => n + c.length, 0);
+  const all = new Float32Array(len);
+  let o = 0; chunks.forEach(c => { all.set(c, o); o += c.length; });
+  // Понижаем до 16 кГц усреднением — распознаванию этого достаточно,
+  // а файл втрое меньше.
+  const ratio = rate / 16000, n = Math.floor(len / ratio);
+  const buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const str = (p, s) => [...s].forEach((ch, i) => v.setUint8(p + i, ch.charCodeAt(0)));
+  str(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); str(8, "WAVE");
+  str(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+  v.setUint16(22, 1, true); v.setUint32(24, 16000, true);
+  v.setUint32(28, 32000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  str(36, "data"); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++){
+    const a = Math.floor(i * ratio), b = Math.min(len, Math.floor((i + 1) * ratio));
+    let sum = 0; for (let k = a; k < b; k++) sum += all[k];
+    const x = Math.max(-1, Math.min(1, sum / Math.max(1, b - a)));
+    v.setInt16(44 + i * 2, x < 0 ? x * 0x8000 : x * 0x7fff, true);
+  }
+  let bin = ""; const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+const esc = s => String(s).replace(/[&<>"]/g, ch =>
+  ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" })[ch]);
+
+async function checkSay(audio){
+  const c = state.say.cards[state.sIdx];
+  setMic("busy");
+  let r;
+  try { r = await api("/api/say_check", { id: c.id, audio }); }
+  catch(e){ r = { error: "network" }; }
+  if (r.error){
+    // Проверка не удалась — не бросаем человека: самопроверка.
+    if (r.error === "no_stt") state.micOff = true;
+    $("say-mic-box").hidden = true;
+    $("say-res").hidden = false;
+    $("say-res").innerHTML = `<span class="c">${t("say.mic.failed")}</span>`;
+    return revealSay();
+  }
+  if (r.verdict === "silence"){
+    setMic("idle");
+    $("say-res").hidden = false;
+    $("say-res").innerHTML = `<span class="v">${t("say.v.silence")}</span>`;
+    return;
+  }
+  state.sayOk = r.ok;
+  buzz(r.ok ? "success" : "error");
+  // Сказанное — с правками внутри, как в разговоре: лишнее зачёркнуто,
+  // недостающее выделено. Если смысл принят моделью, разметку по словам
+  // не показываем: «ошибки» там — просто другие верные слова.
+  const words = r.ok ? esc(r.heard) : (r.diff || []).map(([op, w]) =>
+      op === "=" ? esc(w) : op === "+" ? `<s>${esc(w)}</s>` : `<b>${esc(w)}</b>`).join(" ");
+  $("say-res").hidden = false;
+  $("say-res").innerHTML = `<span class="heard">${words}${r.ok ? " ✓" : ""}</span>
+    <span class="v ${r.ok ? "good" : ""}">${t("say.v." + r.verdict)}</span>
+    ${r.comment ? `<span class="c">${esc(r.comment)}</span>` : ""}
+    ${r.unsure && !r.ok ? `<span class="c">${t("say.unsure")}</span>` : ""}`;
+  $("say-mic-box").hidden = true;
+  $("say-after").hidden = false;
+  revealSay(true);
+}
 $("say-yes").onclick = () => judgeSay(true);
 $("say-no").onclick = () => judgeSay(false);
 

@@ -525,6 +525,55 @@ def _translate(he, lang="ru"):
     return _clean(text)
 
 
+JUDGE = """Ученик учит иврит (уровень алеф). Его попросили сказать по-{lang_name}
+фразу «{ru}». Образец: {target}
+Многоточие в образце — место для любого подходящего слова.
+Распознавание речи услышало (без огласовок, возможны ошибки распознавания):
+{heard}
+
+Реши, передал ли ученик смысл нормальным ивритом. Другой порядок слов,
+синоним, разговорная форма, другое слово на месте многоточия — это ВЕРНО.
+Неверно: не тот смысл, неверная форма глагола или рода, пропущено важное
+слово. Мелкие расхождения, похожие на ошибку распознавания, не считай.
+
+Ответь строго JSON без пояснений:
+{{"ok": true/false, "comment": "одна короткая фраза {comment_lang}: что не так и как надо; пусто, если всё верно"}}"""
+
+
+def judge(ru, target, heard, lang="ru"):
+    """Оценка сказанного вслух: передан ли смысл.
+
+    Сверка по словам строгая: «אני רוצה קפה» вместо «אֲנִי רוֹצֶה ...»
+    с другим словом на месте многоточия она считает промахом. Модель
+    судит о смысле — это и есть проверка нейросетью. Вызывается только
+    когда слова НЕ совпали: совпадение модели не нужно, и платить за
+    него незачем.
+
+    Возвращает {"ok": bool, "comment": str} или None, если модели нет или
+    она не ответила, — тогда остаётся вердикт по словам.
+    """
+    if not provider():
+        return None
+    system = JUDGE.format(
+        lang_name="ивритски", ru=ru, target=target, heard=heard,
+        comment_lang="по-английски" if lang == "en" else "по-русски")
+    turns = [{"role": "user", "content": heard}]
+    try:
+        ask = {"anthropic": _ask_anthropic, "google": _ask_google}.get(
+            provider(), lambda s, t: _ask_openai(s, t, schema=False))
+        text, usage = ask(system, turns)
+    except Exception as e:                                   # noqa: BLE001
+        print(f"[judge] {e}")
+        return None
+    judge.last_usage = usage
+    data = _parse(text)
+    if "ok" not in data:
+        return None
+    ok = data["ok"] is True or str(data["ok"]).lower() == "true"
+    comment = _clean(str(data.get("comment") or ""))
+    return {"ok": ok, "comment": "" if ok else comment}
+
+
 def _vocalize(text):
     """Огласовки ответа — из того источника, что выбран в настройке.
 

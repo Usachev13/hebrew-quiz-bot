@@ -22,7 +22,7 @@ PAGE = Path(__file__).resolve().parent.parent / "static" / "app.html"
 # функции, и искать их определение в файле не нужно.
 BUILTIN = {
     "if", "for", "while", "switch", "catch", "function", "return", "typeof",
-    "await", "async", "new", "fetch", "setTimeout", "setInterval",
+    "await", "async", "new", "fetch", "setTimeout", "setInterval", "clearTimeout", "btoa",
     "requestAnimationFrame", "matchMedia", "Audio", "parseInt", "parseFloat",
     "setInterval", "clearInterval", "clearTimeout", "all", "catch",
     "isNaN", "alert", "confirm", "encodeURIComponent", "decodeURIComponent",

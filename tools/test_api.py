@@ -54,6 +54,41 @@ ok(m.get("guide_seen") is False, f"новичку инструкция не по
 ok(post("/api/guide_seen").get("ok") is True, "отметка принята")
 ok(post("/api/menu").get("guide_seen") is True, "после отметки сама больше не открывается")
 
+print("«Заговорить»: проверка голоса")
+import base64, speech, dialog as _dialog, hebrew_rules
+say_id = phrases_first = next(iter(__import__("phrases").PHRASES.items()))
+_ph_id = __import__("phrases").card_id(say_id[0], 0)
+_ph = __import__("phrases").by_id(_ph_id)
+_target = hebrew_rules.strip_niqqud(__import__("phrases").spoken(_ph, False, lang="ru"))
+WAV = base64.b64encode(b"RIFF....WAVEfake").decode()
+def say_check(**kw):
+    kw["init_data"] = init_data()
+    return c.post("/api/say_check", json=kw)
+speech.available = lambda: False
+ok(say_check(id=_ph_id, audio=WAV).status_code == 409, "нет распознавания — 409, приложение останется на самопроверке")
+speech.available = lambda: True
+_calls = []
+_dialog.available = lambda: True
+def _judge(ru, target, heard, lang="ru"):
+    _calls.append(heard); return {"ok": True, "comment": ""}
+_dialog.judge = _judge
+speech.recognize = lambda data, lang="he-IL", content_type=None: (_target, 0.9)
+r = say_check(id=_ph_id, audio=WAV).get_json()
+ok(r["verdict"] == "match" and r["ok"], f"сказано как в образце — верно: {r['verdict']}")
+ok(not _calls, "при совпадении модель не зовём (не платим)")
+speech.recognize = lambda data, lang="he-IL", content_type=None: ("משהו אחר לגמרי", 0.9)
+r = say_check(id=_ph_id, audio=WAV).get_json()
+ok(_calls and r["verdict"] == "meaning" and r["ok"] and r["by"] == "model",
+   f"слова другие — решает модель: {r['verdict']}")
+_dialog.judge = lambda *a, **k: None
+r = say_check(id=_ph_id, audio=WAV).get_json()
+ok(r["verdict"] == "different" and not r["ok"], f"модели нет — вердикт по словам: {r['verdict']}")
+speech.recognize = lambda data, lang="he-IL", content_type=None: ("", 0.0)
+r = say_check(id=_ph_id, audio=WAV).get_json()
+ok(r["verdict"] == "silence", "тишина — просим сказать ещё раз")
+ok(say_check(id=_ph_id, audio="не base64!").status_code == 400, "мусор вместо звука — 400")
+ok(post("/api/menu").get("speech_check") is True, "меню говорит приложению, что проверка есть")
+
 print("раунд")
 r = post("/api/round", mode="plural", cat="", format="choice")
 qs = r["questions"]

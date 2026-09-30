@@ -62,7 +62,11 @@ def download(api_url, file_id, token):
     return r.content
 
 
-def recognize(data, lang="he-IL"):
+WAV = "audio/wav; codecs=audio/pcm; samplerate=16000"
+OGG = "audio/ogg; codecs=opus"
+
+
+def recognize(data, lang="he-IL", content_type=OGG):
     """Что услышал распознаватель: (текст, уверенность 0..1).
 
     Просим подробный формат: кроме текста он отдаёт уверенность, а низкая
@@ -76,7 +80,9 @@ def recognize(data, lang="he-IL"):
         params={"language": lang, "format": "detailed"},
         headers={
             "Ocp-Apim-Subscription-Key": AZURE_KEY,
-            "Content-Type": "audio/ogg; codecs=opus",
+            # Голосовые Telegram — ogg/opus. Приложение пишет WAV сам:
+            # браузеры отдают webm или mp4, а их Azure не принимает.
+            "Content-Type": content_type,
             "Accept": "application/json",
         },
         data=data,

@@ -151,6 +151,8 @@ M = {
 "talk.reset": {"ru": "Хорошо, забыли. О чём поговорим?",
                "en": "Fine, forgotten. What shall we talk about?"},
 "talk.showText": {"ru": "📄 Текст", "en": "📄 Text"},
+"talk.showTr": {"ru": "🌐 Перевод", "en": "🌐 Translation"},
+"talk.noTr": {"ru": "перевода нет", "en": "no translation"},
 "talk.listen": {"ru": "🎧 Послушайте ответ",
                 "en": "🎧 Listen to the answer"},
 "talk.noText": {"ru": "Текста уже нет — скажите что-нибудь ещё.",

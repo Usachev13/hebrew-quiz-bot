@@ -35,6 +35,7 @@ import phrases
 import phrases_en
 import placement
 import quiz
+import speech
 import word_art
 from matching import check_answer, scramble
 from translit import reading, translit
@@ -221,6 +222,9 @@ def menu(chat_id, payload):
         # какой язык» ей заводить незачем — он один и лежит здесь.
         "lang": lang,
         "guide_seen": guide,
+        # Проверять сказанное вслух можно, только если есть распознавание.
+        # Нет ключа — приложение остаётся на самопроверке.
+        "speech_check": speech.available(),
     })
 
 
@@ -784,6 +788,78 @@ def say_answer(chat_id, payload):
     except Exception as e:
         print(f"[say_answer] {e}")
     return jsonify({"ok": True})
+
+
+MAX_SAY_AUDIO = 2_000_000     # ~ минута WAV 16 кГц; больше — не речь, а ошибка
+
+
+def _say_targets(ph, female, lang):
+    """Всё, что считается верным ответом: форма говорящего и, если фраза
+    зависит от пола собеседника, обе формы к собеседнику."""
+    out = [phrases.spoken(ph, female, lang=lang)]
+    if phrases.listener_forms(ph):
+        out += [phrases.spoken(ph, female, listener_female=lf, lang=lang)
+                for lf in (False, True)]
+    return list(dict.fromkeys(out))
+
+
+@api.route("/api/say_check", methods=["POST"])
+@guarded
+def say_check(chat_id, payload):
+    """Проверка сказанного вслух — вместо самооценки.
+
+    Два шага. Сперва распознавание и сверка по словам: совпало — верно,
+    и модель не зовём. Не совпало — решает модель: слова другие, а смысл
+    может быть передан (синоним, порядок, своё слово на месте «…»).
+
+    Ответ здесь не записывается: запись — по «Дальше», тем же
+    /api/say_answer, чтобы повтор «Ещё раз» не считался вторым ответом.
+    """
+    import base64
+    import dialog
+    cid = payload.get("id", "")
+    ph = phrases.by_id(cid)
+    if not ph:
+        return jsonify({"error": "unknown card"}), 400
+    if not speech.available():
+        return jsonify({"error": "no_stt"}), 409
+    try:
+        data = base64.b64decode(payload.get("audio") or "", validate=True)
+    except ValueError:
+        return jsonify({"error": "bad audio"}), 400
+    if not data or len(data) > MAX_SAY_AUDIO:
+        return jsonify({"error": "bad audio"}), 400
+    try:
+        heard, conf = speech.recognize(data, content_type=speech.WAV)
+    except Exception as e:                                   # noqa: BLE001
+        print(f"[say_check] {e}")
+        return jsonify({"error": "stt_failed"}), 502
+
+    lang = req_lang()
+    try:
+        female = db.gender(chat_id) == "f"
+    except Exception:                                        # noqa: BLE001
+        female = False
+    if not heard.strip():
+        return jsonify({"verdict": "silence", "ok": False, "heard": "",
+                        "diff": [], "comment": ""})
+
+    # Лучшая из сверок по всем допустимым формам.
+    order = {"match": 0, "close": 1, "different": 2, "silence": 3}
+    best = min((speech.compare(heard, target)
+                for target in _say_targets(ph, female, lang)),
+               key=lambda r: order[r["verdict"]])
+    verdict, ok, comment, by = best["verdict"], best["verdict"] == "match", "", "words"
+    if not ok:
+        label = ph["ru"].replace(phrases.SLOT, "…")
+        target = phrases.text(ph, female, lang).replace(phrases.SLOT, "…")
+        j = dialog.judge(label, target, heard, lang) if dialog.available() else None
+        if j is not None:
+            ok, comment, by = j["ok"], j["comment"], "model"
+            verdict = "meaning" if ok else "wrong"
+    return jsonify({"verdict": verdict, "ok": ok, "heard": best["heard"],
+                    "diff": best["diff"], "comment": comment, "by": by,
+                    "unsure": bool(conf and conf < 0.5)})
 
 
 @api.route("/api/situations", methods=["POST"])
