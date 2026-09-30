@@ -499,6 +499,57 @@ check("испорченное слово заменено нашим", "לִפְ
 check("знак препинания не потерялся", got.endswith("?"), got)
 
 
+# ------------------------------------------- холам от огласовщика
+# Dicta пишет «о» холамом на букве ПЕРЕД голым вавом: «יֹופִי». Наше
+# чтение принимало такой вав за согласную — «йовфи», «новам». Проверяем
+# выравнивание на выходе огласовщика.
+from translit import translit as _tr  # noqa: E402
+
+for raw, want in (("יֹופִי", "йофи"), ("נֹועַם", "ноам"), ("עֹוד", "од")):
+    got = _tr(nakdan.holam_on_vav(raw))
+    check(f"холам перед вавом читается как «о»: {raw}", got == want, got)
+check("вав с собственной огласовкой не тронут",
+      nakdan.holam_on_vav("מְחֹוָה") == "מְחֹוָה")
+
+# ------------------------------------------- омографы в подмене
+# Подмена «наше важнее машинного» для омографов опасна: в банке и שָׁם
+# («там»), и שֵׁם («имя»), и прежняя подмена брала первое попавшееся —
+# то есть портила верный ответ. Такие скелеты в подмену не идут.
+amb = nakdan.ambiguous_forms()
+check("омограф не подменяется", "שם" not in nakdan.known_forms()
+      and "שם" in amb, sorted(amb.get("שם", [])))
+check("«кофе» и «касса» не подменяют друг друга",
+      "קפה" not in nakdan.known_forms() and "קפה" in amb)
+check("однозначные промахи Dicta по-прежнему закрыты",
+      all(nakdan.strip_niqqud(w) in nakdan.known_forms()
+          for w in ("לִקְבֹּעַ", "הַקֻּפָּה", "שְׁנַיִם", "לִפְתֹּחַ")))
+check("подмена не трогает верный омограф",
+      nakdan.trusted_overlay("מָה אַתָּה עוֹשֶׂה שָׁם?").endswith("שָׁם?"),
+      nakdan.trusted_overlay("מָה אַתָּה עוֹשֶׂה שָׁם?"))
+
+
+# ------------------------------------------- источник огласовок
+# В режиме «model» огласовки модели берутся, только если они полные и
+# без формальных ошибок; иначе Dicta.
+saved_src, saved_voc = dialog.NIQQUD, nakdan.vocalize_trusted
+nakdan.vocalize_trusted = lambda t: "ОТ_DICTA"
+try:
+    dialog.NIQQUD = "model"
+    check("полные огласовки модели сохранены",
+          dialog._vocalize("שָׁם") == "שָׁם", dialog._vocalize("שָׁם"))
+    check("без огласовок — к Dicta",
+          dialog._vocalize("שם") == "ОТ_DICTA", dialog._vocalize("שם"))
+    check("с формальной ошибкой — к Dicta",
+          dialog._vocalize("הוֹלֵך") == "ОТ_DICTA", dialog._vocalize("הוֹלֵך"))
+    dialog.NIQQUD = "nakdan"
+    check("в режиме nakdan модели не верим",
+          dialog._vocalize("שָׁם") == "ОТ_DICTA", dialog._vocalize("שָׁם"))
+finally:
+    dialog.NIQQUD, nakdan.vocalize_trusted = saved_src, saved_voc
+check("подсказка просит огласовки только в режиме model",
+      "Ставь огласовки" not in dialog._system("m", "ru"))
+
+
 # ------------------------------------------------- подсказка собеседнику
 system = dialog._system("f", "ru")
 check("род собеседника попадает в подсказку", "женщина" in system)

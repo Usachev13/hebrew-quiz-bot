@@ -142,13 +142,30 @@ def main():
                     help="сравнить модели ОДНОГО поставщика через запятую, "
                          "например: gpt-4o-mini,gpt-4o")
     ap.add_argument("--quiet", action="store_true")
+    ap.add_argument("--niqqud", default="",
+                    help="сравнить источники огласовок: model,nakdan — "
+                         "кто ставит никуд, сама модель или Dicta")
     ap.add_argument("--raw", action="store_true",
                     help="печатать ответ модели как есть — видно, "
                          "какие поля она пропустила")
     args = ap.parse_args()
 
     results = {}
-    if args.models:
+    if args.niqqud:
+        # Одна модель, разные источники огласовок. Разговор тот же, так
+        # что разница видна на одних и тех же репликах: где Dicta
+        # путает омографы (שֵׁם вместо שָׁם), а модель — нет, или наоборот.
+        provider = args.providers.split(",")[0].strip()
+        saved = dialog.NIQQUD
+        for source in args.niqqud.split(","):
+            source = source.strip()
+            dialog.NIQQUD = source
+            print(f"\n=== {provider}, огласовки: {source} ===")
+            rows = run(provider, verbose=not args.quiet, raw=args.raw)
+            if rows:
+                results[source] = score(rows)
+        dialog.NIQQUD = saved
+    elif args.models:
         # Сравниваем модели одного поставщика: он должен быть один.
         provider = args.providers.split(",")[0].strip()
         for model in args.models.split(","):

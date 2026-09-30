@@ -106,6 +106,35 @@ def _request(text):
     return r.json()
 
 
+HOLAM = "\u05b9"
+VAV = "\u05d5"
+
+
+def holam_on_vav(text):
+    """Холам с буквы перед голым вавом — на сам вав.
+
+    Dicta записывает «о» как холам на предыдущей букве плюс голый вав:
+    «יֹופִי». Во всём нашем банке «о» записано иначе — холамом на самом
+    ваве: «יוֹפִי». Звук один, запись разная, но наше чтение по первой
+    записи принимало вав за согласную: «йовфи», «новам». Выравниваем на
+    выходе огласовщика, чтобы всё дальше видело одну запись.
+    """
+    groups = []
+    for ch in text or "":
+        if unicodedata.combining(ch):
+            if groups:
+                groups[-1][1].append(ch)
+        else:
+            groups.append([ch, []])
+    for i in range(len(groups) - 1):
+        letter, marks = groups[i]
+        nxt, nxt_marks = groups[i + 1]
+        if HOLAM in marks and nxt == VAV and not nxt_marks:
+            marks.remove(HOLAM)
+            nxt_marks.append(HOLAM)
+    return "".join(l + "".join(m) for l, m in groups)
+
+
 def _assemble(payload):
     """Собирает огласованный текст из ответа.
 
@@ -124,7 +153,8 @@ def _assemble(payload):
             continue
         options = node.get("options") or []
         word = options[0].get("w") if options else node.get("word", "")
-        out.append((word or "").replace(PREFIX_MARK, "").replace(METEG, ""))
+        word = (word or "").replace(PREFIX_MARK, "").replace(METEG, "")
+        out.append(holam_on_vav(word))
     return "".join(out)
 
 
@@ -234,23 +264,40 @@ def _run_batch(batch, cache):
 _known = None
 
 
+_ambiguous = None
+
+
+def ambiguous_forms():
+    """Скелеты, у которых в банке несколько прочтений: שָׁם и שֵׁם."""
+    known_forms()
+    return _ambiguous
+
+
 def known_forms():
-    """{согласный скелет: наша огласованная форма} по всему банку."""
-    global _known
+    """{согласный скелет: наша огласованная форма} — только однозначные.
+
+    Первый заход брал для скелета первую попавшуюся форму. Для омографов
+    это ловушка: в банке есть и שָׁם («там»), и שֵׁם («имя»), скелет у них
+    один, и подмена брала первое. Модель правильно писала «что делаешь
+    שָׁם», а наш слой «исправлял» на שֵׁם — то есть портил верное. Ровно
+    так же он портил бы и правильный ответ Dicta.
+
+    Теперь скелет с несколькими прочтениями в подмену не идёт вовсе: какое
+    из них имелось в виду, решает контекст, а контекст знает модель или
+    огласовщик, но не наш словарь.
+    """
+    global _known, _ambiguous
     if _known is not None:
         return _known
-    _known = {}
+    readings = {}
 
     def add(word):
         word = (word or "").strip(".,!?:;…«»\"'()")
         if not word or "|" in word:
             return
         bare = strip_niqqud(word)
-        # Слово без огласовок ничего не добавляет, а слово, записанное у
-        # нас двояко, оставляем первым вариантом: разнобой внутри банка —
-        # отдельная беда, и молча выбирать тут неправильно.
         if bare and bare != word:
-            _known.setdefault(bare, word)
+            readings.setdefault(bare, set()).add(_norm_marks(word))
 
     try:
         import phrases
@@ -271,7 +318,24 @@ def known_forms():
                     add(word)
     except Exception as e:                                   # noqa: BLE001
         print(f"[nakdan] банк не прочитался: {e}")
+    _known = {bare: next(iter(forms)) for bare, forms in readings.items()
+              if len(forms) == 1}
+    _ambiguous = {bare: sorted(forms) for bare, forms in readings.items()
+                  if len(forms) > 1}
     return _known
+
+
+def _norm_marks(word):
+    """Одна запись для одного прочтения: порядок знаков при букве разный
+    у разных источников, и без этого «одно» слово считалось бы двумя."""
+    groups = []
+    for ch in holam_on_vav(word):
+        if unicodedata.combining(ch):
+            if groups:
+                groups[-1][1].append(ch)
+        else:
+            groups.append([ch, []])
+    return "".join(l + "".join(sorted(m)) for l, m in groups)
 
 
 def vocalize_trusted(text):
@@ -285,6 +349,11 @@ def vocalize_trusted(text):
     got = vocalize(text)
     if not got:
         return text
+    return trusted_overlay(got)
+
+
+def trusted_overlay(got):
+    """Наши выверенные формы поверх любых огласовок — Dicta или модели."""
     ours = known_forms()
     out = []
     for word in got.split():
