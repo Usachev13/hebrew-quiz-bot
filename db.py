@@ -193,6 +193,10 @@ LATER_COLUMNS = [
     # Женский голос по умолчанию был не решением, а недосмотром: он
     # просто стоял в настройках озвучки карточек.
     ("prefs", "talk_gender", "TEXT"),
+    # Видел ли человек экран «Как учиться». Пошагового курса у нас нет,
+    # и без этой страницы новичок видит девять плиток и не знает, с
+    # какой начать. Показываем сам один раз, дальше — по кнопке.
+    ("prefs", "guide_seen", "INTEGER NOT NULL DEFAULT 0"),
 ]
 
 # Интервалы системы Лейтнера: сколько дней ждать до следующего показа.
@@ -736,6 +740,24 @@ def sprint_best(chat_id):
         "SELECT sprint_best FROM prefs WHERE chat_id = ?", (str(chat_id),)
     ).fetchone()
     return int(row["sprint_best"]) if row and row["sprint_best"] else 0
+
+
+def guide_seen(chat_id):
+    """Открывал ли человек экран «Как учиться»."""
+    row = get_conn().execute(
+        "SELECT guide_seen FROM prefs WHERE chat_id = ?", (str(chat_id),)
+    ).fetchone()
+    return bool(row and row["guide_seen"])
+
+
+def set_guide_seen(chat_id):
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO prefs (chat_id, guide_seen) VALUES (?, 1) "
+        "ON CONFLICT(chat_id) DO UPDATE SET guide_seen = 1",
+        (str(chat_id),),
+    )
+    conn.commit()
 
 
 def note_sprint(chat_id, score):

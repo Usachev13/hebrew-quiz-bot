@@ -49,6 +49,11 @@ ok(item is not None, "число есть в разделе «Грамматик
 ok(item and item.get("mode") == "plural", f"режим приезжает отдельным полем: {item and item.get('mode')}")
 ok(item and item["count"] == 119, f"карточек: {item and item.get('count')}")
 
+print("инструкция «Как учиться»")
+ok(m.get("guide_seen") is False, f"новичку инструкция не показана: {m.get('guide_seen')}")
+ok(post("/api/guide_seen").get("ok") is True, "отметка принята")
+ok(post("/api/menu").get("guide_seen") is True, "после отметки сама больше не открывается")
+
 print("раунд")
 r = post("/api/round", mode="plural", cat="", format="choice")
 qs = r["questions"]

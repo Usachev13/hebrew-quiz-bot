@@ -184,6 +184,11 @@ def menu(chat_id, payload):
     except Exception as e:
         print(f"[menu] {e}")
         due, weak = 0, 0
+    try:
+        guide = db.guide_seen(chat_id)
+    except Exception as e:
+        print(f"[menu] guide {e}")
+        guide = True     # не знаем — лучше не навязывать экран повторно
     lang = req_lang()
     counts = {m: len(p) for m, p in quiz.POOLS.items()}
     by_cat = {}
@@ -215,7 +220,16 @@ def menu(chat_id, payload):
         # заставку и ничего не подписывает, а свой список «каким странам
         # какой язык» ей заводить незачем — он один и лежит здесь.
         "lang": lang,
+        "guide_seen": guide,
     })
+
+
+@api.route("/api/guide_seen", methods=["POST"])
+@guarded
+def guide_seen(chat_id, payload):
+    """Отметка «инструкцию открывал»: дальше она сама не выскакивает."""
+    db.set_guide_seen(chat_id)
+    return jsonify({"ok": True})
 
 
 def _heb_name():

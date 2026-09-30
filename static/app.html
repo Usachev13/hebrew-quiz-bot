@@ -291,6 +291,33 @@ button{font:inherit;color:inherit;cursor:pointer}
         box-shadow:var(--shadow-p);transition:transform .18s var(--bounce)}
 .ok-btn:active{transform:translateY(2px)}
 .lead{color:var(--muted);font-size:14px;line-height:1.45;margin:0 0 var(--s4)}
+/* Ступени на вкладке «Учиться». Номер — не порядок прохождения до
+   конца, а порядок, в котором ступень становится полезной. */
+.learn-head{display:flex;align-items:flex-start;gap:var(--s3)}
+.learn-head h1{flex:1}
+.how{flex:0 0 auto;margin-top:6px;border:1px solid var(--border);background:var(--surface);
+     border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--primary)}
+.step-h{display:flex;align-items:baseline;gap:var(--s2);margin:var(--s6) 0 2px}
+.step-h h2{margin:0}
+.step-h .num{font-family:"Playfair Display",Georgia,serif;font-size:18px;color:var(--gold);
+             font-weight:600;line-height:1}
+.step-hint{color:var(--muted);font-size:13px;margin:0 0 var(--s3);line-height:1.4}
+#learn-tiles > .step-h:first-child{margin-top:0}
+/* Экран «Как учиться». */
+.guide-step{display:flex;gap:var(--s3);margin-top:var(--s5)}
+.guide-step .num{flex:0 0 32px;height:32px;border-radius:50%;display:grid;place-items:center;
+                 background:var(--surface-2);color:var(--gold);font-weight:700;
+                 font-family:"Playfair Display",Georgia,serif}
+.guide-step h3{margin:4px 0 4px;font-size:16px}
+.guide-step p{margin:0;color:var(--muted);line-height:1.55;font-size:14px}
+.guide-step .where{display:block;margin-top:6px;font-size:13px;color:var(--text);font-weight:600}
+.guide-day{margin-top:var(--s6);padding:var(--s4);border-radius:var(--r);
+           background:var(--surface);border:1px solid var(--border)}
+.guide-day h3{margin:0 0 var(--s2);font-size:16px}
+.guide-day ol{margin:0;padding-left:20px;line-height:1.6;font-size:14px}
+.guide-day ol li span{color:var(--muted)}
+.guide-day p{margin:var(--s3) 0 0;color:var(--muted);font-size:13px;line-height:1.5}
+#s-guide .primary{margin-top:var(--s5)}
 
 /* ── карточка знакомства ── */
 /* Раньше приложение сразу спрашивало слово, которого человек не видел.
@@ -799,6 +826,7 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
 <g id="sk-work_study" stroke="#FAF5EA" stroke-width="1" stroke-linejoin="round"><rect x="-2" y="-2" width="154" height="108" fill="#F1E9DA"/><rect x="-2" y="58" width="154" height="24" fill="#E7DCC6"/><rect x="-6" y="20" width="162" height="4" fill="#8C7455"/><rect x="14" y="8" width="9" height="12" rx="1" fill="#B0703C"/><rect x="27" y="8" width="9" height="12" rx="1" fill="#C29F5E"/><rect x="40" y="8" width="9" height="12" rx="1" fill="#6E7A5A"/><rect x="53" y="8" width="9" height="12" rx="1" fill="#CBAA7C"/><rect x="66" y="8" width="9" height="12" rx="1" fill="#E9E0CC"/><rect x="79" y="8" width="9" height="12" rx="1" fill="#B0703C"/><rect x="92" y="8" width="9" height="12" rx="1" fill="#C29F5E"/><rect x="105" y="8" width="9" height="12" rx="1" fill="#6E7A5A"/><rect x="118" y="8" width="9" height="12" rx="1" fill="#CBAA7C"/><rect x="-6" y="76" width="162" height="7" fill="#8C7455"/><path d="M38 76 q19-9 37 0 V44 q-18-9-37 0 Z" fill="#E9E0CC"/><path d="M75 76 q19-9 37 0 V44 q-18-9-37 0 Z" fill="#DCC69E"/><rect x="74" y="44" width="2.4" height="32" fill="#8C7455"/><rect x="45" y="51" width="24" height="2.6" rx="1.3" fill="#AE9878"/><rect x="45" y="57" width="24" height="2.6" rx="1.3" fill="#AE9878"/><rect x="45" y="63" width="24" height="2.6" rx="1.3" fill="#AE9878"/><rect x="45" y="69" width="24" height="2.6" rx="1.3" fill="#AE9878"/><rect x="81" y="51" width="24" height="2.6" rx="1.3" fill="#AE9878"/><rect x="81" y="57" width="24" height="2.6" rx="1.3" fill="#AE9878"/><rect x="81" y="63" width="24" height="2.6" rx="1.3" fill="#AE9878"/><rect x="81" y="69" width="24" height="2.6" rx="1.3" fill="#AE9878"/><rect x="8" y="62" width="24" height="14" rx="1" fill="#B0703C"/><rect x="10" y="50" width="20" height="11" rx="1" fill="#C29F5E"/><rect x="12" y="40" width="16" height="9" rx="1" fill="#6E7A5A"/><rect x="120" y="58" width="12" height="18" rx="2" fill="#CBAA7C"/><path d="M126 58 q-11-5-9-17 q11 5 9 17 Z" fill="#6E7A5A"/><path d="M126 56 q11-7 10-18 q-12 6-10 18 Z" fill="#586348"/><rect x="-6" y="83" width="162" height="21" fill="#E7DCC6"/><use href="#ground"/></g>
 <g id="sk-clothes" stroke="#FAF5EA" stroke-width="1" stroke-linejoin="round"><rect x="-2" y="-2" width="154" height="108" fill="#F1E9DA"/><rect x="-2" y="58" width="154" height="24" fill="#E7DCC6"/><path d="M117.6 14 q2.4000000000000004 -1.7600000000000002 2.4000000000000004 0 q0 -1.7600000000000002 2.4000000000000004 0 q-2.4000000000000004 0.96 -2.4000000000000004 -0.32000000000000006 q0 1.2800000000000002 -2.4000000000000004 0.32000000000000006 Z" fill="#8C7455"/><rect x="8" y="20" width="4" height="66" fill="#8C7455"/><rect x="138" y="20" width="4" height="66" fill="#8C7455"/><rect x="8" y="20" width="134" height="2" fill="#6B4F3A"/><path d="M28 26 h6 l-3 5 h-2 Z" fill="#6B4F3A"/><path d="M31 30 l-9 6 4 5 4-2 -3 27 h16 l-3-27 4 2 4-5-9-6 Z" fill="#B0703C"/><path d="M72 26 h6 l-3 5 h-2 Z" fill="#6B4F3A"/><path d="M75 30 l-11 5 3 7 4-2 v22 h20 V40 l4 2 3-7-11-5 Z" fill="#E9E0CC"/><rect x="70" y="44" width="3" height="3" fill="#AE9878"/><rect x="70" y="51" width="3" height="3" fill="#AE9878"/><rect x="70" y="58" width="3" height="3" fill="#AE9878"/><path d="M114 26 h6 l-3 5 h-2 Z" fill="#6B4F3A"/><path d="M104 32 h26 l-3 30 h-8 l-2-18 -2 18 h-8 Z" fill="#C29F5E"/><rect x="20" y="70" width="36" height="16" fill="#CBAA7C"/><rect x="60" y="66" width="32" height="20" fill="#AE9878"/><rect x="96" y="70" width="36" height="16" fill="#DCC69E"/><rect x="25" y="74" width="7" height="8" fill="#6B4F3A"/><rect x="40" y="74" width="7" height="8" fill="#6B4F3A"/><rect x="66" y="72" width="6" height="7" fill="#6B4F3A"/><rect x="80" y="72" width="6" height="7" fill="#6B4F3A"/><rect x="102" y="74" width="7" height="8" fill="#6B4F3A"/><rect x="117" y="74" width="7" height="8" fill="#6B4F3A"/><use href="#ground"/></g>
 <g id="sk-emotions" stroke="#FAF5EA" stroke-width="1" stroke-linejoin="round"><rect x="-2" y="-2" width="154" height="108" fill="#F1E9DA"/><rect x="-2" y="70" width="154" height="34" fill="#E7DCC6"/><circle cx="36" cy="44" r="21" fill="#C29F5E"/><circle cx="30" cy="40" r="2.4" fill="#6B4F3A"/><circle cx="43" cy="40" r="2.4" fill="#6B4F3A"/><path d="M28 50 q8 8 16 0 Z" fill="#6B4F3A"/><circle cx="75" cy="40" r="17" fill="#B0703C"/><circle cx="70" cy="37" r="2.1" fill="#E9E0CC"/><circle cx="81" cy="37" r="2.1" fill="#E9E0CC"/><rect x="68" y="46" width="15" height="2.6" rx="1.3" fill="#E9E0CC"/><circle cx="114" cy="46" r="19" fill="#6E7A5A"/><circle cx="108" cy="42" r="2.2" fill="#E9E0CC"/><circle cx="120" cy="42" r="2.2" fill="#E9E0CC"/><path d="M106 55 q8-7 16 0" fill="none" stroke="#E9E0CC" stroke-width="2.6" stroke-linecap="round"/><path d="M12 80 C5 68.0 8.149999999999999 46 12 46 C15.850000000000001 46 19 68.0 12 80 Z" fill="#586348"/><rect x="11.3" y="78" width="1.4" height="8" fill="#8C7455"/><path d="M140 80 C133 68.9 136.15 48 140 48 C143.85 48 147 68.9 140 80 Z" fill="#6E7A5A"/><rect x="139.3" y="78" width="1.4" height="8" fill="#8C7455"/><use href="#ground"/></g>
+<g id="i-chat"><path d="M4 6.5 a2 2 0 0 1 2-2 h12 a2 2 0 0 1 2 2 v8 a2 2 0 0 1-2 2 H10 l-4 3.5 v-3.5 H6 a2 2 0 0 1-2-2 Z M8 10.5 h8"/></g>
 <g id="i-list"><path d="M8.5 6 h11 M8.5 12 h11 M8.5 18 h11 M4.5 6 a0.9 0.9 0 1 0 0.1 0 M4.5 12 a0.9 0.9 0 1 0 0.1 0 M4.5 18 a0.9 0.9 0 1 0 0.1 0"/></g>
 </defs></svg>
 
@@ -808,8 +836,13 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
      aria-hidden="true"><use href="#art-dunes"/></svg>
 
 <div id="s-home" class="screen on"><div id="home"></div></div>
-<div id="s-learn" class="screen"><h1 data-t="ui.train">Что тренируем?</h1>
+<div id="s-learn" class="screen"><div class="learn-head">
+  <h1 data-t="ui.train">Что тренируем?</h1>
+  <button class="how" id="how" data-t="guide.open">Как учиться?</button></div>
   <div id="learn-tiles"></div><div id="learn-topics"></div></div>
+
+<div id="s-guide" class="screen"><h1 data-t="guide.title">Как учиться</h1>
+  <div id="guide-body"></div></div>
 
 <div id="s-list" class="screen"><h1 id="list-title"></h1><div id="list"></div></div>
 
@@ -1119,6 +1152,31 @@ ru: {
   "sec.syntax": "Собери фразу",    "sec.syntax.sub": "как строится предложение",
   "sec.listen.empty": "Записи ещё не готовы — попробуйте позже",
   "sec.sprint": "Спринт",          "sec.sprint.sub": "минута на скорость",
+  "sec.bot": "Разговор в чате",   "sec.bot.sub": "в чате с ботом: скажите «шалом» голосом",
+  "guide.open": "Как учиться?",
+  "guide.title": "Как учиться",
+  "guide.lead": "Здесь нет курса «урок 1, урок 2» — и это нарочно. Язык учится кругами: новые слова, как они складываются, вслух — и снова. Каждый день понемногу с каждой ступени, а не одна ступень до конца.",
+  "step.read": "Читать",           "step.read.hint": "если буквы ещё путаются — начните здесь",
+  "step.words": "Запоминать слова", "step.words.hint": "каждый день новая порция",
+  "step.build": "Понимать, как устроено", "step.build.hint": "когда слов наберётся около сотни",
+  "step.speak": "Слышать и говорить", "step.speak.hint": "с первого дня, а не в конце",
+  "step.daily": "Каждый день",     "step.daily.hint": "повторить ошибки и размяться",
+  "guide.read": "Без чтения остальное превращается в угадывание картинок. Выучите буквы и огласовки, потом слоги. Уже читаете — пропустите ступень.",
+  "guide.read.where": "Алфавит",
+  "guide.words": "Сначала знакомство: слово с переводом, звуком и чтением. Потом викторина. Приложение само вернёт слово, когда оно начнёт забываться, — поэтому отвечайте честно, не угадывайте. Глаголы начинайте с настоящего времени: оно нужнее всего в первые месяцы.",
+  "guide.words.where": "По темам · Глаголы",
+  "guide.build": "Правило запоминается на знакомых словах, поэтому сюда — когда слов наберётся около сотни. «Собери фразу» учит строить предложение, а не вспоминать готовое.",
+  "guide.build.where": "Грамматика · Собери фразу",
+  "guide.speak": "Эта ступень не в конце — с первого дня. Каждую фразу говорите вслух, прежде чем смотреть ответ: молча упражнение не работает. В чате с ботом скажите «шалом» голосом — вам ответят и поправят, где ошиблись.",
+  "guide.speak.where": "Заговорить · На слух · Разговор в чате",
+  "guide.day": "Каждый день, 15 минут",
+  "guide.day1": "Повторение с главной <span>— всё, что пора вспомнить</span>",
+  "guide.day2": "Одна новая порция слов <span>— одна тема</span>",
+  "guide.day3": "Одно занятие со ступени 3 или 4",
+  "guide.day4": "Пять реплик с ботом голосом",
+  "guide.dayNote": "Каждый день важнее, чем долго: пятнадцать минут ежедневно дают больше, чем два часа в воскресенье. Слабые места и спринт — когда есть ещё пять минут.",
+  "guide.go": "Понятно, к занятиям",
+  "guide.test": "Я уже что-то знаю — пройти тест уровня",
   "sp.sec": "с",
   "sp.score": "Очков: {n}",
   "sp.result": "за минуту",
@@ -1293,6 +1351,31 @@ en: {
   "sec.syntax": "Build the sentence", "sec.syntax.sub": "how a sentence is put together",
   "sec.listen.empty": "The recordings are not ready yet",
   "sec.sprint": "Sprint",          "sec.sprint.sub": "one minute, go fast",
+  "sec.bot": "Chat conversation",  "sec.bot.sub": "in the bot chat: say “shalom” by voice",
+  "guide.open": "How to learn?",
+  "guide.title": "How to learn",
+  "guide.lead": "There is no “lesson 1, lesson 2” course here, on purpose. A language is learned in circles: new words, how they fit together, out loud — and again. A little from every step each day, not one step to the end.",
+  "step.read": "Read",             "step.read.hint": "if the letters still get mixed up, start here",
+  "step.words": "Learn words",      "step.words.hint": "a new batch every day",
+  "step.build": "See how it works", "step.build.hint": "once you know about a hundred words",
+  "step.speak": "Hear and speak",   "step.speak.hint": "from day one, not at the end",
+  "step.daily": "Every day",        "step.daily.hint": "review mistakes and warm up",
+  "guide.read": "Without reading, everything else turns into guessing pictures. Learn the letters and vowel marks, then syllables. Already reading? Skip this step.",
+  "guide.read.where": "Alphabet",
+  "guide.words": "First the introduction: the word with its translation, sound and reading. Then the quiz. The app brings a word back when you start to forget it, so answer honestly, don't guess. Start verbs with the present tense: it matters most in the first months.",
+  "guide.words.where": "By topic · Verbs",
+  "guide.build": "A rule sticks when it's shown on words you know, so come here once you have about a hundred. “Build the sentence” teaches you to put a sentence together, not recall a ready one.",
+  "guide.build.where": "Grammar · Build the sentence",
+  "guide.speak": "This step is not at the end — it starts on day one. Say every phrase out loud before looking at the answer: done silently, the exercise doesn't work. In the bot chat, say “shalom” by voice — you'll get an answer and a correction where you slipped.",
+  "guide.speak.where": "Start speaking · By ear · Chat conversation",
+  "guide.day": "Every day, 15 minutes",
+  "guide.day1": "Review from the home screen <span>— whatever is due</span>",
+  "guide.day2": "One new batch of words <span>— one topic</span>",
+  "guide.day3": "One exercise from step 3 or 4",
+  "guide.day4": "Five voice lines with the bot",
+  "guide.dayNote": "Every day beats long sessions: fifteen minutes daily gives more than two hours on Sunday. Weak spots and sprint — when you have five more minutes.",
+  "guide.go": "Got it, let's go",
+  "guide.test": "I already know some — take the level test",
   "sp.sec": "s",
   "sp.score": "Score: {n}",
   "sp.result": "in one minute",
@@ -1570,25 +1653,30 @@ function tile({ ico, letter, bg, name, sub, badge, dim, onclick, compact, plate 
 // ---------- меню ----------
 
 // Алфавит первым: без букв остальное не читается, это нулевой уровень.
-const SECTIONS = [
-  // Разговор первым: ради него всё остальное и учится. Раньше человек
-  // мог месяцами узнавать слова и ни разу не открыть рот.
-  { go:"say",      bg:"say",      key:"say" },
-  // «Собери фразу» — рядом с разговором: это единственное место,
-  // где учат СТРОИТЬ предложение, а не вспоминать готовое. В
-  // «Грамматике» его не находили — там девять разделов про формы.
-  { go:"syntax",   bg:"syntax",   key:"syntax" },
-  { go:"alphabet", bg:"alphabet",  key:"alphabet" },
-  { go:"topics",   bg:"topics",    key:"topics" },
-  { go:"grammar",  bg:"grammar",   key:"grammar" },
-  { go:"verbs",    bg:"verbs",     key:"verbs" },
-  // Аудирование стоит последним: оно осмысленно, когда слова уже
-  // знакомы глазами. Подраздела у него нет — это один режим по всему
-  // словарю, поэтому ведём сразу к выбору формата.
-  { go:"listen",   bg:"listen",   key:"listen" },
-  // Спринт последним: это игра поверх выученного, а не способ учить.
-  { go:"sprint",   bg:"mix",       key:"sprint" },
+/* Пошагового курса нет, и это нарочно: иврит учится кругами — слова,
+   как они складываются, вслух, и снова. Но девять плиток подряд
+   новичку ничего не говорят, поэтому они разложены по ступеням.
+   Номер ступени — порядок, в котором она СТАНОВИТСЯ полезной, а не
+   порядок «пройди до конца и переходи». Говорить — с первого дня,
+   об этом прямо сказано в инструкции (экран «Как учиться»).
+
+   Раньше «Заговорить» стоял первым плиткой. Теперь он в четвёртой
+   ступени, но ступень подписана «с первого дня», и туда же ведёт
+   разговор в боте. */
+const STEPS = [
+  { key:"read",   items:[ { go:"alphabet", bg:"alphabet", key:"alphabet" } ] },
+  { key:"words",  items:[ { go:"topics",   bg:"topics",   key:"topics" },
+                          { go:"verbs",    bg:"verbs",    key:"verbs" } ] },
+  { key:"build",  items:[ { go:"grammar",  bg:"grammar",  key:"grammar" },
+                          { go:"syntax",   bg:"syntax",   key:"syntax" } ] },
+  { key:"speak",  items:[ { go:"say",      bg:"say",      key:"say" },
+                          { go:"listen",   bg:"listen",   key:"listen" },
+                          { bot:true } ] },
+  // Ежедневное — без номера: это не ступень, а привычка поверх всех.
+  { key:"daily",  items:[ { weak:true },
+                          { go:"sprint",   bg:"mix",      key:"sprint" } ] },
 ];
+const SECTIONS = STEPS.flatMap(st => st.items).filter(it => it.go);
 const TITLES = { topics:"sec.topics", grammar:"sec.grammar", verbs:"sec.verbs",
                  alphabet:"sec.alphabet", say:"sec.say", listen:"sec.listen",
                  sprint:"sec.sprint", syntax:"sec.syntax" };
@@ -1630,16 +1718,65 @@ async function boot(){
 function buildLearn(){
   const host = $("learn-tiles");
   host.innerHTML = "";
-  SECTIONS.forEach(s => host.appendChild(tile({
-    ...s, name: t("sec." + s.key), sub: t("sec." + s.key + ".sub"),
-    onclick:() => openList(s.go) })));
-  host.appendChild(tile({
+  let n = 0;
+  STEPS.forEach(st => {
+    const numbered = st.key !== "daily";
+    if (numbered) n++;
+    const head = document.createElement("div");
+    head.className = "step-h";
+    head.innerHTML = (numbered ? `<span class="num">${n}</span>` : "")
+      + `<h2>${t("step." + st.key)}</h2>`;
+    host.appendChild(head);
+    const hint = document.createElement("p");
+    hint.className = "step-hint";
+    hint.textContent = t("step." + st.key + ".hint");
+    host.appendChild(hint);
+    st.items.forEach(it => host.appendChild(learnTile(it)));
+  });
+  $("how").onclick = () => { tap(); openGuide(); };
+}
+
+function learnTile(it){
+  if (it.weak) return tile({
     bg:"weak", name:t("sec.weak"),
     sub: t(state.menu.weak ? "sec.weak.sub" : "sec.weak.empty"),
     badge: state.menu.weak || null, dim: !state.menu.weak,
     onclick:() => { if (!state.menu.weak) return;
                     state.mode = "weak"; state.cat = null; openFormat(t("sec.weak.title")); }
-  }));
+  });
+  // Разговор с ИИ живёт в чате: там голосовые, а мини-приложение их
+  // не записывает. Закрываем приложение — человек оказывается в чате.
+  if (it.bot) return tile({
+    ico:"chat", name:t("sec.bot"), sub:t("sec.bot.sub"),
+    onclick:() => { try { tg?.close(); } catch(e){} }
+  });
+  return tile({ ...it, name: t("sec." + it.key), sub: t("sec." + it.key + ".sub"),
+                onclick:() => openList(it.go) });
+}
+
+/* Инструкция. Сама открывается один раз — при первом заходе на
+   «Учиться», дальше по кнопке «Как учиться?». Отметка хранится на
+   сервере: в Telegram память страницы иногда стирается. */
+function openGuide(){
+  const steps = ["read","words","build","speak"].map((k, i) => `
+    <div class="guide-step"><span class="num">${i + 1}</span><div>
+      <h3>${t("step." + k)}</h3>
+      <p>${t("guide." + k)}</p>
+      <span class="where">${t("guide." + k + ".where")}</span>
+    </div></div>`).join("");
+  $("guide-body").innerHTML = `<p class="lead">${t("guide.lead")}</p>${steps}
+    <div class="guide-day"><h3>${t("guide.day")}</h3><ol>
+      ${[1,2,3,4].map(i => `<li>${t("guide.day" + i)}</li>`).join("")}</ol>
+      <p>${t("guide.dayNote")}</p></div>
+    <button class="primary" id="guide-go">${t("guide.go")}</button>
+    <button class="ghost" id="guide-test">${t("guide.test")}</button>`;
+  $("guide-go").onclick = () => { tap(); goTab("learn"); };
+  $("guide-test").onclick = () => { tap(); openPlacement(); };
+  show("guide");
+  if (state.menu && !state.menu.guide_seen){
+    state.menu.guide_seen = true;
+    api("/api/guide_seen").catch(() => {});
+  }
 }
 
 /* Ободок круга и есть прогресс.
@@ -2057,6 +2194,7 @@ function goTab(name){
   if (name === "words") return openWords();
   if (name === "home") renderHome();
   show(name, false);
+  if (name === "learn" && state.menu && !state.menu.guide_seen) openGuide();
 }
 document.querySelectorAll("[data-go='home']").forEach(b =>
   b.onclick = () => goTab("home"));
