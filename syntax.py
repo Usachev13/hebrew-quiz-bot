@@ -81,18 +81,35 @@ NOUNS = [
     ("חֲבֵרָה", "подруга", "подругу", "подруги", "f", True, "girlfriend"),
     ("מִשְׁפָּחָה", "семья", "семью", "семьи", "f", False, "family"),
 ]
-THIS = {"m": "этот", "f": "эта"}
+# Определённость по-русски передать нечем: артикля в нём нет. Первый
+# заход подставлял «этот большой дом» — и это оказалось не упрощением, а
+# обманом: הַ это не «этот». «Этот дом» — הַבַּיִת הַזֶּה, с отдельным
+# указательным словом, которого мы вообще не проходили. Человек заучивал
+# ложное соответствие и на первом же הזה оказывался в тупике.
+#
+# Поэтому определённость задаётся не переводом, а ЗАДАНИЕМ: «речь об уже
+# известном доме». Это ровно то, что артикль и значит.
+TASK_DEF = {"ru": "речь об уже известном: {noun}",
+            "en": "we mean the one already known: {noun}"}
+TASK_SEE = {"ru": "{who} видит {some} {acc}",
+            "en": "{who} sees some {en}"}
+TASK_SEE_DEF = {"ru": "{who} видит уже {known} {acc}",
+                "en": "{who} sees the {en} already mentioned"}
+# «известный дом», но «известную квартиру»: русское определение
+# согласуется с русским же родом существительного, а не с ивритским.
+KNOWN = {"m": "известный", "f": "известную"}
+SOME = {"m": "какой-то", "f": "какую-то"}
+# Род говорящего в задании назван прямо. Без этого «אֲנִי רוֹאָה» нельзя
+# показывать как неверный вариант: сама по себе это правильная женская
+# форма, и неверной её делает только то, что говорит мужчина.
+SPEAKER = {"m_sg": {"ru": "мужчина", "en": "a man"},
+           "f_sg": {"ru": "женщина", "en": "a woman"}}
 
 
 def _a(word):
     """a/an — по первому звуку английского слова."""
     return ("an " if word[:1].lower() in "aeiou" else "a ") + word
 
-
-def _this_acc(ru_gender, animate):
-    if ru_gender == "f":
-        return "эту"
-    return "этого" if animate else "этот"
 
 # Определённый артикль. Огласовка артикля зависит от первой буквы слова
 # (перед гортанными и ר она другая), и выводить её правилом я не стал —
@@ -188,7 +205,6 @@ def build():
         adj_ru = adj_m if ru_gender == "m" else adj_f
         right = _form(adj, gender, False)
         wrong_gender = _form(adj, nouns.M if gender == nouns.F else nouns.F, False)
-        this = THIS[ru_gender]
 
         # 1. Словосочетание без артикля
         out.append((
@@ -200,7 +216,8 @@ def build():
         ))
         # 2. Определённое словосочетание — артикль на обоих словах
         out.append((
-            f"{this} {adj_ru} {ru_nom}", f"this {adj_en} {en}",
+            TASK_DEF["ru"].format(noun=f"{adj_ru} {ru_nom}"),
+            TASK_DEF["en"].format(noun=f"{adj_en} {en}"),
             f"{definite(noun)} {definite(right)}",
             [(f"{definite(noun)} {right}", "definite"),
              (f"{definite(right)} {definite(noun)}", "order")],
@@ -222,15 +239,18 @@ def build():
         other = see["f_sg" if who == "m_sg" else "m_sg"]
         for noun, _nom, ru_acc, _gen, ru_gender, animate, en in usable[:4]:
             out.append((
-                f"я вижу {ru_acc}", f"I see {_a(en)}",
+                TASK_SEE["ru"].format(who=SPEAKER[who]["ru"], acc=ru_acc,
+                                      some=SOME[ru_gender]),
+                TASK_SEE["en"].format(who=SPEAKER[who]["en"], en=en),
                 f"אֲנִי {verb} {noun}",
                 [(f"אֲנִי {verb} אֶת {noun}", "et"),
                  (f"אֲנִי {other} {noun}", "verb_agree")],
                 f"et_{who}",
             ))
             out.append((
-                f"я вижу {_this_acc(ru_gender, animate)} {ru_acc}",
-                f"I see this {en}",
+                TASK_SEE_DEF["ru"].format(who=SPEAKER[who]["ru"], acc=ru_acc,
+                                          known=KNOWN[ru_gender]),
+                TASK_SEE_DEF["en"].format(who=SPEAKER[who]["en"], en=en),
                 f"אֲנִי {verb} אֶת {definite(noun)}",
                 [(f"אֲנִי {verb} {definite(noun)}", "et"),
                  (f"אֲנִי {other} אֶת {definite(noun)}", "verb_agree")],

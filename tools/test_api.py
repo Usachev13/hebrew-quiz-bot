@@ -53,7 +53,7 @@ print("раунд")
 r = post("/api/round", mode="plural", cat="", format="choice")
 qs = r["questions"]
 ok(bool(qs), f"раунд собрался: {len(qs)} вопросов, подпись «{r['label']}»")
-ok(all("много" in q["ru"] for q in qs), f"вопрос: {qs[0]['ru']}")
+ok(all("множественное" in q["ru"] for q in qs), f"вопрос: {qs[0]['ru']}")
 ok(all(q["mode"] == "plural" for q in qs), "все вопросы режима plural")
 bad_opts = [q["ru"] for q in qs if len(set(q["options"])) != len(q["options"])]
 ok(not bad_opts, f"повторов в вариантах нет (проверено {len(qs)})")
