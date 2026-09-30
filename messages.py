@@ -382,6 +382,7 @@ M = {
                   "en": "🔢 How many of what"},
 "menu.prep": {"ru": "🔗 Предлоги с местоимениями",
               "en": "🔗 Prepositions with pronouns"},
+"menu.smichut": {"ru": "🏠 Смихут", "en": "🏠 Construct state"},
 "ask.grammar": {"ru": "Что из грамматики?", "en": "Which part of grammar?"},
 "ask.verbs": {"ru": "Глаголы — что тренируем?", "en": "Verbs — what shall we practise?"},
 "ask.format": {"ru": "Как отвечаем?", "en": "How do we answer?"},

@@ -78,7 +78,7 @@ PRICE_PER_1M_CHARS = 16.0
 
 
 SCOPES = ["all", "words", "forms", "present", "past", "future",
-          "phrases", "syntax", "numerals", "prep"]
+          "phrases", "syntax", "numerals", "prep", "smichut"]
 
 
 def collect(scope):
@@ -123,6 +123,12 @@ def collect(scope):
         # на слух — сразу. Без записи упражнение учит глазами.
         import quiz
         for card in quiz.POOLS["plural"]:
+            items.append(card.he)
+    if scope in ("all", "smichut"):
+        # Только верные варианты: «בַּיִת סֵפֶר», произнесённое живым
+        # голосом, запомнится не хуже правильного «בֵּית סֵפֶר».
+        import quiz
+        for card in quiz.POOLS["smichut"]:
             items.append(card.he)
     if scope in ("all", "prep"):
         # Формы предлогов: «шели», «итха» — короткие, и на слух их

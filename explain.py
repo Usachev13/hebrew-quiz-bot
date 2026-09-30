@@ -387,6 +387,25 @@ def page_for(card, mode):
     return None
 
 
+def _smichut(card, given, lang):
+    """Сперва правило, нарушенное выбранным вариантом, потом остальное.
+
+    Устроено как разбор «собери фразу»: человек должен уйти с правилом,
+    а не с заученной парой.
+    """
+    import smichut
+    table = smichut.RULES_EN if lang == "en" else smichut.RULES
+    lines = []
+    if given:
+        rule = smichut.rule_of(card.he, given, lang)
+        if rule:
+            lines.append(rule)
+    main = table.get(card.cat)
+    if main and main not in lines:
+        lines.append(main)
+    return lines
+
+
 def _preposition(card, lang):
     """Чем этот предлог занят в языке.
 
@@ -479,5 +498,7 @@ def explain(card, mode, given=None, lang="ru"):
         lines += _numerals(card, lang)
     elif mode == "prepositions":
         lines += _preposition(card, lang)
+    elif mode == "smichut":
+        lines += _smichut(card, given, lang)
 
     return lines or None

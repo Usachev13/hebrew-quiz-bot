@@ -306,6 +306,21 @@ def preposition_cards():
 PREP_FLAT = preposition_cards()
 
 
+def smichut_cards():
+    """Смихут: неверные варианты — искажения той же пары, как в
+    «собери фразу». Каждый нарушает одно названное правило."""
+    import smichut
+    out = []
+    for i, (ru, en, right, wrongs, frame) in enumerate(smichut.SENTENCES):
+        out.append(Card(ru=ru, he=right, cat=frame,
+                        cid=f"smichut:{frame}:{i}", en=en,
+                        wrong=tuple(w for w, _r in wrongs)))
+    return out
+
+
+SMICHUT_FLAT = smichut_cards()
+
+
 def numeral_cards():
     """«Сколько чего»: форма числа под род существительного.
 
@@ -351,6 +366,7 @@ POOLS = {
     "syntax": SYNTAX_FLAT,
     "numerals": NUMERALS_FLAT,
     "prepositions": PREP_FLAT,
+    "smichut": SMICHUT_FLAT,
     # Курс алфавита (уровень 0)
     "alef_names": alphabet.pool_names(),
     "alef_sounds": alphabet.pool_sounds(),
@@ -373,6 +389,7 @@ LABELS = {
     "syntax": "собери фразу",
     "numerals": "сколько чего",
     "prepositions": "предлоги с местоимениями",
+    "smichut": "смихут",
     "listen": "на слух",
     "sprint": "спринт",
     "alef_names": "названия букв",
@@ -420,6 +437,7 @@ LABELS_EN = {
     "syntax": "build the sentence",
     "numerals": "how many of what",
     "prepositions": "prepositions with pronouns",
+    "smichut": "construct state",
     "listen": "by ear",
     "sprint": "sprint",
     "alef_names": "letter names",
@@ -474,7 +492,8 @@ def section_label(mode, cat=None, lang="ru"):
 GRAMMAR_SECTIONS = ([(key, None) for key in GRAMMAR_LABELS]
                     + [("plural", "plural"), ("abbrev", "abbrev"),
                        ("syntax", "syntax"), ("numerals", "numerals"),
-                       ("prepositions", "prepositions")])
+                       ("prepositions", "prepositions"),
+                       ("smichut", "smichut")])
 
 GAP_MODES = {"gap_verb", "gap_who"}
 
