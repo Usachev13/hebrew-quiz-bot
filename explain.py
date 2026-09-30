@@ -387,6 +387,22 @@ def page_for(card, mode):
     return None
 
 
+def _preposition(card, lang):
+    """Чем этот предлог занят в языке.
+
+    Форму человек и так видит. Полезно другое — зачем она нужна: что
+    «у меня есть» строится через לְ, а принадлежность через שֶׁל и после
+    слова. Пояснения лежат рядом с данными, в hebrew_meta.
+    """
+    import hebrew_meta
+    key = (card.cat or "").replace("prep_", "")
+    data = hebrew_meta.PREPOSITIONS.get(key)
+    if not data:
+        return []
+    note = data.get("note_en" if lang == "en" else "note_ru")
+    return [note] if note else []
+
+
 def _numerals(card, lang):
     """Правило выбора формы числительного.
 
@@ -461,5 +477,7 @@ def explain(card, mode, given=None, lang="ru"):
         lines += _syntax(card, given, lang)
     elif mode == "numerals":
         lines += _numerals(card, lang)
+    elif mode == "prepositions":
+        lines += _preposition(card, lang)
 
     return lines or None

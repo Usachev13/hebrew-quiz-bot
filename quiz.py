@@ -273,6 +273,39 @@ def syntax_cards():
     return out
 
 
+def preposition_cards():
+    """Склонение предлогов: לִי, שֶׁלִּי, אִתִּי.
+
+    Без этих форм нельзя сказать почти ничего: «у меня есть» — это
+    יֵשׁ לִי, «моя книга» — הַסֵּפֶר שֶׁלִּי. Данные размечены давно (пять
+    предлогов со всеми формами), а тренировать их было негде.
+
+    Дистракторы берутся из форм ТОГО ЖЕ предлога — так же, как у
+    глагольных форм. Иначе выбор шёл бы по внешнему виду: «что-то на
+    шин» против «что-то на алеф», и человек угадывал бы предлог, не
+    вспоминая лицо.
+    """
+    import hebrew_meta
+    out = []
+    for key, data in hebrew_meta.PREPOSITIONS.items():
+        forms = data["forms"]
+        for i, form in enumerate(forms):
+            if i >= len(hebrew_meta.PERSONS):
+                break
+            ru, en = hebrew_meta.PERSONS[i]
+            out.append(Card(
+                ru=f"{data['base']} ({data['ru'].split(' — ')[0]}) — {ru}",
+                he=form,
+                cat=f"prep_{key}",
+                cid=f"prep:{key}:{i}",
+                en=f"{data['base']} ({data['en'].split(' — ')[0]}) — {en}",
+            ))
+    return out
+
+
+PREP_FLAT = preposition_cards()
+
+
 def numeral_cards():
     """«Сколько чего»: форма числа под род существительного.
 
@@ -317,6 +350,7 @@ POOLS = {
     "abbrev": ABBREV_FLAT,
     "syntax": SYNTAX_FLAT,
     "numerals": NUMERALS_FLAT,
+    "prepositions": PREP_FLAT,
     # Курс алфавита (уровень 0)
     "alef_names": alphabet.pool_names(),
     "alef_sounds": alphabet.pool_sounds(),
@@ -338,6 +372,7 @@ LABELS = {
     "abbrev": "сокращения",
     "syntax": "собери фразу",
     "numerals": "сколько чего",
+    "prepositions": "предлоги с местоимениями",
     "listen": "на слух",
     "sprint": "спринт",
     "alef_names": "названия букв",
@@ -384,6 +419,7 @@ LABELS_EN = {
     "abbrev": "abbreviations",
     "syntax": "build the sentence",
     "numerals": "how many of what",
+    "prepositions": "prepositions with pronouns",
     "listen": "by ear",
     "sprint": "sprint",
     "alef_names": "letter names",
@@ -437,7 +473,8 @@ def section_label(mode, cat=None, lang="ru"):
 # рисунка обязаны совпасть, а найти расхождение в браузере я не могу.
 GRAMMAR_SECTIONS = ([(key, None) for key in GRAMMAR_LABELS]
                     + [("plural", "plural"), ("abbrev", "abbrev"),
-                       ("syntax", "syntax"), ("numerals", "numerals")])
+                       ("syntax", "syntax"), ("numerals", "numerals"),
+                       ("prepositions", "prepositions")])
 
 GAP_MODES = {"gap_verb", "gap_who"}
 
