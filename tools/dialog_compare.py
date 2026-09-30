@@ -169,6 +169,7 @@ def main():
         history = []
         differ = 0
         own_used = 0
+        bare_replies = 0
         print(f"\n=== {provider}: огласовки модели против Dicta ===")
         for said in SCRIPT:
             res = dialog.reply(history, said, gender="m", lang="ru")
@@ -181,7 +182,14 @@ def main():
             own_used += 1 if res["niqqud_by"] in ("model", "model+nakdan") else 0
             dicta = nakdan.vocalize_trusted(hebrew_rules.strip_niqqud(own))
             same = nakdan._norm_marks(own) == nakdan._norm_marks(dicta)
-            differ += 0 if same else 1
+            # Модель не поставила ни одного значка — спорить не с чем, это
+            # не расхождение, а пропуск. Первый счёт складывал их вместе и
+            # завышал число «разногласий».
+            silent = own == hebrew_rules.strip_niqqud(own)
+            if silent:
+                bare_replies += 1
+            elif not same:
+                differ += 1
             print(f"\n    > {said}")
             print(f"      {res['ru']}")
             for label, text in (("модель", own), ("Dicta ", dicta)):
@@ -196,13 +204,13 @@ def main():
                       "заполнит Dicta")
             if res["he"] != own:
                 print(f"      в бот:  {res['he']}   [{res['niqqud_by']}]")
-            if not same:
+            if not same and not silent:
                 print("      ⚠️ огласовки разошлись — какое чтение верно, "
                       "видно по переводу выше")
             time.sleep(0.5)
         dialog.NIQQUD = saved
-        print(f"\nРеплик: {len(SCRIPT)}. Огласовки модели пошли в дело "
-              f"в {own_used}, разошлись с Dicta в {differ}.")
+        print(f"\nРеплик: {len(SCRIPT)}. Модель не огласовала вовсе: "
+              f"{bare_replies}. Огласовала и разошлась с Dicta: {differ}.")
         print("Где разошлись — смотреть по смыслу: перевод один на обоих.")
         return 0
     if args.models:

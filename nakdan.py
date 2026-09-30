@@ -107,6 +107,8 @@ def _request(text):
 
 
 HOLAM = "\u05b9"
+KUBUTS = "\u05bb"
+DAGESH = "\u05bc"
 VAV = "\u05d5"
 
 
@@ -129,9 +131,18 @@ def holam_on_vav(text):
     for i in range(len(groups) - 1):
         letter, marks = groups[i]
         nxt, nxt_marks = groups[i + 1]
-        if HOLAM in marks and nxt == VAV and not nxt_marks:
+        if nxt != VAV or nxt_marks:
+            continue
+        if HOLAM in marks:
             marks.remove(HOLAM)
             nxt_marks.append(HOLAM)
+        # То же с «у»: Dicta пишет кубуц на букве перед голым вавом —
+        # «מְעֻולָּה», а у нас «у» записано шуруком, вавом с точкой внутри:
+        # «מְעוּלָה». Наше чтение принимало голый вав за согласную и
+        # выдавало «меувла». Кубуц переносим на вав как шурук.
+        elif KUBUTS in marks:
+            marks.remove(KUBUTS)
+            nxt_marks.append(DAGESH)
     return "".join(l + "".join(m) for l, m in groups)
 
 
