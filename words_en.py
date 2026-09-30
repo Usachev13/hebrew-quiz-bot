@@ -55,6 +55,14 @@ WORDS = {
     "adverbs:מהר": "fast",
     "adverbs:לאט": "slowly",
     "adverbs:קשה": "hard (difficult)",
+    "adverbs:כבר": "already",
+    "adverbs:עוד": "more, still",
+    "adverbs:גם": "also, too",
+    "adverbs:רק": "only",
+    "adverbs:מאוד": "very",
+    "adverbs:ביחד": "together",
+    "adverbs:שוב": "again",
+    "adverbs:קדם": "first, before",
 
     # вопросительные слова
     "question_words:מה": "what",
@@ -91,6 +99,11 @@ WORDS = {
     "ordinals:ראשון": "first",
     "ordinals:שני": "second",
     "ordinals:שלישי": "third",
+    "ordinals:רביעי": "fourth",
+    "ordinals:ששי": "sixth",
+    "ordinals:שביעי": "seventh",
+    "ordinals:שמיני": "eighth",
+    "ordinals:תשיעי": "ninth",
     "ordinals:חמישי": "fifth",
     "ordinals:עשירי": "tenth",
 

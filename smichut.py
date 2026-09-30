@@ -61,11 +61,21 @@ RULES_EN = {
 
 
 def _meaning(phrase):
-    """Перевод сочетания из словаря проекта."""
-    import quiz
-    for card in quiz.VOCAB_FLAT:
-        if card.he == phrase:
-            return card.ru, card.en or card.ru
+    """Перевод сочетания из словаря проекта.
+
+    Берём прямо из words, а не через quiz: quiz сам импортирует этот
+    модуль, и обращение к нему отсюда давало круговой импорт. Работало
+    это только потому, что первым всегда грузился quiz; скрипт, начавший
+    с smichut, падал на старте.
+    """
+    import cards
+    import words
+    import words_en
+    for category, pairs in words.VOCAB.items():
+        for ru, he in pairs:
+            if he == phrase:
+                en = words_en.WORDS.get(cards.vocab_cid(category, he), "")
+                return ru, en or ru
     return "", ""
 
 
