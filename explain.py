@@ -500,5 +500,8 @@ def explain(card, mode, given=None, lang="ru"):
         lines += _preposition(card, lang)
     elif mode == "smichut":
         lines += _smichut(card, given, lang)
+    elif mode == "kol":
+        import kol
+        lines += kol.explain(card.he, given, lang)
 
     return lines or None

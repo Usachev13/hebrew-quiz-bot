@@ -78,7 +78,7 @@ PRICE_PER_1M_CHARS = 16.0
 
 
 SCOPES = ["all", "words", "forms", "present", "past", "future",
-          "phrases", "syntax", "numerals", "prep", "smichut"]
+          "phrases", "syntax", "numerals", "prep", "smichut", "kol"]
 
 
 def collect(scope):
@@ -123,6 +123,15 @@ def collect(scope):
         # на слух — сразу. Без записи упражнение учит глазами.
         import quiz
         for card in quiz.POOLS["plural"]:
+            items.append(card.he)
+    if scope in ("all", "kol"):
+        # Здесь неверный вариант одной карточки — верный ответ другой
+        # («כָּל הַיּוֹם» неверно для «каждого дня» и верно для «всего
+        # дня»). Поэтому озвучены окажутся все сочетания, и это честно:
+        # каждое из них правильный иврит, неверным его делает только
+        # несовпадение со смыслом.
+        import quiz
+        for card in quiz.POOLS["kol"]:
             items.append(card.he)
     if scope in ("all", "smichut"):
         # Только верные варианты: «בַּיִת סֵפֶר», произнесённое живым
