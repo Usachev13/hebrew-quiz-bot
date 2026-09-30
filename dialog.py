@@ -79,6 +79,9 @@ OPENAI_MODEL = os.environ.get("DIALOG_MODEL_OPENAI", "gpt-4o-mini")
 OPENAI_BASE = os.environ.get("OPENAI_BASE_URL",
                              "https://api.openai.com/v1").rstrip("/")
 GOOGLE_MODEL = os.environ.get("DIALOG_MODEL_GOOGLE", "gemini-2.5-flash")
+# Версия API. У разных ключей доступны разные: на одном работает
+# v1beta, на другом только v1, и отличают они себя одинаковым 404.
+GOOGLE_VERSIONS = ("v1beta", "v1")
 
 # Сколько ходов разговора помним. Больше — дороже каждое сообщение:
 # история уходит в модель целиком при каждом запросе.
@@ -281,27 +284,39 @@ def _ask_google(system, turns):
     """
     contents = [{"role": "model" if m["role"] == "assistant" else "user",
                  "parts": [{"text": m["content"]}]} for m in turns]
-    r = requests.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{GOOGLE_MODEL}:generateContent",
-        headers={"x-goog-api-key": GOOGLE_KEY, "content-type": "application/json"},
-        json={"system_instruction": {"parts": [{"text": system}]},
-              "contents": contents,
-              "generationConfig": {"maxOutputTokens": 400,
-                                   "responseMimeType": "application/json"}},
-        timeout=TIMEOUT,
-    )
-    if r.status_code == 404:
-        # Имя модели не подошло. Ошибка Google об этом молчит, поэтому
-        # называем доступные сами — иначе человек гадает.
+    payload = {"system_instruction": {"parts": [{"text": system}]},
+               "contents": contents,
+               "generationConfig": {"maxOutputTokens": 400,
+                                    "responseMimeType": "application/json"}}
+
+    # 404 у Google значит не только «нет такой модели», но и «эта модель
+    # недоступна в этой версии API». Первый заход подставлял сюда свою
+    # догадку про имя — и получилось нелепо: бот сообщал, что модели нет,
+    # а следом перечислял её же первой в списке доступных. Своими словами
+    # чужую ошибку не пересказываем: показываем, что ответила служба, и
+    # пробуем вторую версию API.
+    last = None
+    for version in GOOGLE_VERSIONS:
+        r = requests.post(
+            f"https://generativelanguage.googleapis.com/{version}/models/"
+            f"{GOOGLE_MODEL}:generateContent",
+            headers={"x-goog-api-key": GOOGLE_KEY,
+                     "content-type": "application/json"},
+            json=payload, timeout=TIMEOUT,
+        )
+        if r.status_code != 404:
+            break
+        last = f"{version}: {r.text[:300]}"
+    else:
         try:
-            names = ", ".join(google_models()[:12]) or "ни одной"
+            names = ", ".join(google_models()[:10]) or "ни одной"
         except Exception:                                    # noqa: BLE001
             names = "не удалось спросить"
         raise RuntimeError(
-            f"Google не знает модель «{GOOGLE_MODEL}». "
-            f"Доступны этому ключу: {names}. "
-            f"Впишите нужную в DIALOG_MODEL_GOOGLE.")
+            f"Google отвечает 404 на «{GOOGLE_MODEL}» во всех версиях "
+            f"API. Вот что он говорит — {last}. "
+            f"Доступны этому ключу: {names}.")
+
     r.raise_for_status()
     body = r.json()
     try:

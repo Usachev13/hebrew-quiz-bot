@@ -75,9 +75,10 @@ check("пустой ответ не роняет разговор",
 # означала бы, что разговор работает с одним провайдером и молча ломается
 # при переезде на другой.
 class FakeResponse:
-    def __init__(self, body, status=200):
+    def __init__(self, body, status=200, text=""):
         self._body = body
         self.status_code = status
+        self.text = text
 
     def raise_for_status(self):
         pass
@@ -356,7 +357,8 @@ dialog.ANTHROPIC_KEY = ""
 # без объяснений. Проверяем, что мы на это отвечаем не голым кодом
 # ошибки, а списком доступных имён.
 dialog.GOOGLE_KEY = "x"
-dialog.requests.post = lambda *a, **k: FakeResponse({}, status=404)
+dialog.requests.post = lambda *a, **k: FakeResponse(
+    {}, status=404, text='{"error":{"message":"not supported for v1beta"}}')
 dialog.google_models = lambda: ["gemini-flash-latest", "gemini-pro-latest"]
 try:
     dialog._ask_google("п", [{"role": "user", "content": "ש"}])
@@ -366,8 +368,32 @@ except RuntimeError as e:
 finally:
     dialog.requests.post = real_post
     dialog.GOOGLE_KEY = ""
-check("404 объясняется списком доступных моделей",
-      "gemini-flash-latest" in said and "DIALOG_MODEL_GOOGLE" in said, said[:120])
+# Своими словами чужую ошибку не пересказываем: в сообщении должно быть
+# то, что ответила служба. Иначе выходит нелепость первого захода — бот
+# заявлял, что модели нет, и следом перечислял её же первой в списке.
+check("404 показывает ответ самой службы",
+      "not supported for v1beta" in said, said[:160])
+check("404 называет и доступные модели",
+      "gemini-flash-latest" in said, said[:160])
+
+# Обе версии API пробуются, прежде чем сдаться.
+tried = []
+dialog.GOOGLE_KEY = "x"
+def _count(url, **k):
+    tried.append(url)
+    return FakeResponse({}, status=404, text="нет")
+dialog.requests.post = _count
+try:
+    dialog._ask_google("п", [{"role": "user", "content": "ש"}])
+except RuntimeError:
+    pass
+finally:
+    dialog.requests.post = real_post
+    dialog.GOOGLE_KEY = ""
+check("пробуются обе версии API",
+      len(tried) == len(dialog.GOOGLE_VERSIONS)
+      and any("v1beta" in u for u in tried) and any("/v1/" in u for u in tried),
+      tried)
 
 
 # ------------------------------------------- наши формы важнее машинных
