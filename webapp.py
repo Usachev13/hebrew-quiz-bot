@@ -414,7 +414,19 @@ def answer(chat_id, payload):
         verdict = check_answer(heard, expected, quiz.KNOWN_FORMS.get(mode))
         if verdict not in ("exact", "typo"):
             by_sound = speech.compare(heard, expected)["verdict"]
-            verdict = {"match": "exact", "close": "typo"}.get(by_sound, verdict)
+            if by_sound == "match":
+                verdict = "exact"
+            elif by_sound == "close":
+                # Одно слово из длинной фразы не совпало. Это может быть
+                # и промах распознавания, и настоящая ошибка — по одной
+                # записи не отличить. Поэтому «почти» и просьба сказать
+                # ещё раз, без записи в расписание. Со второй попытки
+                # «почти» уже не поблажка: не попал внятно — неверно.
+                if not payload.get("retry"):
+                    return jsonify({"verdict": "almost", "correct": False,
+                                    "heard": heard,
+                                    "diff": speech.compare(heard, expected)["diff"]})
+                verdict = "wrong"
     elif payload.get("format") == "choice":
         verdict = "exact" if given == expected else "wrong"
     else:

@@ -115,9 +115,19 @@ _long = next(c for c in quiz.POOLS["syntax"]
              if len(hebrew_rules.strip_niqqud(c.answer("ru")).split()) >= 4)
 _w = hebrew_rules.strip_niqqud(_long.answer("ru")).split()
 _w[-1] = "בננה"                      # одно слово из четырёх+ не то
+_before = db.card_history(777, _long.key(), "syntax")
 r = speak_answer(" ".join(_w), mode="syntax", cid=_long.key())
-ok(r["verdict"] == "typo" and r["correct"],
-   f"длинная фраза, одно слово распознано иначе — «почти», засчитано: {r['verdict']}")
+ok(r["verdict"] == "almost" and not r["correct"],
+   f"длинная фраза, одно слово не то — «почти», просим повторить: {r['verdict']}")
+ok(db.card_history(777, _long.key(), "syntax") == _before,
+   "первое «почти» в расписание не пишется")
+speech.recognize = lambda data, lang="he-IL", content_type=None: (" ".join(_w), 0.9)
+r = post("/api/answer", mode="syntax", id=_long.key(), format="speak", audio=WAV, retry=True)
+ok(r["verdict"] == "wrong" and not r["correct"],
+   f"второй раз снова «почти» — неверно: {r['verdict']}")
+_ok_text = hebrew_rules.strip_niqqud(_long.answer("ru"))
+r = speak_answer(_ok_text, mode="syntax", cid=_long.key())
+ok(r["correct"], "точное попадание засчитывается и с первой попытки")
 r = speak_answer("")
 ok(r["verdict"] == "silence" and not r["correct"], "тишина — не засчитывается ни так, ни так")
 ok("vocab" in post("/api/menu").get("speak_modes", []), "меню разрешает «Вслух» для слов")

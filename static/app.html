@@ -1307,6 +1307,8 @@ ru: {
   "say.v.match": "Верно!",
   "fmt.speak": "Вслух",            "fmt.speak.sub": "скажите — проверит распознавание речи",
   "q.heard": "Услышано:",
+  "q.almost": "Почти",
+  "q.almostAgain": "Одно слово не расслышал — скажите ещё раз. Со второй попытки засчитаю только точное попадание.",
   "say.slotEx": "Например: «{ex}»",
   "say.slotAny": "вместо «…» можно сказать своё слово",
   "say.v.meaning": "Смысл передан — так тоже говорят",
@@ -1525,6 +1527,8 @@ en: {
   "say.v.match": "Correct!",
   "fmt.speak": "Out loud",         "fmt.speak.sub": "say it — speech recognition checks",
   "q.heard": "Heard:",
+  "q.almost": "Almost",
+  "q.almostAgain": "One word didn't come through — say it again. On the second try only a clean hit counts.",
   "say.slotEx": "For example: “{ex}”",
   "say.slotAny": "you can say your own word instead of “…”",
   "say.v.meaning": "Meaning conveyed — that works too",
@@ -2649,6 +2653,7 @@ function renderQuestion(){
   $("options").innerHTML = ""; $("typed").hidden = true; $("letters").hidden = true;
   $("q-speak").hidden = true;
 
+  state.speakRetry = false;
   if (state.fmt === "speak" && !state.micOff){
     $("q-speak").hidden = false;
     $("q-mic").hidden = false;
@@ -2830,7 +2835,7 @@ async function sendAnswer(given, btn, skip = false, audio = null){
   try {
     res = await api("/api/answer",
       { mode:q.mode, id:q.id, answer:given, format:state.fmt, skip,
-        ...(audio ? { audio } : {}) });
+        ...(audio ? { audio, retry: state.speakRetry } : {}) });
   } catch(e){ res = { error:"network" }; }
   if (audio && (res.error || res.verdict === "silence")){
     // Тишина или сбой распознавания — вопрос не засчитываем, даём
@@ -2840,6 +2845,20 @@ async function sendAnswer(given, btn, skip = false, audio = null){
     setMic("idle", "q");
     $("verdict").innerHTML = `<div class="verdict typo"><div class="head">${
       t(res.error ? "say.mic.failed" : "say.v.silence")}</div></div>`;
+    return;
+  }
+  if (audio && res.verdict === "almost"){
+    // Одно слово не совпало — вторая попытка. Второй «почти» сервер
+    // уже засчитает неверным.
+    state.speakRetry = true;
+    state.busy = false;
+    setMic("idle", "q");
+    const words = (res.diff || []).map(([op, w]) =>
+      op === "=" ? esc(w) : op === "+" ? `<s>${esc(w)}</s>` : `<b>${esc(w)}</b>`).join(" ");
+    $("verdict").innerHTML = `<div class="verdict typo">
+        <div class="head"><span>${t("q.almost")}</span></div>
+        <div class="heard-line">${t("q.heard")} <span class="he sm">${esc(res.heard)}</span></div>
+        <div class="memory">${t("q.almostAgain")}</div></div>`;
     return;
   }
   if (res.error){ state.busy = false; return fail(t("err.network")); }
