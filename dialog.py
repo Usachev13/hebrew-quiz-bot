@@ -102,6 +102,15 @@ GOOGLE_VERSIONS = ("v1beta", "v1")
 NIQQUD_SOURCES = ("nakdan", "model")
 NIQQUD = os.environ.get("DIALOG_NIQQUD", "nakdan").strip().lower()
 
+# «Температура» — насколько свободно модель выбирает слова. По умолчанию
+# у всех трёх поставщиков она высокая, и это полезно для рассказов, но
+# вредно для репетитора: в живом прогоне gpt-4o выдала «מָזֶה בָּרוּר, אֵיךְ
+# אוֹהֵב?» — бессмыслицу, к которой перевод был просто придуман. Ученику
+# нужна правильная фраза, а не неожиданная. Ниже умолчания, но не ноль:
+# при нуле собеседник отвечает одинаково на одно и то же, и разговор
+# становится заученным.
+TEMPERATURE = float(os.environ.get("DIALOG_TEMPERATURE", "0.5"))
+
 # Сколько ходов разговора помним. Больше — дороже каждое сообщение:
 # история уходит в модель целиком при каждом запросе.
 HISTORY_TURNS = 8
@@ -255,6 +264,7 @@ def _ask_anthropic(system, turns):
                  "anthropic-version": "2023-06-01",
                  "content-type": "application/json"},
         json={"model": ANTHROPIC_MODEL, "max_tokens": 400,
+              "temperature": TEMPERATURE,
               "system": system, "messages": turns},
         timeout=TIMEOUT,
     )
@@ -288,6 +298,7 @@ RESPONSE_SCHEMA = {
 
 def _ask_openai(system, turns, schema=True):
     payload = {"model": OPENAI_MODEL, "max_tokens": 400,
+               "temperature": TEMPERATURE,
                "messages": [{"role": "system", "content": system}] + turns}
     # Строгая схема есть не у всех, кто говорит на протоколе OpenAI:
     # Groq и OpenRouter принимают её не для каждой модели. Там, где
@@ -347,6 +358,7 @@ def _ask_google(system, turns):
     payload = {"system_instruction": {"parts": [{"text": system}]},
                "contents": contents,
                "generationConfig": {"maxOutputTokens": 400,
+                                    "temperature": TEMPERATURE,
                                     "responseMimeType": "application/json"}}
 
     # 404 у Google значит не только «нет такой модели», но и «эта модель

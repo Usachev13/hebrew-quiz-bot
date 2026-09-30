@@ -550,6 +550,28 @@ check("подсказка просит огласовки только в реж
       "Ставь огласовки" not in dialog._system("m", "ru"))
 
 
+# Температура ниже умолчания у всех поставщиков: для репетитора
+# правильная фраза важнее неожиданной. Проверяем, что она доходит до
+# запроса, а не лежит константой.
+got_temp = {}
+
+
+def _grab(url, **kw):
+    got_temp["t"] = kw.get("json", {}).get("temperature")
+    return FakeResponse({"choices": [{"message": {"content": GOOD}}],
+                         "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
+
+
+dialog.requests.post = _grab
+try:
+    dialog._ask_openai("п", [{"role": "user", "content": "ש"}])
+finally:
+    dialog.requests.post = real_post
+check("температура уходит в запрос",
+      got_temp.get("t") == dialog.TEMPERATURE and dialog.TEMPERATURE < 1,
+      got_temp)
+
+
 # ------------------------------------------------- подсказка собеседнику
 system = dialog._system("f", "ru")
 check("род собеседника попадает в подсказку", "женщина" in system)

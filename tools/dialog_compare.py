@@ -152,20 +152,48 @@ def main():
 
     results = {}
     if args.niqqud:
-        # Одна модель, разные источники огласовок. Разговор тот же, так
-        # что разница видна на одних и тех же репликах: где Dicta
-        # путает омографы (שֵׁם вместо שָׁם), а модель — нет, или наоборот.
+        # Первый вариант этого сравнения гонял два РАЗНЫХ разговора — по
+        # одному на источник огласовок. Модель отвечает не одинаково, и
+        # после первой же реплики разговоры расходились: в одном
+        # собеседницу звали Шира, в другом Михаль. Сравнивались тексты,
+        # а не огласовки.
+        #
+        # Теперь разговор один. Модель просится огласовывать сама, и
+        # каждая её реплика, очищенная от значков, отдаётся ещё и Dicta.
+        # Две огласовки ОДНОГО текста — рядом, и расхождения помечены.
+        import nakdan
         provider = args.providers.split(",")[0].strip()
         saved = dialog.NIQQUD
-        for source in args.niqqud.split(","):
-            source = source.strip()
-            dialog.NIQQUD = source
-            print(f"\n=== {provider}, огласовки: {source} ===")
-            rows = run(provider, verbose=not args.quiet, raw=args.raw)
-            if rows:
-                results[source] = score(rows)
+        dialog.NIQQUD = "model"
+        os.environ["DIALOG_PROVIDER"] = provider
+        history = []
+        differ = 0
+        print(f"\n=== {provider}: огласовки модели против Dicta ===")
+        for said in SCRIPT:
+            res = dialog.reply(history, said, gender="m", lang="ru")
+            history += [("user", said), ("bot", res["he"])]
+            own = res["he"]
+            dicta = nakdan.vocalize_trusted(hebrew_rules.strip_niqqud(own))
+            same = nakdan._norm_marks(own) == nakdan._norm_marks(dicta)
+            differ += 0 if same else 1
+            print(f"\n    > {said}")
+            print(f"      {res['ru']}")
+            for label, text in (("модель", own), ("Dicta ", dicta)):
+                try:
+                    reading = translit(text)
+                except Exception:                            # noqa: BLE001
+                    reading = "?"
+                print(f"      {label}: {text}")
+                print(f"              {reading}")
+            if not same:
+                print("      ⚠️ огласовки разошлись — какое чтение верно, "
+                      "видно по переводу выше")
+            time.sleep(0.5)
         dialog.NIQQUD = saved
-    elif args.models:
+        print(f"\nРеплик: {len(SCRIPT)}, огласовки разошлись в {differ}.")
+        print("Где разошлись — смотреть по смыслу: перевод один на обоих.")
+        return 0
+    if args.models:
         # Сравниваем модели одного поставщика: он должен быть один.
         provider = args.providers.split(",")[0].strip()
         for model in args.models.split(","):
