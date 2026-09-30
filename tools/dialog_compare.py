@@ -55,7 +55,18 @@ SCRIPT = [
 ]
 
 
-def run(provider, verbose=True, raw=False):
+def run(provider, verbose=True, raw=False, model=None):
+    """Один разговор с одной моделью.
+
+    model переопределяет имя на время прогона — чтобы сравнить две
+    модели одного поставщика, не правя .env и не перезапуская бота.
+    """
+    saved_model = None
+    if model:
+        key = {"openai": "OPENAI_MODEL", "google": "GOOGLE_MODEL",
+               "anthropic": "ANTHROPIC_MODEL"}[provider]
+        saved_model = getattr(dialog, key)
+        setattr(dialog, key, model)
     saved = (dialog.ANTHROPIC_KEY, dialog.OPENAI_KEY, dialog.GOOGLE_KEY)
     os.environ["DIALOG_PROVIDER"] = provider
     if not dialog.provider():
@@ -83,6 +94,10 @@ def run(provider, verbose=True, raw=False):
                 print(f"      сырой ответ: {res['raw'][:400]}")
         time.sleep(0.5)
     dialog.ANTHROPIC_KEY, dialog.OPENAI_KEY, dialog.GOOGLE_KEY = saved
+    if saved_model is not None:
+        key = {"openai": "OPENAI_MODEL", "google": "GOOGLE_MODEL",
+               "anthropic": "ANTHROPIC_MODEL"}[provider]
+        setattr(dialog, key, saved_model)
     return rows
 
 
@@ -111,6 +126,9 @@ def score(rows):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--providers", default="google,openai,anthropic")
+    ap.add_argument("--models", default="",
+                    help="сравнить модели ОДНОГО поставщика через запятую, "
+                         "например: gpt-4o-mini,gpt-4o")
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--raw", action="store_true",
                     help="печатать ответ модели как есть — видно, "
@@ -118,14 +136,25 @@ def main():
     args = ap.parse_args()
 
     results = {}
-    for provider in args.providers.split(","):
-        provider = provider.strip()
-        if not provider:
-            continue
-        print(f"\n=== {provider} ===")
-        rows = run(provider, verbose=not args.quiet, raw=args.raw)
-        if rows:
-            results[provider] = score(rows)
+    if args.models:
+        # Сравниваем модели одного поставщика: он должен быть один.
+        provider = args.providers.split(",")[0].strip()
+        for model in args.models.split(","):
+            model = model.strip()
+            print(f"\n=== {provider}: {model} ===")
+            rows = run(provider, verbose=not args.quiet, raw=args.raw,
+                       model=model)
+            if rows:
+                results[model] = score(rows)
+    else:
+        for provider in args.providers.split(","):
+            provider = provider.strip()
+            if not provider:
+                continue
+            print(f"\n=== {provider} ===")
+            rows = run(provider, verbose=not args.quiet, raw=args.raw)
+            if rows:
+                results[provider] = score(rows)
 
     if not results:
         print("\nНи одна модель не ответила. Проверьте ключи: "

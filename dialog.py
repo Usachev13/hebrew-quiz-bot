@@ -71,7 +71,13 @@ ANTHROPIC_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 OPENAI_KEY = os.environ.get("OPENAI_API_KEY", "")
 GOOGLE_KEY = os.environ.get("GOOGLE_API_KEY", "")
 ANTHROPIC_MODEL = os.environ.get("DIALOG_MODEL_ANTHROPIC", "claude-haiku-4-5-20251001")
-OPENAI_MODEL = os.environ.get("DIALOG_MODEL_OPENAI", "gpt-4o-mini")
+# Умолчание — gpt-4o, а не дешёвая mini. Не из осторожности: mini
+# проверена на живом разговоре и иврита не знает. Она выдавала
+# несуществующие слова («מָה תּוֹעֲדוֹת שֶׁלְּךָ?»), писала «אֲנִי גָּרָה
+# בַּמַּשָּׁט» — «я живу в плавании» — и теряла перевод в четырёх репликах
+# из пяти. Наши проверки такое не ловят: огласовки-то верные, их ставит
+# Nakdan, а слова под ними выдуманы. Это ловит только человек.
+OPENAI_MODEL = os.environ.get("DIALOG_MODEL_OPENAI", "gpt-4o")
 # Протокол OpenAI стал общим языком: по нему говорят Groq, OpenRouter,
 # Mistral, Together и локальная Ollama. Поэтому «openai» здесь — это не
 # компания, а формат запроса, и сменой одного адреса мы получаем доступ
