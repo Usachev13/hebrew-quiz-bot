@@ -503,5 +503,8 @@ def explain(card, mode, given=None, lang="ru"):
     elif mode == "kol":
         import kol
         lines += kol.explain(card.he, given, lang)
+    elif mode == "she":
+        import she
+        lines += she.explain(card.he, given, lang)
 
     return lines or None

@@ -336,6 +336,21 @@ def kol_cards():
 KOL_FLAT = kol_cards()
 
 
+def she_cards():
+    """Частица שֶׁ־: неверные варианты — кальки с русского и שֶׁ
+    отдельным словом. Обе ошибки настоящие, а не для числа кнопок."""
+    import she
+    out = []
+    for i, (ru, en, right, wrongs, kind) in enumerate(she.SENTENCES):
+        out.append(Card(ru=ru, he=right, cat=kind,
+                        cid=f"she:{kind}:{i}", en=en,
+                        wrong=tuple(w for w, _r in wrongs)))
+    return out
+
+
+SHE_FLAT = she_cards()
+
+
 def numeral_cards():
     """«Сколько чего»: форма числа под род существительного.
 
@@ -383,6 +398,7 @@ POOLS = {
     "prepositions": PREP_FLAT,
     "smichut": SMICHUT_FLAT,
     "kol": KOL_FLAT,
+    "she": SHE_FLAT,
     # Курс алфавита (уровень 0)
     "alef_names": alphabet.pool_names(),
     "alef_sounds": alphabet.pool_sounds(),
@@ -407,6 +423,7 @@ LABELS = {
     "prepositions": "предлоги с местоимениями",
     "smichut": "смихут",
     "kol": "каждый, весь, все",
+    "she": "который и что",
     "listen": "на слух",
     "sprint": "спринт",
     "alef_names": "названия букв",
@@ -456,6 +473,7 @@ LABELS_EN = {
     "prepositions": "prepositions with pronouns",
     "smichut": "construct state",
     "kol": "every, whole, all",
+    "she": "which and that",
     "listen": "by ear",
     "sprint": "sprint",
     "alef_names": "letter names",
@@ -511,7 +529,8 @@ GRAMMAR_SECTIONS = ([(key, None) for key in GRAMMAR_LABELS]
                     + [("plural", "plural"), ("abbrev", "abbrev"),
                        ("syntax", "syntax"), ("numerals", "numerals"),
                        ("prepositions", "prepositions"),
-                       ("smichut", "smichut"), ("kol", "kol")])
+                       ("smichut", "smichut"), ("kol", "kol"),
+                       ("she", "she")])
 
 GAP_MODES = {"gap_verb", "gap_who"}
 

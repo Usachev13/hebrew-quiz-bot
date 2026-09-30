@@ -384,6 +384,7 @@ M = {
               "en": "🔗 Prepositions with pronouns"},
 "menu.smichut": {"ru": "🏠 Смихут", "en": "🏠 Construct state"},
 "menu.kol": {"ru": "♾ Каждый, весь, все", "en": "♾ Every, whole, all"},
+"menu.she": {"ru": "🪢 Который и что", "en": "🪢 Which and that"},
 "ask.grammar": {"ru": "Что из грамматики?", "en": "Which part of grammar?"},
 "ask.verbs": {"ru": "Глаголы — что тренируем?", "en": "Verbs — what shall we practise?"},
 "ask.format": {"ru": "Как отвечаем?", "en": "How do we answer?"},

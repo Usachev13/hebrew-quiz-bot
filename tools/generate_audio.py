@@ -78,7 +78,7 @@ PRICE_PER_1M_CHARS = 16.0
 
 
 SCOPES = ["all", "words", "forms", "present", "past", "future",
-          "phrases", "syntax", "numerals", "prep", "smichut", "kol"]
+          "phrases", "syntax", "numerals", "prep", "smichut", "kol", "she"]
 
 
 def collect(scope):
@@ -123,6 +123,12 @@ def collect(scope):
         # на слух — сразу. Без записи упражнение учит глазами.
         import quiz
         for card in quiz.POOLS["plural"]:
+            items.append(card.he)
+    if scope in ("all", "she"):
+        # Только верные: кальки «הַסֵּפֶר אֵיזֶה קָנִיתִי» озвучивать нельзя
+        # — сказанная живым голосом, калька запоминается как образец.
+        import quiz
+        for card in quiz.POOLS["she"]:
             items.append(card.he)
     if scope in ("all", "kol"):
         # Здесь неверный вариант одной карточки — верный ответ другой

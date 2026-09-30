@@ -341,6 +341,7 @@ def words_menu_keyboard(lang="ru"):
             [{"text": t("menu.prep", lang), "callback_data": "pick|prepositions|"}],
             [{"text": t("menu.smichut", lang), "callback_data": "pick|smichut|"}],
             [{"text": t("menu.kol", lang), "callback_data": "pick|kol|"}],
+            [{"text": t("menu.she", lang), "callback_data": "pick|she|"}],
             [{"text": t("menu.abbrev", lang), "callback_data": "pick|abbrev|"}],
             [{"text": t("menu.listen", lang), "callback_data": "pick|listen|"}],
             [{"text": t("menu.weak", lang), "callback_data": "pick|weak|"}],
