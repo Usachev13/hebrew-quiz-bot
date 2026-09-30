@@ -197,6 +197,10 @@ LATER_COLUMNS = [
     # и без этой страницы новичок видит девять плиток и не знает, с
     # какой начать. Показываем сам один раз, дальше — по кнопке.
     ("prefs", "guide_seen", "INTEGER NOT NULL DEFAULT 0"),
+    # Идущая сценка: {"key": …, "done": [номера задач]} в JSON или NULL.
+    # В базе, а не в памяти процесса: перезапуск бота посреди сцены не
+    # должен выбрасывать человека в свободный разговор.
+    ("prefs", "talk_scene", "TEXT"),
 ]
 
 # Интервалы системы Лейтнера: сколько дней ждать до следующего показа.
@@ -740,6 +744,32 @@ def sprint_best(chat_id):
         "SELECT sprint_best FROM prefs WHERE chat_id = ?", (str(chat_id),)
     ).fetchone()
     return int(row["sprint_best"]) if row and row["sprint_best"] else 0
+
+
+def talk_scene(chat_id):
+    """Идущая сценка или None."""
+    import json as _json
+    row = get_conn().execute(
+        "SELECT talk_scene FROM prefs WHERE chat_id = ?", (str(chat_id),)
+    ).fetchone()
+    if not row or not row["talk_scene"]:
+        return None
+    try:
+        return _json.loads(row["talk_scene"])
+    except ValueError:
+        return None
+
+
+def set_talk_scene(chat_id, value):
+    """Записать состояние сценки; None — сценка окончена."""
+    import json as _json
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO prefs (chat_id, talk_scene) VALUES (?, ?) "
+        "ON CONFLICT(chat_id) DO UPDATE SET talk_scene = excluded.talk_scene",
+        (str(chat_id), _json.dumps(value) if value else None),
+    )
+    conn.commit()
 
 
 def guide_seen(chat_id):

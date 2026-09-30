@@ -135,6 +135,16 @@ ok(not any(m.startswith("alef_") for m in post("/api/menu").get("speak_modes", [
    "в алфавите «Вслух» не предлагается")
 ok(post("/api/menu").get("speech_check") is True, "меню говорит приложению, что проверка есть")
 
+print("сценки в «Заговорить»")
+_dialog.available = lambda: True
+sit = post("/api/situations")
+ok(len(sit.get("scenes", [])) >= 8 and sit["scenes"][0]["goals"],
+   f"сценок в списке: {len(sit.get('scenes', []))}, у каждой задачи")
+ok(c.post("/api/scene_start", json={"key": "нет такой", "init_data": init_data()}).status_code == 400,
+   "неизвестная сценка — 400")
+_dialog.available = lambda: False
+ok(post("/api/situations").get("scenes") == [], "без модели сценки не предлагаются")
+
 print("раунд")
 r = post("/api/round", mode="plural", cat="", format="choice")
 qs = r["questions"]

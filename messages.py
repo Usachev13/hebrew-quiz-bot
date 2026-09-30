@@ -151,6 +151,37 @@ M = {
 "talk.reset": {"ru": "Хорошо, забыли. О чём поговорим?",
                "en": "Fine, forgotten. What shall we talk about?"},
 "talk.showText": {"ru": "📄 Текст", "en": "📄 Text"},
+"talk.scenes": {"ru": "🎭 Сценки", "en": "🎭 Role-plays"},
+"scene.pick": {
+"ru": "Выберите сценку. Собеседник сыграет роль, а у вас будет два-три "
+      "дела — сделать их нужно на иврите. Как в жизни: никто не "
+      "подскажет, что говорить, но и спешить некуда.",
+"en": "Pick a role-play. Your partner plays a part, and you get two or "
+      "three things to do — in Hebrew. Like real life: nobody tells you "
+      "what to say, but there's no rush.",
+},
+"scene.intro": {
+"ru": "🎭 <b>{title}</b>\n{you} Сделайте на иврите:\n{goals}\n\n"
+      "Собеседник начнёт сам. Отвечайте голосом или текстом.",
+"en": "🎭 <b>{title}</b>\n{you} Do this in Hebrew:\n{goals}\n\n"
+      "Your partner starts. Answer by voice or text.",
+},
+"scene.goals": {"ru": "🎭 <b>{title}</b>\n{goals}", "en": "🎭 <b>{title}</b>\n{goals}"},
+"scene.goalDone": {"ru": "✅ {goal}", "en": "✅ {goal}"},
+"scene.done": {
+"ru": "🎉 Сценка «{title}» сыграна — все дела сделаны на иврите. "
+      "+{xp} очков.",
+"en": "🎉 “{title}” done — everything said in Hebrew. +{xp} points.",
+},
+"scene.exit": {"ru": "Сценка окончена. Можно просто поговорить — или "
+                     "выбрать другую.",
+               "en": "Role-play over. Talk freely — or pick another one."},
+"scene.goalsBtn": {"ru": "📋 Задачи", "en": "📋 Tasks"},
+"scene.exitBtn": {"ru": "⏹ Выйти из сценки", "en": "⏹ Leave the role-play"},
+"scene.another": {"ru": "🎭 Другая сценка", "en": "🎭 Another role-play"},
+"scene.free": {"ru": "💬 Свободный разговор", "en": "💬 Free talk"},
+"scene.sent": {"ru": "Сценка ждёт вас в чате с ботом.",
+               "en": "The role-play is waiting in the bot chat."},
 "talk.showTr": {"ru": "🌐 Перевод", "en": "🌐 Translation"},
 "talk.noTr": {"ru": "перевода нет", "en": "no translation"},
 "talk.listen": {"ru": "🎧 Послушайте ответ",

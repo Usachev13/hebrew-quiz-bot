@@ -160,6 +160,74 @@ sent.clear()
 cb(f"talk_text|{ref}", 101)
 ok(any(HE in x for x in texts()), "«Текст» под старым голосовым — своя реплика")
 
+# --- 5. сценка ----------------------------------------------------------------
+import scenes  # noqa: E402
+calls = []
+
+
+def scene_reply(goals_done):
+    """Подставной собеседник сценки: какие задачи засчитать этой репликой.
+
+    Настоящий dialog._goals тоже прогоняем — в нём правило «по-русски не
+    засчитывается», и проверять его в обход было бы нечестно."""
+    def fake(history, said, scene=None, **kw):
+        calls.append((said, scene and scene["key"], len(history)))
+        return {"he": HE, "he_model": HE, "niqqud_by": "model", "ru": RU,
+                "no_ru": False, "fixed": "", "marked": "", "hint": "",
+                "goals_done": real_goals([g + 1 for g in goals_done], said, scene),
+                "ok": True, "usage": (1, 1), "raw": ""}
+    dialog.reply = fake
+
+
+real_goals = dialog._goals
+db.dialog_add(CHAT, "user", "שלום")          # хвост свободного разговора
+sent.clear(); calls.clear()
+scene_reply([])
+cb("scenes", 200)
+ok(any("scene|makolet" in json.dumps(b.get("reply_markup") or {}) for m, b in sent),
+   "«Сценки» — список с макколетом")
+sent.clear()
+cb("scene|makolet", 201)
+intro = next((x for x in texts() if "🎭" in x), "")
+ok("В макколете" in intro and "хлеб" in intro, "перед сценой — роль и задачи")
+ok(calls and calls[-1][1] == "makolet" and calls[-1][2] == 0,
+   "собеседник начинает сам, с чистой историей")
+ok(any(m == "sendVoice" for m, _ in sent), "первая реплика — голосом")
+ok(db.dialog_today(CHAT) >= 0 and not any(r == "user" and x == scenes.START
+   for r, x in db.dialog_history(CHAT)), "служебный «ход» не записан как реплика человека")
+
+kb = json.dumps([json.loads(b["reply_markup"]) for m, b in sent if m == "sendVoice"][-1])
+ok("scene_goals" in kb and "talk_voice" not in kb,
+   "в сценке кнопки «Задачи» и «Выйти», смены собеседника нет")
+
+# по-русски — не засчитывается, даже если модель считает иначе
+scene_reply([0])
+sent.clear()
+bot.handle_talk(CHAT, "хочу хлеб и молоко")
+ok(db.talk_scene(CHAT)["done"] == [], "сказано по-русски — задача не засчитана")
+
+HEARD = "אני רוצה לחם וחלב"
+sent.clear()
+bot.handle_voice(CHAT, {"file_id": "x", "duration": 2})
+ed = [b for m, b in sent if m == "editMessageText"]
+ok(ed and "✅" in ed[0]["text"] and "хлеб" in ed[0]["text"],
+   "задача отмечена прямо под сказанным")
+ok(db.talk_scene(CHAT)["done"] == [0], "и записана в состояние сцены")
+
+scene_reply([1, 2])
+HEARD = "כמה זה עולה? אני משלם בכרטיס"
+sent.clear()
+bot.handle_voice(CHAT, {"file_id": "x", "duration": 2})
+ok(db.talk_scene(CHAT) is None, "все задачи сделаны — сцена закрыта")
+ok(any("сыграна" in x for x in texts()), "поздравление с очками")
+ok(any("scenes" in json.dumps(b.get("reply_markup") or {}) for m, b in sent
+       if "сыграна" in b.get("text", "")), "и предложение другой сценки")
+
+# выход посреди сцены
+cb("scene|cafe", 202)
+cb("scene_exit", 203)
+ok(db.talk_scene(CHAT) is None, "«Выйти из сценки» — обратно в свободный разговор")
+
 print()
 if fail:
     print(f"Сбоев: {fail}")

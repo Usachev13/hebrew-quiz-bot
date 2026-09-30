@@ -22,6 +22,7 @@ from flask import Flask, request, jsonify
 import alphabet
 import audio
 import db
+import scenes
 import dialog
 import explain
 import hebrew_name
@@ -1093,7 +1094,15 @@ def talk_keyboard(chat_id, lang="ru", ref=None, translate=False):
     if ref is not None:
         rows.append([{"text": t("talk.showTr" if translate else "talk.showText", lang),
                       "callback_data": f"{'talk_tr' if translate else 'talk_text'}|{ref}"}])
+    if db.talk_scene(chat_id):
+        # В сценке: задачи под рукой и выход. Смену собеседника и «начать
+        # заново» прячем — посреди сцены они её ломают.
+        return {"inline_keyboard": rows + [
+            [{"text": t("scene.goalsBtn", lang), "callback_data": "scene_goals"},
+             {"text": t("scene.exitBtn", lang), "callback_data": "scene_exit"}],
+        ]}
     return {"inline_keyboard": rows + [
+        [{"text": t("talk.scenes", lang), "callback_data": "scenes"}],
         [{"text": t(f"talk.switch.{other}", lang),
           "callback_data": f"talk_voice|{other}"}],
         [{"text": t("talk.restart", lang), "callback_data": "talk_reset"}],
@@ -1155,9 +1164,12 @@ def handle_talk(chat_id, said, lang="ru", said_msg=None):
 
     send_typing(chat_id)
     history = db.dialog_history(chat_id)
+    state = db.talk_scene(chat_id)
+    scene = scenes.BY_KEY.get((state or {}).get("key"))
     try:
         res = dialog.reply(history, said, gender=db.gender(chat_id) or "m",
-                           lang=lang, companion=db.talk_gender(chat_id))
+                           lang=lang, companion=db.talk_gender(chat_id),
+                           scene=scene)
     except Exception as e:                                  # noqa: BLE001
         print(f"[talk] {e}")
         send_message(chat_id, t("talk.failed", lang),
@@ -1175,6 +1187,16 @@ def handle_talk(chat_id, said, lang="ru", said_msg=None):
     tail = []
     if res["hint"]:
         tail.append(t("talk.hint", lang, text=res["hint"]))
+    finished = False
+    if scene:
+        done = list(state.get("done") or [])
+        fresh = [g for g in res.get("goals_done") or [] if g not in done]
+        done += fresh
+        tail += [t("scene.goalDone", lang, goal=scenes.goal_text(scene, g, lang))
+                 for g in fresh]
+        finished = len(set(done)) >= len(scene["goals"])
+        db.set_talk_scene(chat_id, None if finished else
+                          {"key": scene["key"], "done": done})
     if said_msg:
         line = _said_line(said, res["marked"])
         if not res["marked"] and said_he:
@@ -1186,9 +1208,80 @@ def handle_talk(chat_id, said, lang="ru", said_msg=None):
             ([t("talk.better", lang, text=res["marked"])] if res["marked"] else [])
             + tail))
 
-    # 2. Ответ — голосом, текст только по кнопке «Текст», перевод — по
-    #    кнопке «Перевод» уже под текстом. Кнопки висят на самом
-    #    голосовом, отдельное сообщение «Послушайте ответ» больше не нужно.
+    _send_reply(chat_id, res, lang)
+    if finished:
+        finish_scene(chat_id, scene, lang)
+
+
+SCENE_XP = 10
+
+
+def finish_scene(chat_id, scene, lang):
+    """Все задачи сделаны: поздравление, очки, выбор, что дальше."""
+    try:
+        db.award_xp(chat_id, SCENE_XP, "scene")
+    except Exception as e:                                  # noqa: BLE001
+        print(f"[scene] {e}")
+    send_message(chat_id,
+                 t("scene.done", lang, title=scenes.title(scene, lang), xp=SCENE_XP),
+                 {"inline_keyboard": [
+                     [{"text": t("scene.another", lang), "callback_data": "scenes"}],
+                     [{"text": t("scene.free", lang), "callback_data": "talk_reset"}]]})
+
+
+def scenes_keyboard(lang):
+    return {"inline_keyboard": [
+        [{"text": scenes.title(s, lang), "callback_data": f"scene|{s['key']}"}]
+        for s in scenes.SCENES] + [
+        [{"text": t("menu.back", lang), "callback_data": "talk"}]]}
+
+
+def _goals_list(scene, done, lang):
+    return "\n".join(("✅ " if i in done else "▫️ ") + scenes.goal_text(scene, i, lang)
+                     for i in range(len(scene["goals"])))
+
+
+def start_scene(chat_id, key, lang="ru"):
+    """Начало сценки: задачи на экран, первая реплика — от собеседника.
+
+    Разговор начинается с чистого листа: реплики свободной беседы в
+    сцене только путали бы модель («как я уже говорила…» от продавца).
+    """
+    scene = scenes.BY_KEY.get(key)
+    if not scene:
+        return
+    if not dialog.available():
+        send_message(chat_id, t("talk.off", lang), main_menu_keyboard(lang))
+        return
+    if db.dialog_left(chat_id) <= 0:
+        send_message(chat_id, t("talk.limit", lang), main_menu_keyboard(lang))
+        return
+    db.dialog_reset(chat_id)
+    db.set_talk_scene(chat_id, {"key": key, "done": []})
+    send_message(chat_id, t("scene.intro", lang, title=scenes.title(scene, lang),
+                            you=scene["you"].get(lang) or scene["you"]["ru"],
+                            goals=_goals_list(scene, [], lang)))
+    send_typing(chat_id)
+    try:
+        res = dialog.reply([], scenes.START, gender=db.gender(chat_id) or "m",
+                           lang=lang, companion=db.talk_gender(chat_id),
+                           scene=scene)
+    except Exception as e:                                  # noqa: BLE001
+        print(f"[scene] {e}")
+        send_message(chat_id, t("talk.failed", lang), talk_keyboard(chat_id, lang))
+        return
+    # Служебный «ход» с просьбой начать в историю не пишем: это не
+    # реплика человека, и в лимит он не засчитывается.
+    db.dialog_add(chat_id, "bot", res["he"], res["usage"], res["ok"])
+    _send_reply(chat_id, res, lang)
+
+
+def _send_reply(chat_id, res, lang):
+    """Ответ собеседника: голосом с кнопкой «Текст», без голоса — текстом
+    с кнопкой «Перевод»."""
+    # Ответ — голосом, текст только по кнопке «Текст», перевод — по
+    # кнопке «Перевод» уже под текстом. Кнопки висят на самом
+    # голосовом, отдельное сообщение «Послушайте ответ» больше не нужно.
     ref = _remember_reply(chat_id, res["he"], res["ru"])
     voiced = False
     if res["he"] and db.voice_enabled(chat_id) and audio.can_speak():
@@ -1589,7 +1682,23 @@ def _handle_webhook_update():
                 tr = item["ru"] or t("talk.noTr", lang)
                 edit_message(chat_id, cq["message"]["message_id"],
                              f"{_talk_he(item['he'], lang)}\n<i>{tr}</i>")
+        elif data == "scenes":
+            send_message(chat_id, t("scene.pick", lang), scenes_keyboard(lang))
+        elif data.startswith("scene|"):
+            start_scene(chat_id, data.split("|", 1)[1], lang)
+        elif data == "scene_goals":
+            st = db.talk_scene(chat_id)
+            sc = scenes.BY_KEY.get((st or {}).get("key"))
+            if sc:
+                send_message(chat_id, t("scene.goals", lang, title=scenes.title(sc, lang),
+                                        goals=_goals_list(sc, st.get("done") or [], lang)),
+                             talk_keyboard(chat_id, lang))
+        elif data == "scene_exit":
+            db.set_talk_scene(chat_id, None)
+            db.dialog_reset(chat_id)
+            send_message(chat_id, t("scene.exit", lang), talk_keyboard(chat_id, lang))
         elif data == "talk_reset":
+            db.set_talk_scene(chat_id, None)
             db.dialog_reset(chat_id)
             send_message(chat_id, t("talk.reset", lang),
                          talk_keyboard(chat_id, lang))

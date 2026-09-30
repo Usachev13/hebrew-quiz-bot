@@ -959,7 +959,43 @@ def situations(chat_id, payload):
             "seen": sum(1 for c in ids if c in boxes),
             "learned": sum(1 for c in ids if boxes.get(c, 0) >= LEARNED_BOX),
         })
-    return jsonify({"situations": out, "gender": db.gender(chat_id)})
+    import dialog
+    import scenes
+    # Сценки — только если есть собеседник: без ключа модели кнопка вела
+    # бы в чат, где ответить некому.
+    sc = ([{"key": s["key"], "title": scenes.title(s, lang),
+            "situation": s["situation"],
+            "goals": [scenes.goal_text(s, i, lang) for i in range(len(s["goals"]))]}
+           for s in scenes.SCENES] if dialog.available() else [])
+    return jsonify({"situations": out, "gender": db.gender(chat_id),
+                    "scenes": list(sc)})
+
+
+@api.route("/api/scene_start", methods=["POST"])
+@guarded
+def scene_start(chat_id, payload):
+    """Начать сценку из приложения. Сама сценка идёт в чате — там голос
+    в обе стороны, — поэтому бот присылает её туда, а приложение
+    закрывается и человек оказывается прямо в ней.
+
+    В отдельном потоке: первая реплика — это запрос к модели и синтез
+    речи, несколько секунд. Держать всё это время приложение открытым
+    незачем."""
+    import threading
+    import scenes
+    key = payload.get("key", "")
+    if key not in scenes.BY_KEY:
+        return jsonify({"error": "unknown scene"}), 400
+    lang = req_lang()
+
+    def run():
+        try:
+            import bot
+            bot.start_scene(chat_id, key, lang)
+        except Exception as e:                               # noqa: BLE001
+            print(f"[scene_start] {e}")
+    threading.Thread(target=run, daemon=True).start()
+    return jsonify({"ok": True})
 
 
 @api.route("/api/why", methods=["POST"])

@@ -1305,6 +1305,8 @@ ru: {
   "say.mic.off": "Микрофон недоступен — отмечайте сами, сказали или нет.",
   "say.mic.failed": "Проверить не вышло — сравните с ответом сами.",
   "say.v.match": "Верно!",
+  "scene.head": "Разыграть сценку",
+  "scene.lead": "Собеседник играет роль — продавца, врача, соседа, — а у вас два-три дела. Сценка откроется в чате: там можно говорить голосом.",
   "fmt.speak": "Вслух",            "fmt.speak.sub": "скажите — проверит распознавание речи",
   "q.heard": "Услышано:",
   "q.almost": "Почти",
@@ -1525,6 +1527,8 @@ en: {
   "say.mic.off": "No microphone — mark it yourself.",
   "say.mic.failed": "Couldn't check — compare with the answer yourself.",
   "say.v.match": "Correct!",
+  "scene.head": "Play a scene",
+  "scene.lead": "Your partner plays a role — shopkeeper, doctor, neighbour — and you have two or three things to do. The scene opens in the chat, where you can speak by voice.",
   "fmt.speak": "Out loud",         "fmt.speak.sub": "say it — speech recognition checks",
   "q.heard": "Heard:",
   "q.almost": "Almost",
@@ -2111,6 +2115,24 @@ async function openSay(){
     onclick: () => startSay(sit.key),
   })));
   host.appendChild(box);
+
+  /* Сценки. Фразы учат, ЧТО сказать; сценка — сказать это самому,
+     когда собеседник играет роль и ждёт. Идёт она в чате: там голос в
+     обе стороны. Нажатие — бот присылает сценку в чат, приложение
+     закрывается. */
+  if ((r.scenes || []).length){
+    const h = document.createElement("div");
+    h.innerHTML = `<h2>${t("scene.head")}</h2><p class="lead">${t("scene.lead")}</p>`;
+    host.appendChild(h);
+    r.scenes.forEach(sc => host.appendChild(tile({
+      ico:"chat", name: sc.title, sub: sc.goals.join(" · "),
+      onclick: async () => {
+        try { await api("/api/scene_start", { key: sc.key }); }
+        catch(e){ return fail(t("err.network")); }
+        try { tg?.close(); } catch(e){}
+      }
+    })));
+  }
 }
 
 async function startSay(situation){

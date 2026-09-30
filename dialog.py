@@ -296,7 +296,23 @@ RESPONSE_SCHEMA = {
 }
 
 
-def _ask_openai(system, turns, schema=True):
+# Для сценки — то же плюс номера выполненных задач.
+SCENE_SCHEMA = {
+    "name": "scene_reply",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["he", "ru", "fixed", "hint", "goals_done"],
+        "properties": {
+            **RESPONSE_SCHEMA["schema"]["properties"],
+            "goals_done": {"type": "array", "items": {"type": "integer"}},
+        },
+    },
+}
+
+
+def _ask_openai(system, turns, schema=True, response_schema=None):
     payload = {"model": OPENAI_MODEL, "max_tokens": 400,
                "temperature": TEMPERATURE,
                "messages": [{"role": "system", "content": system}] + turns}
@@ -306,7 +322,7 @@ def _ask_openai(system, turns, schema=True):
     # терпимый.
     if schema:
         payload["response_format"] = {"type": "json_schema",
-                                      "json_schema": RESPONSE_SCHEMA}
+                                      "json_schema": response_schema or RESPONSE_SCHEMA}
     r = requests.post(
         f"{OPENAI_BASE}/chat/completions",
         headers={"Authorization": f"Bearer {OPENAI_KEY}",
@@ -631,7 +647,30 @@ def _merge_by_word(text):
     return nakdan.trusted_overlay(" ".join(out))
 
 
-def reply(history, said, gender="m", lang="ru", companion="f"):
+def _goals(value, said, scene):
+    """Номера задач (с нуля), выполненных этой репликой.
+
+    Модели здесь верим не во всём. Задача засчитывается, только если
+    человек сказал что-то на иврите: модель охотно засчитывает и
+    русскую фразу «хочу хлеб», а смысл сценки — сказать это на иврите.
+    Номера вне списка отбрасываем.
+    """
+    if not scene or not isinstance(value, list):
+        return []
+    if not any("\u05d0" <= c <= "\u05ea" for c in (said or "")):
+        return []
+    out = set()
+    for v in value:
+        try:
+            n = int(v) - 1
+        except (TypeError, ValueError):
+            continue
+        if 0 <= n < len(scene["goals"]):
+            out.add(n)
+    return sorted(out)
+
+
+def reply(history, said, gender="m", lang="ru", companion="f", scene=None):
     """Ответ собеседника.
 
     history — [(роль, текст), …] прошлых ходов, роль «user» или «bot».
@@ -652,6 +691,13 @@ def reply(history, said, gender="m", lang="ru", companion="f"):
     system = _system(gender, lang, companion)
     ask = {"anthropic": _ask_anthropic, "openai": _ask_openai,
            "google": _ask_google}[provider()]
+    if scene:
+        # Сценка: роль и задачи поверх обычных правил речи — короткие
+        # фразы, уровень алеф и поправки остаются теми же.
+        import scenes
+        system += scenes.prompt(scene)
+        if provider() == "openai":
+            ask = lambda s, t: _ask_openai(s, t, response_schema=SCENE_SCHEMA)
     raw, usage = ask(system, turns)
     data = _parse(raw)
 
@@ -699,6 +745,7 @@ def reply(history, said, gender="m", lang="ru", companion="f"):
         # Разметка правки: сравниваем сказанное с исправленным.
         "marked": mark_fix(said, fixed),
         "hint": _clean(data.get("hint")),
+        "goals_done": _goals(data.get("goals_done"), said, scene),
         "ok": ok and ok_fixed,
         "usage": usage,
         "raw": raw,
