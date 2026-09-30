@@ -180,6 +180,19 @@ IPA_VOWELS = {"а": "a", "е": "e", "и": "i", "о": "o", "у": "u"}
 STRESS_EXCEPTIONS = {
     "לָמָּה": "milel",      # ЛА-ма, а не ла-МА
 
+    # Найдено с экрана: в упражнении «скажите вслух» стояло «камá зе
+    # бкило», хотя говорят «кáма». Проверено по Викисловарю, там у этих
+    # слов размечен IPA с ударением:
+    #     כמה    /ˈka.ma/
+    #     משהו   /ˈmaʃe(h)u/
+    #     מישהו  /ˈmiʃe(h)u/
+    # ИРИС для такой проверки не годится: он даёт русскую транскрипцию
+    # вообще без ударения («кама», «машеhу»), и подтвердить по нему
+    # можно только звуки, но не место ударения.
+    "כַּמָּה": "milel",     # КА-ма, а не ка-МА
+    "מַשֶׁהוּ": "first",    # МА-ше-ху: не предпоследний, а первый слог
+    "מִישֶׁהוּ": "first",   # МИ-ше-ху
+
     # Сеголатные с гортанной третьей корневой. Вместо второго сеголя у
     # них патах (потому что гортанная его требует), и общее правило
     # «последняя гласная — сеголь» их не ловит.
@@ -368,6 +381,20 @@ def to_ipa(word):
                 continue
         if letter == "י" and vowel is None and "ִ" in prev_marks:
             continue
+        # Дифтонг: йод без своей огласовки после цере или сегола не
+        # начинает новый слог, а закрывает нынешний. «אֵיפֹה» — это
+        # «эй-фо», два слога, а не «э-йфо»; последнее и получалось,
+        # из-за чего ударение уезжало на слог, которого нет, а
+        # синтезатор получал в разметке «э-ЙФО».
+        if (letter == "י" and vowel is None
+                and any(m in ("\u05b5", "\u05b6") for m in prev_marks)):
+            # Гласная предыдущей буквы слог уже закрыла, поэтому
+            # дописываем в него, а не в пустой накапливаемый.
+            if current:
+                current += "j"
+            elif syllables:
+                syllables[-1] += "j"
+            continue
 
         if letter in IPA_HARD and has_dagesh:
             snd = IPA_HARD[letter]
@@ -432,15 +459,21 @@ def to_ipa(word):
     # и только потом правило по виду слова.
     exception = _stress_exception(word)
     by_ending = _verb_ending_stress(units)
-    if exception == "milel":
-        penultimate = True
-    elif exception == "milra":
-        penultimate = False
-    elif by_ending is not None:
-        penultimate = by_ending
+    # «first» — ударение на первый слог. Отдельно от milel потому, что
+    # milel значит «предпоследний», и у трёхсложного слова это середина:
+    # «машеhу» с milel дало бы ма-ШЕ-ху вместо МА-ше-ху.
+    if exception == "first":
+        stressed = 0
     else:
-        penultimate = _is_segolate(units) or _helping_hiriq(units)
-    stressed = len(syllables) - (2 if penultimate and len(syllables) > 1 else 1)
+        if exception == "milel":
+            penultimate = True
+        elif exception == "milra":
+            penultimate = False
+        elif by_ending is not None:
+            penultimate = by_ending
+        else:
+            penultimate = _is_segolate(units) or _helping_hiriq(units)
+        stressed = len(syllables) - (2 if penultimate and len(syllables) > 1 else 1)
 
     # Формат проверен на слух (tools/stress_variants.py): точка стоит
     # между ВСЕМИ слогами, а знак ударения добавляется к ней, а не
