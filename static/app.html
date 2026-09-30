@@ -322,6 +322,20 @@ button{font:inherit;color:inherit;cursor:pointer}
         background:var(--ok);color:#fff;font-weight:650;font-size:17px;
         box-shadow:var(--shadow-p);transition:transform .18s var(--bounce)}
 .ok-btn:active{transform:translateY(2px)}
+/* Пара кнопок в ряд — одно правило на всё приложение.
+
+   Раньше каждая кнопка приносила свою ширину: у .ghost была width:100%,
+   у .ok-btn — flex:1, и в «Ещё раз / Дальше» прозрачная кнопка съедала
+   ряд, а главная сжималась в зелёный комок у края. Теперь в ряду обе
+   кнопки одной высоты и делят ширину поровну; главная — залитая,
+   второстепенная — с обводкой, чтобы было видно, что это тоже кнопка,
+   а не подпись. Главная всегда первая. */
+.row > button{flex:1 1 0;width:auto;min-width:0;min-height:52px;margin:0;
+              border-radius:var(--r);font-size:17px;font-weight:650}
+.row > .ghost{background:var(--surface);color:var(--primary);
+              border:1.5px solid color-mix(in srgb, var(--primary) 35%, var(--border));
+              padding:0 var(--s3)}
+.row > .ghost:active{background:var(--primary-soft)}
 .lead{color:var(--muted);font-size:14px;line-height:1.45;margin:0 0 var(--s4)}
 /* Ступени на вкладке «Учиться». Номер — не порядок прохождения до
    конца, а порядок, в котором ступень становится полезной. */
@@ -918,8 +932,8 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
     <span class="mic-l" id="say-mic-l"></span>
   </div>
   <div class="row" id="say-after" hidden>
+    <button class="primary" id="say-next" data-t="say.next">Дальше</button>
     <button class="ghost" id="say-again" data-t="say.again">Ещё раз</button>
-    <button class="ok-btn" id="say-next" data-t="say.next">Дальше</button>
   </div>
   <button class="primary" id="say-show" data-t="ui.showAnswer">Показать ответ</button>
   <div class="row" id="say-judge" hidden>
@@ -969,7 +983,7 @@ body{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
            data-t-ph="ui.typeHe">
     <div class="row">
       <button class="primary" id="send" data-t="ui.answer">Ответить</button>
-      <button class="ghost" id="skip" data-t="ui.dunno" style="flex:0 0 38%">Не знаю</button>
+      <button class="ghost" id="skip" data-t="ui.dunno">Не знаю</button>
     </div>
   </div>
   <!-- Формат «Вслух»: вместо поля — микрофон. -->
@@ -3313,7 +3327,7 @@ async function openProfile(){
              placeholder="${me.auto || t("me.hebName.ph")}">
       <div class="row">
         <button class="primary" id="name-save">${t("ui.save")}</button>
-        <button class="ghost" id="name-cancel" style="flex:0 0 38%">${t("ui.cancel")}</button>
+        <button class="ghost" id="name-cancel">${t("ui.cancel")}</button>
       </div>`;
     box.appendChild(form);
     $("name-input").focus();
