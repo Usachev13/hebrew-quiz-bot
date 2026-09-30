@@ -295,7 +295,19 @@ def _ask_google(system, turns):
     # а следом перечислял её же первой в списке доступных. Своими словами
     # чужую ошибку не пересказываем: показываем, что ответила служба, и
     # пробуем вторую версию API.
-    last = None
+    def _why(resp):
+        """Сообщение службы, а не сырой JSON.
+
+        Первый заход резал r.text по трёхстам знакам — а Google
+        печатает JSON с отступами, и на сам текст ошибки места уже не
+        оставалось: человек видел «This model models/gemini» и всё.
+        """
+        try:
+            return (resp.json().get("error") or {}).get("message") or resp.text
+        except ValueError:
+            return resp.text
+
+    tried = []
     for version in GOOGLE_VERSIONS:
         r = requests.post(
             f"https://generativelanguage.googleapis.com/{version}/models/"
@@ -306,16 +318,16 @@ def _ask_google(system, turns):
         )
         if r.status_code != 404:
             break
-        last = f"{version}: {r.text[:300]}"
+        tried.append(f"{version} — {_why(r)}")
     else:
         try:
             names = ", ".join(google_models()[:10]) or "ни одной"
         except Exception:                                    # noqa: BLE001
             names = "не удалось спросить"
         raise RuntimeError(
-            f"Google отвечает 404 на «{GOOGLE_MODEL}» во всех версиях "
-            f"API. Вот что он говорит — {last}. "
-            f"Доступны этому ключу: {names}.")
+            f"Google отвечает 404 на «{GOOGLE_MODEL}». Его словами:\n  "
+            + "\n  ".join(tried)
+            + f"\nДоступны этому ключу: {names}.")
 
     r.raise_for_status()
     body = r.json()

@@ -41,7 +41,26 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-call", action="store_true",
                     help="не обращаться к модели, только настройки")
+    ap.add_argument("--models", action="store_true",
+                    help="перечислить модели, доступные ключу Google")
     args = ap.parse_args()
+
+    if args.models:
+        if not dialog.GOOGLE_KEY:
+            print("Ключа GOOGLE_API_KEY в .env нет.")
+            return 1
+        try:
+            names = dialog.google_models()
+        except Exception as e:                               # noqa: BLE001
+            print(f"Не удалось спросить: {e}")
+            return 1
+        print(f"Моделей, заявленных как доступные: {len(names)}\n")
+        for n in names:
+            print(f"  {n}")
+        print("\nЗаявлены — не значит работают: ключ может быть ограничен, "
+              "а модель доступна только на платном уровне. Проверять "
+              "настоящим запросом, вписав имя в DIALOG_MODEL_GOOGLE.")
+        return 0
 
     print("Ключи в .env:")
     for name, getter in dialog.KEYS.items():
