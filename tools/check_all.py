@@ -40,6 +40,10 @@ NEEDS_KEYS = {"check_azure.py", "check_dialog_key.py"}
 # Не проверки, а инструменты.
 SKIP = {"check_all.py"}
 
+# Не проверки, а инструменты, которые ходят в платные службы. Запускать
+# их в общем прогоне значит тратить деньги при каждом «всё ли цело».
+TOOLS = {"dialog_compare.py", "nakdan_sweep.py"}
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -47,7 +51,7 @@ def main():
     args = ap.parse_args()
 
     scripts = sorted(p.name for p in HERE.glob("check_*.py")
-                     if p.name not in SKIP)
+                     if p.name not in SKIP | TOOLS)
     scripts.append("test_api.py")
 
     failed, skipped = [], []

@@ -463,12 +463,20 @@ input[type=text]:focus{outline:0;border-color:var(--primary)}
 .hero .name{font-weight:600;font-size:19px;line-height:1.2;letter-spacing:-.02em}
 .hero .lvl{font-size:11px;opacity:.75;margin-top:4px;letter-spacing:.1em;
            text-transform:uppercase}
-.resume .txt{flex:1;min-width:0}
-.resume .cap{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
-             color:var(--primary)}
-.resume .name{font-weight:650;font-size:17px;margin-top:2px}
-.resume .go{flex:0 0 auto;width:40px;height:40px;border-radius:999px;background:var(--primary);
-            color:var(--on-primary);display:grid;place-items:center}
+/* Карточка «Продолжить» без ивритского слова — спринт, аудирование,
+   слабые места. Раньше у неё была своя вёрстка: белая коробка, мелкая
+   надпись капителью и синий кружок. На фоне остальных карточек она
+   выглядела чужой заготовкой, а не частью приложения.
+   Теперь та же карточка, что и с ивритом, только крупная строка не
+   ивритская, а название раздела. */
+.resume-rich.plain .big{font-family:inherit;font-size:26px;font-weight:650;
+                        direction:ltr;letter-spacing:-.02em;line-height:1.25;
+                        margin-bottom:var(--s3)}
+/* Название раздела приходит с сервера строчными («спринт», «на слух»):
+   так оно набрано в списке разделов, и менять его там нельзя — там оно
+   стоит в строке «раздел: спринт». Поднимаем только первую букву, и
+   только здесь, где строка крупная и стоит заголовком. */
+.resume-rich.plain .big::first-letter{text-transform:uppercase}
 
 /* ── плитки-числа ── */
 /* Полоска недели прямо в шапке: видно, в какие дни занимался.
@@ -1685,10 +1693,13 @@ async function renderHome(){
         <span class="cta"><span>${t("home.cta")}</span>${icon("chev",18)}</span>
       </span>
     </button>` : `
-    <button class="resume" id="resume">
-      <span class="txt"><span class="cap">${t("home.cta")}</span>
-        <span class="name">${h.resume.label}</span></span>
-      <span class="go">${icon("play",18)}</span>
+    <button class="resume-rich plain" id="resume">
+      <span class="art">${resumeArt()}</span>
+      <span class="body">
+        <span class="where">${t("home.cta")}</span>
+        <span class="big">${h.resume.label}</span>
+        <span class="cta"><span>${t("home.start")}</span>${icon("chev",18)}</span>
+      </span>
     </button>`;
 
   html += `<div class="quick">
