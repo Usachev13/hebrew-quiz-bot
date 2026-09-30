@@ -346,24 +346,82 @@ no_ru = dialog._parse('{"he": "שלום", "ru": "", "fixed": "", "hint": ""}')
 check("пустой перевод виден в разборе", no_ru.get("ru") == "")
 
 saved_ask = dialog._ask_anthropic
+saved_vocal = nakdan_mod = None
+import nakdan as _nak  # noqa: E402
+saved_vocal = _nak.vocalize_trusted
+_nak.vocalize_trusted = lambda t: t          # сеть здесь не нужна
 dialog.ANTHROPIC_KEY = "x"
 dialog.OPENAI_KEY = dialog.GOOGLE_KEY = ""
 os.environ.pop("DIALOG_PROVIDER", None)
-dialog._ask_anthropic = lambda system, turns: (
-    '{"he": "שלום", "ru": "", "fixed": "", "hint": ""}', (10, 5))
+
+
+def _fake(main, second):
+    """Первый вызов — основной ответ, второй — дозапрос перевода."""
+    calls = iter([(main, (10, 5)), (second, (4, 2))])
+    return lambda system, turns: next(calls)
+
+
+# 1. Перевода нет — дозапрос его даёт, и расход обоих запросов учтён.
+dialog._ask_anthropic = _fake(
+    '{"he": "שלום", "ru": "", "fixed": "", "hint": ""}', "Привет")
 try:
     res = dialog.reply([], "שלום")
 finally:
     dialog._ask_anthropic = saved_ask
+check("пустой перевод добран дозапросом", res.get("ru") == "Привет", res.get("ru"))
+check("расход дозапроса учтён", res.get("usage") == (14, 7), res.get("usage"))
+check("добранный перевод не помечен как пустой", not res.get("no_ru"))
+
+# 2. Дозапрос вернул иврит — это не перевод. Первый заход подставлял
+#    сюда поле «he», и в строке перевода стоял тот же иврит, что выше.
+dialog._ask_anthropic = _fake(
+    '{"he": "שלום", "ru": "", "fixed": "", "hint": ""}',
+    '{"he": "שלום", "ru": ""}')
+try:
+    res = dialog.reply([], "שלום")
+finally:
+    dialog._ask_anthropic = saved_ask
+check("иврит не выдаётся за перевод", res.get("ru") == "", res.get("ru"))
 check("ответ без перевода помечен", res.get("no_ru") is True, res)
 
-dialog._ask_anthropic = lambda system, turns: (
-    '{"he": "שלום", "ru": "Привет", "fixed": "", "hint": ""}', (10, 5))
+# 3. Перевод есть сразу — дозапроса нет.
+dialog._ask_anthropic = _fake(
+    '{"he": "שלום", "ru": "Привет", "fixed": "", "hint": ""}', "ЛИШНИЙ")
 try:
     res = dialog.reply([], "שלום")
 finally:
     dialog._ask_anthropic = saved_ask
-check("ответ с переводом не помечен", not res.get("no_ru"), res)
+    _nak.vocalize_trusted = saved_vocal
+check("с переводом дозапроса нет", res.get("ru") == "Привет"
+      and res.get("usage") == (10, 5), res)
+
+# Строгую схему принимают не все, кто говорит на протоколе OpenAI.
+# Отказ (400) — повод спросить без схемы, а не повод оставить человека
+# без собеседника.
+sent = []
+
+
+def _schema_refused(url, **kw):
+    has_schema = "response_format" in kw.get("json", {})
+    sent.append(has_schema)
+    if has_schema:
+        return FakeResponse({}, status=400, text="response_format not supported")
+    return FakeResponse({"choices": [{"message": {"content": GOOD}}],
+                         "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
+
+
+dialog.requests.post = _schema_refused
+try:
+    text, _u = dialog._ask_openai("п", [{"role": "user", "content": "ש"}])
+finally:
+    dialog.requests.post = real_post
+check("отказ от схемы — повтор без неё", sent == [True, False]
+      and dialog._parse(text).get("he", "").startswith("שָׁלוֹם"), sent)
+
+# Строгая схема перечисляет все четыре поля: без неё перевод терялся в
+# четырёх репликах из пяти у gpt-4o-mini и в одной у gpt-4o.
+check("схема требует все поля",
+      set(dialog.RESPONSE_SCHEMA["schema"]["required"]) == {"he", "ru", "fixed", "hint"})
 check("подсказка требует перевода всегда",
       "ВСЕГДА" in dialog._system("m", "ru"))
 dialog.ANTHROPIC_KEY = ""

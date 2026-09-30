@@ -242,15 +242,46 @@ def _ask_anthropic(system, turns):
     return text, (usage.get("input_tokens", 0), usage.get("output_tokens", 0))
 
 
-def _ask_openai(system, turns):
+# Схема ответа. Просьбы в подсказке «заполняй перевод всегда» модель
+# выполняла через раз: gpt-4o-mini теряла перевод в четырёх репликах из
+# пяти, gpt-4o — в одной. Схема со строгим режимом переносит требование
+# из уговоров в протокол: служба не вернёт ответ без обязательных полей.
+RESPONSE_SCHEMA = {
+    "name": "reply",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["he", "ru", "fixed", "hint"],
+        "properties": {
+            "he": {"type": "string"},
+            "ru": {"type": "string"},
+            "fixed": {"type": "string"},
+            "hint": {"type": "string"},
+        },
+    },
+}
+
+
+def _ask_openai(system, turns, schema=True):
+    payload = {"model": OPENAI_MODEL, "max_tokens": 400,
+               "messages": [{"role": "system", "content": system}] + turns}
+    # Строгая схема есть не у всех, кто говорит на протоколе OpenAI:
+    # Groq и OpenRouter принимают её не для каждой модели. Там, где
+    # схему отвергли, просим ответ без неё — разбор у нас всё равно
+    # терпимый.
+    if schema:
+        payload["response_format"] = {"type": "json_schema",
+                                      "json_schema": RESPONSE_SCHEMA}
     r = requests.post(
         f"{OPENAI_BASE}/chat/completions",
         headers={"Authorization": f"Bearer {OPENAI_KEY}",
                  "content-type": "application/json"},
-        json={"model": OPENAI_MODEL, "max_tokens": 400,
-              "messages": [{"role": "system", "content": system}] + turns},
+        json=payload,
         timeout=TIMEOUT,
     )
+    if schema and r.status_code == 400:
+        return _ask_openai(system, turns, schema=False)
     r.raise_for_status()
     body = r.json()
     text = body["choices"][0]["message"]["content"]
@@ -428,6 +459,37 @@ def mark_fix(said, fixed):
     return " ".join(out)
 
 
+def strip_marks(text):
+    return "".join(c for c in (text or "") if not (0x0591 <= ord(c) <= 0x05C7))
+
+
+def _translate(he, lang="ru"):
+    """Перевод одной реплики — когда модель забыла его в основном ответе."""
+    target = "английский" if lang == "en" else "русский"
+    system = (f"Переведи фразу с иврита на {target}. Ответь только "
+              f"переводом, одной строкой, без кавычек и пояснений.")
+    turns = [{"role": "user", "content": he}]
+    try:
+        ask = {"anthropic": _ask_anthropic, "google": _ask_google}.get(
+            provider(), lambda s, t: _ask_openai(s, t, schema=False))
+        text, usage = ask(system, turns)
+    except Exception as e:                                   # noqa: BLE001
+        print(f"[dialog] перевод не удался: {e}")
+        _translate.last_usage = (0, 0)
+        return ""
+    _translate.last_usage = usage
+    text = (text or "").strip().strip('"«»')
+    # Схема здесь не нужна, но модель иногда всё равно отвечает JSON'ом.
+    if text.startswith("{"):
+        text = _parse(text).get("ru") or ""
+    # Перевод с ивритскими буквами — не перевод. Первый заход брал поле
+    # «he», если «ru» было пустым, и ученик получал в строке перевода тот
+    # же иврит, что и выше. Лучше честное «перевода нет».
+    if any("\u05d0" <= c <= "\u05ea" for c in text):
+        return ""
+    return _clean(text)
+
+
 def reply(history, said, gender="m", lang="ru", companion="f"):
     """Ответ собеседника.
 
@@ -477,11 +539,14 @@ def reply(history, said, gender="m", lang="ru", companion="f"):
     fixed, ok_fixed = hebrew_rules.sanitize(fixed)
     ru = _clean(data.get("ru"))
     if he and not ru:
-        # Модель забыла перевод — это случается, и в живом разговоре
-        # ученик получал ивритскую фразу без единого слова по-русски.
-        # Просить второй раз дорого и медленно; честнее сказать прямо,
-        # что перевода нет, чем показать пустоту.
-        ru = ""
+        # Схема гарантирует, что поле ЕСТЬ, но не что оно не пустое:
+        # строгий режим не умеет «строка не короче одного знака». Поэтому
+        # страховка на нашей стороне — отдельный короткий запрос на один
+        # перевод. Он стоит долю цента и случается редко, а ученик без
+        # перевода не может прочесть ответ вовсе.
+        ru = _translate(strip_marks(he), lang)
+        extra = getattr(_translate, "last_usage", (0, 0))
+        usage = (usage[0] + extra[0], usage[1] + extra[1])
     return {
         "he": he,
         "ru": ru,
