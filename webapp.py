@@ -857,9 +857,25 @@ def say_check(chat_id, payload):
         if j is not None:
             ok, comment, by = j["ok"], j["comment"], "model"
             verdict = "meaning" if ok else "wrong"
+    # Пишем в журнал каждую проверку: без этого «ничего не происходит»
+    # не отличить от «запрос не дошёл».
+    print(f"[say_check] {cid}: {len(data)} байт, услышано «{heard}», "
+          f"{verdict} ({by})")
     return jsonify({"verdict": verdict, "ok": ok, "heard": best["heard"],
                     "diff": best["diff"], "comment": comment, "by": by,
                     "unsure": bool(conf and conf < 0.5)})
+
+
+@api.route("/api/client_log", methods=["POST"])
+@guarded
+def client_log(chat_id, payload):
+    """Сбой на телефоне — в журнал сервера. Микрофон в Telegram ведёт
+    себя по-разному на разных устройствах, и без этого мы узнаём о
+    поломке только со слов человека."""
+    where = str(payload.get("where", ""))[:40]
+    msg = str(payload.get("msg", ""))[:300]
+    print(f"[client] {chat_id} {where}: {msg}")
+    return jsonify({"ok": True})
 
 
 @api.route("/api/situations", methods=["POST"])

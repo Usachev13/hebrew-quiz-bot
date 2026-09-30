@@ -1283,6 +1283,7 @@ ru: {
   "say.mic.idle": "Нажмите и скажите",
   "say.mic.rec": "Говорите… нажмите, чтобы закончить",
   "say.mic.busy": "Проверяю…",
+  "say.mic.ask": "Разрешите доступ к микрофону…",
   "say.mic.off": "Микрофон недоступен — отмечайте сами, сказали или нет.",
   "say.mic.failed": "Проверить не вышло — сравните с ответом сами.",
   "say.v.match": "Верно!",
@@ -1496,6 +1497,7 @@ en: {
   "say.mic.idle": "Tap and speak",
   "say.mic.rec": "Speak… tap to finish",
   "say.mic.busy": "Checking…",
+  "say.mic.ask": "Allow microphone access…",
   "say.mic.off": "No microphone — mark it yourself.",
   "say.mic.failed": "Couldn't check — compare with the answer yourself.",
   "say.v.match": "Correct!",
@@ -2116,6 +2118,14 @@ function renderSay(){
   $("say-after").hidden = true;
   state.sayOk = null;
   const mic = canCheckSpeech();
+  if (!mic && !state.micWhyLogged){
+    // Почему микрофона нет — один раз за заход, в журнал сервера.
+    state.micWhyLogged = true;
+    clientLog("mic", "кнопки нет: speech_check=" + !!state.menu?.speech_check
+      + ", getUserMedia=" + !!navigator.mediaDevices?.getUserMedia
+      + ", AudioContext=" + !!(window.AudioContext || window.webkitAudioContext)
+      + ", micOff=" + !!state.micOff);
+  }
   $("say-mic-box").hidden = !mic;
   // С микрофоном «Показать ответ» — запасной выход, а не главный путь.
   $("say-show").className = mic ? "ghost" : "primary";
@@ -2219,11 +2229,28 @@ function setMic(mode){
   $("say-mic-l").textContent = t("say.mic." + mode);
 }
 
+const clientLog = (where, msg) =>
+  api("/api/client_log", { where, msg: String(msg) }).catch(() => {});
+
 async function toggleRec(){
   if (rec.on) return stopRec();
+  if (rec.asking) return;
+  // Пока Telegram спрашивает разрешение, показываем, что нажатие
+  // принято. Раньше подпись не менялась, и казалось, что не происходит
+  // ничего.
+  rec.asking = true;
+  setMic("ask");
+  clientLog("mic", "нажата, запрашиваю доступ");
   try {
-    rec.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Бывает, что встроенный браузер Telegram не отвечает на запрос
+    // микрофона вовсе — ни да, ни нет. Ждём 8 секунд и сдаёмся.
+    rec.stream = await Promise.race([
+      navigator.mediaDevices.getUserMedia({ audio: true }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("нет ответа за 8 с")), 8000)),
+    ]);
   } catch(e){
+    rec.asking = false;
+    clientLog("mic", (e && (e.name + ": " + e.message)) || e);
     // Отказали в доступе или микрофона нет — дальше без него.
     state.micOff = true;
     $("say-mic-box").hidden = true;
@@ -2233,8 +2260,13 @@ async function toggleRec(){
     $("say-note").textContent = t("say.mic.off");
     return;
   }
+  rec.asking = false;
+  clientLog("mic", "доступ есть, пишу");
   const AC = window.AudioContext || window.webkitAudioContext;
   rec.ctx = new AC();
+  // На iPhone контекст рождается «спящим» и пишет тишину, пока его не
+  // разбудить.
+  if (rec.ctx.state === "suspended") await rec.ctx.resume().catch(() => {});
   rec.rate = rec.ctx.sampleRate;
   const src = rec.ctx.createMediaStreamSource(rec.stream);
   rec.node = rec.ctx.createScriptProcessor(4096, 1, 1);
@@ -2257,6 +2289,7 @@ function stopRec(discard = false){
   rec.stream.getTracks().forEach(tr => tr.stop());
   rec.ctx.close().catch(() => {});
   if (discard){ setMic("idle"); return; }
+  if (!rec.chunks.length) clientLog("mic", "запись пустая: звук не шёл");
   const wav = encodeWav(rec.chunks, rec.rate);
   checkSay(wav);
 }
@@ -2297,6 +2330,7 @@ async function checkSay(audio){
   try { r = await api("/api/say_check", { id: c.id, audio }); }
   catch(e){ r = { error: "network" }; }
   if (r.error){
+    clientLog("say_check", r.error);
     // Проверка не удалась — не бросаем человека: самопроверка.
     if (r.error === "no_stt") state.micOff = true;
     $("say-mic-box").hidden = true;
