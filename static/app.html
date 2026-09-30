@@ -387,12 +387,28 @@ input[type=text]:focus{outline:0;border-color:var(--primary)}
       background:transparent;border:1px solid var(--border);border-radius:999px;
       padding:0 var(--s4);margin-top:var(--s3);font-size:14px;font-weight:600}
 
+/* Атрибут hidden обязан прятать, что бы ни стояло в стилях элемента.
+   Без этого правила он молча не работал везде, где у элемента задан
+   свой display: буквы анаграммы (display:flex) оставались на экране и
+   переезжали в следующую игру — над вопросом с вариантами висели буквы
+   прошлого слова. Эту же ловушку раньше закрывали поштучно
+   (.hidden-box[hidden], .example[hidden], .wait[hidden]); теперь
+   закрыта для всех. */
+[hidden]{display:none!important}
+
 .letters{display:flex;flex-wrap:wrap;gap:var(--s2);justify-content:center;
          margin-bottom:var(--s4)}
-.letters span{background:var(--surface);border:1px solid var(--border);
+.letters button{background:var(--surface);border:1px solid var(--border);
               border-radius:var(--r-sm);min-width:46px;height:52px;display:grid;
               place-items:center;font-family:"Noto Sans Hebrew",sans-serif;font-size:26px;
-              box-shadow:var(--shadow)}
+              box-shadow:var(--shadow);color:var(--text);padding:0 var(--s2);
+              transition:transform .12s var(--bounce), opacity .12s}
+.letters button:active{transform:scale(.94)}
+/* Использованная буква не исчезает, а тускнеет: так видно, сколько
+   осталось, и слово не «прыгает», когда плитки пропадают. */
+.letters button.used{opacity:.28;box-shadow:none}
+.letters .erase{font-family:inherit;font-size:20px;min-width:52px;
+                background:transparent;box-shadow:none}
 
 /* ── итог и прогресс ── */
 .done-art{display:block;width:150px;margin:var(--s5) auto 0}
@@ -2216,11 +2232,60 @@ function renderQuestion(){
     });
   } else {
     if (state.fmt === "anagram"){
-      $("letters").hidden = false;
-      $("letters").innerHTML = q.letters.map(l => `<span>${l}</span>`).join("");
+      renderLetters(q.letters);
     }
-    $("typed").hidden = false; $("answer").value = ""; $("answer").focus();
+    $("typed").hidden = false; $("answer").value = "";
+    // В анаграмме клавиатуру не вызываем: человек собирает слово
+    // нажатием на буквы, а всплывшая клавиатура закрыла бы полэкрана и
+    // сами плитки. Набирать руками по-прежнему можно — поле на месте.
+    if (state.fmt !== "anagram") $("answer").focus();
   }
+}
+
+/* ---------- Анаграмма: буквы нажимаются ----------
+
+   Раньше буквы были картинкой: плитки показывались, но нажать на них
+   было нельзя, и слово приходилось набирать с клавиатуры, глядя на
+   подсказку. То есть «собрать из букв» было «напечатать, подглядывая».
+
+   Нажатие на букву дописывает её в поле ответа, плитка тускнеет. «⌫»
+   убирает последнюю. Поле остаётся живым: можно и набрать руками, и
+   тогда плитки сверяются с тем, что набрано, — одни и те же буквы не
+   выдаются дважды. */
+function renderLetters(letters){
+  const host = $("letters");
+  host.hidden = false;
+  host.innerHTML = letters.map((l, i) =>
+    `<button type="button" data-i="${i}" data-l="${l}">${l}</button>`).join("")
+    + `<button type="button" class="erase" data-erase="1" aria-label="⌫">⌫</button>`;
+  host.querySelectorAll("button[data-i]").forEach(b => b.onclick = () => {
+    if (b.classList.contains("used")) return;
+    tap();
+    $("answer").value += b.dataset.l;
+    syncLetters();
+  });
+  host.querySelector("[data-erase]").onclick = () => {
+    tap();
+    $("answer").value = [...$("answer").value].slice(0, -1).join("");
+    syncLetters();
+  };
+  $("answer").oninput = syncLetters;
+  syncLetters();
+}
+
+/* Какие плитки заняты — по тому, что стоит в поле, а не по истории
+   нажатий. Иначе ручной набор и нажатия разошлись бы: набрал «ש» с
+   клавиатуры — а плитка «ש» осталась бы свободной, и буква вышла бы
+   дважды. Буквы считаются как мешок: две «ל» в слове — две плитки. */
+function syncLetters(){
+  const host = $("letters");
+  if (host.hidden) return;
+  const left = [...$("answer").value.replace(/\s/g, "")];
+  host.querySelectorAll("button[data-i]").forEach(b => {
+    const k = left.indexOf(b.dataset.l);
+    if (k >= 0){ left.splice(k, 1); b.classList.add("used"); }
+    else b.classList.remove("used");
+  });
 }
 
 /* ---------- Спринт на время ----------
