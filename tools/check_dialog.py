@@ -546,6 +546,20 @@ try:
           dialog._vocalize("שָׁם") == "ОТ_DICTA", dialog._vocalize("שָׁם"))
 finally:
     dialog.NIQQUD, nakdan.vocalize_trusted = saved_src, saved_voc
+# Сборка по словам: модель огласовала не всё — её слова остаются, а
+# пробелы заполняет Dicta. Раньше при одном пропуске выбрасывалось всё.
+saved_src, saved_voc = dialog.NIQQUD, nakdan.vocalize_trusted
+nakdan.vocalize_trusted = lambda t: {
+    "שמי רינה, דניאל": "שְׁמִי רִינָּה, דָּנִיֵּאל"}.get(t, t)
+try:
+    dialog.NIQQUD = "model"
+    got, src = dialog._vocalize_with_source("שְׁמִי רינה, דָּנִיאֵל")
+finally:
+    dialog.NIQQUD, nakdan.vocalize_trusted = saved_src, saved_voc
+check("пропуск модели заполнен Dicta", "רִינָּה" in got, got)
+check("огласовки модели в остальных словах сохранены",
+      "דָּנִיאֵל" in got and "דָּנִיֵּאל" not in got, got)
+check("источник назван смешанным", src == "model+nakdan", src)
 check("подсказка просит огласовки только в режиме model",
       "Ставь огласовки" not in dialog._system("m", "ru"))
 

@@ -533,13 +533,53 @@ def _vocalize(text):
     и в режиме «nakdan». В обоих случаях наши выверенные формы важнее:
     слово, которое есть в банке, берётся из банка.
     """
+    return _vocalize_with_source(text)[0]
+
+
+def _vocalize_with_source(text):
+    """То же, что _vocalize, плюс кто в итоге поставил огласовки.
+
+    Источник нужен не для красоты. Сравнение «модель против Dicta» брало
+    текст уже ПОСЛЕ этого выбора — и когда модель огласовывала не всё,
+    срабатывал откат на Dicta, и дальше Dicta сравнивалась сама с собой.
+    Прогон показал «разошлись в 0 из 5», и это была неправда.
+    """
     if not text:
-        return text
+        return text, "none"
     if NIQQUD == "model":
         own, ok = hebrew_rules.sanitize(text)
         if ok:
-            return nakdan.trusted_overlay(own)
-    return nakdan.vocalize_trusted(text) or text
+            return nakdan.trusted_overlay(own), "model"
+        merged = _merge_by_word(text)
+        if merged:
+            return merged, "model+nakdan"
+    return (nakdan.vocalize_trusted(text) or text), "nakdan"
+
+
+def _merge_by_word(text):
+    """Огласовки модели там, где она их поставила, Dicta — в пробелах.
+
+    Первый заход был «всё или ничего»: не огласовала модель одно имя —
+    и выбрасывались ВСЕ её огласовки, включая верные. В прогоне так
+    пропали «דָּנִיאֵל» (как человек сам произносит своё имя) и «שָׁם»
+    («там»), а на их место пришли библейское «דָּנִיֵּאל» и омограф «שֵׁם».
+
+    Слово модели берём, если у него есть огласовки и оно не нарушает
+    формальных правил. Остальные — у Dicta. Слова сопоставляем по
+    порядку: Dicta получает тот же текст без значков, и границы слов у
+    неё те же. Не совпало число слов — не гадаем, возвращаем None.
+    """
+    dicta = nakdan.vocalize_trusted(hebrew_rules.strip_niqqud(text))
+    ours, theirs = text.split(), (dicta or "").split()
+    if not theirs or len(ours) != len(theirs):
+        return None
+    out = []
+    for mine, other in zip(ours, theirs):
+        usable = (mine != hebrew_rules.strip_niqqud(mine)
+                  and hebrew_rules.is_vocalized(mine)
+                  and not hebrew_rules.problems(mine))
+        out.append(mine if usable else other)
+    return nakdan.trusted_overlay(" ".join(out))
 
 
 def reply(history, said, gender="m", lang="ru", companion="f"):
@@ -581,7 +621,8 @@ def reply(history, said, gender="m", lang="ru", companion="f"):
     # Nakdan заполняет только то, чего у нас нет.
     # Недоступен — остаёмся с тем, что дала модель: разговор из-за
     # огласовок прерываться не должен.
-    he = _vocalize(he)
+    he_model = he          # как модель написала, до всякой обработки
+    he, niqqud_by = _vocalize_with_source(he)
     fixed = _vocalize(fixed)
     # Собственная проверка: огласовки модели никто не выверял, и если они
     # нарушают формальные правила — значит, порождено что-то странное.
@@ -601,6 +642,8 @@ def reply(history, said, gender="m", lang="ru", companion="f"):
         usage = (usage[0] + extra[0], usage[1] + extra[1])
     return {
         "he": he,
+        "he_model": he_model,
+        "niqqud_by": niqqud_by,
         "ru": ru,
         "no_ru": bool(he and not ru),
         "fixed": fixed,
