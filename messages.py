@@ -150,7 +150,11 @@ M = {
 },
 "talk.reset": {"ru": "Хорошо, забыли. О чём поговорим?",
                "en": "Fine, forgotten. What shall we talk about?"},
-"talk.heard": {"ru": "Вы сказали: {text}", "en": "You said: {text}"},
+"talk.showText": {"ru": "📄 Текст", "en": "📄 Text"},
+"talk.listen": {"ru": "🎧 Послушайте ответ",
+                "en": "🎧 Listen to the answer"},
+"talk.noText": {"ru": "Текста уже нет — скажите что-нибудь ещё.",
+                "en": "That text is gone — say something else."},
 "talk.better": {"ru": "💡 {text}", "en": "💡 {text}"},
 "talk.hint": {"ru": "Подсказка: {text}", "en": "Hint: {text}"},
 "talk.off": {

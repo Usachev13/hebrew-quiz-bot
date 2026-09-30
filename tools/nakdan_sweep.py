@@ -52,21 +52,48 @@ REPORT = HERE.parent / "НЕСХОДИМОСТИ_NAKDAN.md"
 SCOPES = ("all", "words", "verbs", "forms", "phrases", "syntax")
 
 
-def norm(word):
-    """Порядок огласовок при букве у разных источников разный.
+# Метег — вертикальная чёрточка под буквой. Это не огласовка, а знак
+# ритма: он подсказывает чтецу задержаться на слоге. Dicta ставит его
+# охотно, мы не ставим нигде, и на первом прогоне девять расхождений из
+# тридцати были ровно этим — шумом, а не разночтением.
+#
+# Холам мале (וֹ) против холам хасер (ֹ) — та же история: «לִטְעוֹם» и
+# «לִטְעֹם» читаются одинаково, это выбор написания, а не звука.
+METEG = "\u05bd"
+HOLAM = "\u05b9"
+VAV = "\u05d5"
 
-    Тот же нормализатор, что в check_conjugations: без него отчёт полон
-    расхождений, которых нет — строки отличаются только порядком
-    комбинирующих знаков.
+
+def norm(word):
+    """Слово в виде, пригодном для сравнения ЗВУЧАНИЯ.
+
+    Снимаем три вида разночтений в записи, которые звука не меняют:
+    метег, порядок знаков при букве и холам мале против холам хасер.
+    Без этого отчёт наполовину состоит из расхождений, которых нет: на
+    первом прогоне девять из тридцати были ровно такими.
     """
-    out = []
+    word = (word or "").replace(METEG, "")
+
+    # Разбираем на группы «буква + её знаки».
+    groups = []
     for ch in word:
         if unicodedata.combining(ch):
-            if out:
-                out[-1] += ch
+            if groups:
+                groups[-1][1].append(ch)
         else:
-            out.append(ch)
-    return "".join(g[0] + "".join(sorted(g[1:])) for g in out)
+            groups.append([ch, []])
+
+    # Холам на букве перед голым вавом — это тот же звук, что холам на
+    # самом ваве: «לִטְעֹום» и «לִטְעוֹם». Переносим на вав, чтобы запись
+    # стала одна. Порядок знаков при букве тут уже не важен — холам мог
+    # стоять и до дагеша, и после.
+    for i, (letter, marks) in enumerate(groups[:-1]):
+        nxt_letter, nxt_marks = groups[i + 1]
+        if HOLAM in marks and nxt_letter == VAV and not nxt_marks:
+            marks.remove(HOLAM)
+            nxt_marks.append(HOLAM)
+
+    return "".join(letter + "".join(sorted(marks)) for letter, marks in groups)
 
 
 def collect(scope):
@@ -102,7 +129,10 @@ def collect(scope):
                 # У таких фраз есть готовый пример — его и берём.
                 if not text or phrases.SLOT in text:
                     continue
-                items.append((f"фразы/{sit}", item["ru"], text))
+                # Женские формы помечаем: их спрашиваем отдельным
+                # заходом, чтобы соседняя мужская не сбивала род.
+                mark = "ж:" if field == "he_f" else ""
+                items.append((f"{mark}фразы/{sit}", item["ru"], text))
             example = (item.get("example") or {}).get("he")
             if example:
                 items.append((f"пример/{sit}", item["ru"], example))
@@ -130,13 +160,25 @@ def main():
         items = items[: args.limit]
     print(f"Строк к сверке: {len(items)}")
 
-    texts = [he for _w, _l, he in items]
-
     def progress(done, total):
         if total and (done % 200 == 0 or done == total):
             print(f"  спрошено {done}/{total}…")
 
-    theirs = nakdan.vocalize_many(texts, progress=progress)
+    # Мужскую и женскую формы одной фразы спрашиваем РАЗНЫМИ заходами.
+    # Иначе они попадают в один запрос соседними строками, огласовщик
+    # видит их как связный текст и «выравнивает» род: «אֲנִי רוֹצָה»
+    # вслед за «אֲנִי רוֹצֶה» он переписал в мужскую форму. На первом
+    # прогоне это дало пять расхождений, придуманных самим способом
+    # сверки, а не данными.
+    first = [it for it in items if not it[0].startswith("ж:")]
+    second = [it for it in items if it[0].startswith("ж:")]
+    theirs = {}
+    for part in (first, second):
+        if not part:
+            continue
+        got = nakdan.vocalize_many([he for _w, _l, he in part], progress=progress)
+        theirs.update({he: g for (_w, _l, he), g in zip(part, got)})
+    theirs = [theirs.get(he, "") for _w, _l, he in items]
 
     same, diff = 0, []
     for (where, label, ours), got in zip(items, theirs):
@@ -184,7 +226,8 @@ def main():
     lines += ["", "## Построчно", "",
               "| где | что | у нас | у Nakdan | вид |", "|---|---|---|---|---|"]
     for where, label, ours, got, kind in diff:
-        lines.append(f"| {where} | {label} | `{ours}` | `{got}` | {kind} |")
+        lines.append(f"| {where.lstrip('ж:')} | {label} | `{ours}` | "
+                     f"`{got}` | {kind} |")
 
     REPORT.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print()

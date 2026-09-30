@@ -995,9 +995,12 @@ def handle_voice(chat_id, voice, lang="ru"):
             send_message(chat_id, t("speak.noTask", lang),
                          main_menu_keyboard(lang))
             return
+        # Расшифровку его собственных слов не печатаем: человек знает,
+        # что сказал, а строка «Вы сказали: …» занимала пол-экрана и
+        # выдавала промахи распознавания за его ошибки. Если он сказал
+        # не то, это видно по поправке.
         heard = _transcribe(chat_id, voice, lang)
         if heard:
-            send_message(chat_id, t("talk.heard", lang, text=heard))
             handle_talk(chat_id, heard, lang)
         return
     heard_conf = _transcribe(chat_id, voice, lang, with_conf=True)
@@ -1042,11 +1045,15 @@ def handle_voice(chat_id, voice, lang="ru"):
 # dialog.py; здесь — то, что видит человек.
 
 
-def talk_keyboard(chat_id, lang="ru"):
+def talk_keyboard(chat_id, lang="ru", has_text=False):
     # Пол собеседника прямо в разговоре, а не в настройках: он слышен в
     # каждой реплике, и менять его захочется сразу, а не через меню.
     other = "m" if db.talk_gender(chat_id) == "f" else "f"
-    return {"inline_keyboard": [
+    rows = []
+    if has_text:
+        rows.append([{"text": t("talk.showText", lang),
+                      "callback_data": "talk_text"}])
+    return {"inline_keyboard": rows + [
         [{"text": t(f"talk.switch.{other}", lang),
           "callback_data": f"talk_voice|{other}"}],
         [{"text": t("talk.restart", lang), "callback_data": "talk_reset"}],
@@ -1094,40 +1101,62 @@ def handle_talk(chat_id, said, lang="ru"):
     db.dialog_add(chat_id, "user", said)
     db.dialog_add(chat_id, "bot", res["he"], res["usage"], res["ok"])
 
-    lines = []
-    # Поправка идёт ПЕРЕД ответом: сначала человек видит, как надо было
-    # сказать, и только потом — что ему ответили. Наоборот он поправку
-    # уже не прочитает, потому что будет думать над ответом.
+    # Что видит человек и в каком порядке.
     #
-    # Показываем его собственную фразу целиком, с правками внутри неё, а
-    # не отдельный «правильный вариант». Разница существенная: рядом
-    # лежащий правильный вариант человек сравнивает сам и обычно не
-    # сравнивает, а зачёркнутое слово в своей же фразе видно сразу.
-    if res["marked"]:
-        lines.append(t("talk.better", lang, text=res["marked"]))
-        reading = _reading_if_clean(res["fixed"], res["ok"], lang)
-        if reading:
-            lines.append(reading)
-    if res["he"]:
-        lines.append(f"<b>{res['he']}</b>")
-        reading_line = _reading_if_clean(res["he"], res["ok"], lang)
-        if reading_line:
-            lines.append(reading_line)
-    if res["ru"]:
-        lines.append(f"<i>{res['ru']}</i>")
-    if res["hint"]:
-        lines.append(t("talk.hint", lang, text=res["hint"]))
-
-    send_message(chat_id, "\n".join(lines) or t("talk.failed", lang),
-                 talk_keyboard(chat_id, lang))
-
-    # Голос — после текста: человек сначала читает, потом слушает и
-    # повторяет. Нет озвучки — разговор продолжается без неё.
+    # Раньше вываливалось всё сразу: расшифровка его слов, ивритский
+    # ответ, транскрипция, перевод — и только потом голос. Это не
+    # разговор, а разбор: читать было нечего, всё уже прочитано.
+    #
+    # Теперь как в живой беседе. Сперва СЛЫШИШЬ ответ, и только если не
+    # разобрал — открываешь текст кнопкой. Расшифровку своих слов не
+    # показываем вовсе: человек знает, что он сказал. Показываем ровно
+    # то, чего он не знает, — где ошибся.
+    voiced = False
     if res["he"] and db.voice_enabled(chat_id) and audio.can_speak():
         path = audio.ensure_audio(res["he"],
                                   voice=audio.voice_for(db.talk_gender(chat_id)))
         if path:
             audio.send_voice_file(API_URL, chat_id, path)
+            voiced = True
+
+    # Поправку даём всегда и до ответа: потом человек будет думать над
+    # ответом и до неё уже не вернётся. Это его собственная фраза с
+    # правками внутри — рядом лежащий «правильный вариант» человек
+    # сравнивает сам и обычно не сравнивает.
+    lines = []
+    if res["marked"]:
+        lines.append(t("talk.better", lang, text=res["marked"]))
+        reading = _reading_if_clean(res["fixed"], res["ok"], lang)
+        if reading:
+            lines.append(reading)
+    if res["hint"]:
+        lines.append(t("talk.hint", lang, text=res["hint"]))
+
+    # Голос ушёл — текст прячем за кнопку. Не ушёл (нет озвучки или
+    # человек её выключил) — показываем сразу, иначе ответа не будет
+    # вовсе.
+    sessions.setdefault(chat_id, {})["talk_text"] = _talk_text(res, lang)
+    if not voiced:
+        lines.append(sessions[chat_id]["talk_text"])
+    if not lines:
+        lines.append(t("talk.listen", lang))
+
+    send_message(chat_id, "\n".join(lines),
+                 talk_keyboard(chat_id, lang, has_text=voiced))
+
+
+def _talk_text(res, lang):
+    """Расшифровка ответа собеседника: иврит, чтение, перевод."""
+    out = []
+    if res["he"]:
+        out.append(f"<b>{res['he']}</b>")
+        reading = _reading_if_clean(res["he"], res["ok"], lang)
+        if reading:
+            out.append(reading)
+    if res["ru"]:
+        out.append(f"<i>{res['ru']}</i>")
+    return "\n".join(out) or t("talk.failed", lang)
+
 
 
 def _reading_if_clean(text, ok, lang):
@@ -1492,6 +1521,10 @@ def _handle_webhook_update():
 
         if data == "talk":
             start_talk(chat_id, lang)
+        elif data == "talk_text":
+            text = (sessions.get(chat_id) or {}).get("talk_text")
+            send_message(chat_id, text or t("talk.noText", lang),
+                         talk_keyboard(chat_id, lang))
         elif data == "talk_reset":
             db.dialog_reset(chat_id)
             send_message(chat_id, t("talk.reset", lang),
